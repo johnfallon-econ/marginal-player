@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pricing a trade — The Marginal Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<link rel="icon" href="assets/favicon.png">
+</head>
+<body>
+<header><div class="wrap"><nav>
+<a class="brand" href="index.html"><img src="assets/mark-light.png" alt="The Marginal Player" width="34" height="34" style="display:block;flex:none;width:34px;height:auto"><span>The<br>Marginal<br>Player</span></a>
+<a href="index.html">Home</a><a href="players.html">Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trade-tool.html">Trade Lab</a><a href="methodology-value.html">Method</a>
+</nav></div></header>
+<div class="wrap">
+<nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><a href="methodology-draft.html">Draft model</a><span class="on">Trade pricing</span></nav>
+<h1>Pricing a trade</h1>
+<p class="lede">A trade is not an exchange of players. It is a change in what entire
+rosters are worth, under constraints that make talent stubbornly non-additive. Six
+mechanisms do the work. Five are estimated; one is a stated modelling choice, and it
+is the one most capable of changing a trade's sign.</p>
+
+<h2>1. Minutes are a budget</h2>
+
+<p>The binding constraint: a team plays <strong>240 player-minutes</strong> per game and
+may dress fifteen. Valuing an acquisition at the minutes he has historically played
+lets a calculator buy ten thirty-minute players and count all ten &mdash; 300 minutes
+on a 240-minute team &mdash; which is why naive trade tools conclude that acquiring
+talent is always good.</p>
+
+<p>Instead the roster is re-optimised. With <em>m<sub>i</sub></em> the minutes assigned
+to player <em>i</em> and <em>v<sub>i</sub></em> his per-minute value:</p>
+
+<div class="eqn">max<sub>m</sub>  &Sigma;<sub>i</sub> v<sub>i</sub>(m<sub>i</sub>)<br>s.t.  &Sigma;<sub>i</sub> m<sub>i</sub> = 240,   0 &le; m<sub>i</sub> &le; 38,   |&#123;i : m<sub>i</sub> &gt; 0&#125;| &le; 15</div>
+
+<p>The value of a trade is the difference between the solved optima before and after,
+for every team involved. An incoming player <em>displaces</em> minutes rather than
+adding them, and the 38-minute cap stops the optimiser answering "play the best man 48".</p>
+
+<h2>2. The roster limit, and a bug it caused</h2>
+
+<p>The fifteen-man cap is a real constraint rather than decoration, and it bites in a
+way worth naming. A one-body roster change can flip the man on the bubble between
+waived and playing. Charging a full season of workload to that flip once cost a
+32-year-old <strong>1.40 rating points</strong> for a move nobody made.</p>
+
+<p>Worse, the load charge was measured against a player's <em>listed</em> minutes per
+game rather than against the pre-trade allocation. Every roster therefore carried a
+penalty for merely existing &mdash; a league mean of <strong>&minus;0.425</strong>
+rating points with no trade at all, and &minus;1.46 for the worst team. No invariant
+caught it, because with no trade the charge appears on both sides and cancels exactly;
+it only distorts real trades. Development and load are now both measured against the
+untouched roster's own allocation, sharing one reference so the two cannot disagree
+about the counterfactual.</p>
+
+<h2>3. Who absorbs the minutes</h2>
+
+<p>Displacement is not uniform. When a player is unavailable his minutes go
+disproportionately to teammates who resemble him. Rather than impose positional
+buckets, substitution share is estimated as decay in characteristic distance <em>d</em>
+&mdash; height, rebounding, assists, blocks, steals, usage and shot profile,
+standardised within season:</p>
+
+<div class="eqn">share(d) = 0.1541 &middot; exp(&minus;0.4073 &middot; d)</div>
+
+<p>Estimated on <strong>98,584 player-games</strong> in which at least one rotation
+teammate was out. The half-life is about 1.70 distance units against a median
+pair distance near 3, so a same-archetype teammate absorbs roughly five times what a
+distant one does. It beats the positional benchmark it replaces &mdash; R&sup2;
+0.0331 against 0.0304 &mdash; though both explain little
+of the variance, which is the honest characterisation of minute reallocation: coaching
+decisions drive much of it and this model observes none of them.</p>
+
+<p>The split it replaced is instructive about assumptions generally. It had been set at
+96/96/48 minutes on the reasoning that a lineup is two guards, two forwards and a
+centre. Measured, minutes actually divide <strong>47.0 / 39.5 / 13.4 percent</strong>:
+roster labels are not lineup slots.</p>
+
+<p>One further correction: when a roster cannot fill 240 minutes, the allocator claimed
+to scale everyone proportionally and in fact ran a greedy rate waterfall, pinning the
+top few men at their caps. It is now genuinely proportional, which halved a spurious
+finding that subtracting rotation players paid.</p>
+
+<h2>4. The rest penalty &mdash; a choice, not a finding</h2>
+
+<p>Playing a man above his norm should cost something per minute. The tool prices that
+as a log-rest term, rest being the complement of minutes played:</p>
+
+<div class="eqn">&Delta;rate = 48 &middot; b &middot; [ log(48 &minus; m<sub>played</sub>) &minus; log(48 &minus; m<sub>base</sub>) ],   b = 0.04211</div>
+
+<p>It is strong. For a man whose norm is 28 minutes, playing 20 is worth +0.68 rating
+points and playing 38 is worth &minus;1.40.</p>
+
+<p><strong>The coefficient is not identified, and this page should say so.</strong>
+Instrumenting minutes with teammates' injury absences across eight seasons &mdash;
+110,106 player-games, 735 players, 7,593 games &mdash; returns a well-estimated
+<em>zero</em>: +0.0016, 95% interval [&minus;0.0032, +0.0064], first-stage F of 1189.
+OLS on the same rows gives +0.0120 (t = 33.9), so the instrument is stripping real
+bias rather than failing to find anything.</p>
+
+<p>The shipped value comes from a log-rest specification at a 10-minute floor, where
+the coefficient carries t = 0.73 and a 95% interval of [&minus;0.071, +0.156]. At a 1-
+or 5-minute floor the same regression returns a small <em>benefit</em> instead. It is
+retained because a prediction model is better served by a point estimate than by
+assuming zero, and because ~10 minutes is where per-minute production stops being
+noise. But the evidence supports zero about as well as it supports 0.042, and the term
+has consequences: it makes shedding rotation players alongside a star acquisition
+costly rather than free, which <em>reverses</em> a known bias rather than removing it.
+Two large errors pointing opposite ways is not the same as either being fixed.</p>
+
+<h2>5. Championship equity</h2>
+
+<p>Wins are the intermediate currency; contention is what teams actually buy. Title
+probability is a logistic in projected wins and the strength of a roster's best player,
+then normalised so that exactly one team wins:</p>
+
+<div class="eqn">P<sub>t</sub> &prop; &sigma;( &beta;<sub>0</sub> + &beta;<sub>1</sub> &middot; wins + &beta;<sub>2</sub> &middot; top1 )<br>share<sub>t</sub> = P<sub>t</sub> / &Sigma;<sub>t&prime;</sub> P<sub>t&prime;</sub></div>
+
+<p>Equity is that share of a fixed league-wide prize, $300M by default and adjustable.</p>
+
+<p>Normalising is the part that is easy to get wrong, and it was wrong. The raw logistic
+summed to <strong>1.057</strong> across the league, and repricing only the teams in a
+trade let a deal <em>create</em> roughly 4.8 percentage points of championship
+probability from nothing &mdash; enough to recommend trades on its own. Probability
+given to one team must come from the others, so the pot is fixed and all thirty teams
+are repriced on every evaluation. Separately, projected wins were summing to
+<strong>1331 against a true 1230</strong>, putting every team above the curve and
+inflating all title equity; they are now recentred additively by &minus;3.37 per team.</p>
+
+<p>The convexity in the <em>top1</em> term is the largest known distortion remaining:
+concentrated talent is rewarded more than the evidence cleanly supports, which is why
+the strongest rosters price above what market-implied probabilities suggest.</p>
+
+<h2>6. Pricing a draft pick</h2>
+
+<p>A pick is not a player. It is an <em>option</em> over a distribution of players, and
+it is valuable because rookie contracts are cheap relative to production &mdash; not
+because rookies are good.</p>
+
+<div class="eqn">surplus(s) = 4-year priced value(s) &minus; rookie cost(s)<br>E[value] = &Sigma;<sub>s</sub> P(slot = s) &middot; surplus(s)</div>
+
+<p>The slot curve comes from the draft model's own out-of-fold prediction fans for every
+drafted player, integrated to a mean so star upside is included. Those are then smoothed
+<em>across</em> slots by local-linear kernel regression, with a bandwidth that widens as
+the curve flattens:</p>
+
+<div class="eqn">v&#770;(s) = &alpha;&#770;<sub>s</sub>  where  (&alpha;&#770;<sub>s</sub>, &beta;&#770;<sub>s</sub>) = argmin &Sigma;<sub>i</sub> K( (p<sub>i</sub> &minus; s) / h(s) ) &middot; [ v<sub>i</sub> &minus; &alpha; &minus; &beta;(p<sub>i</sub> &minus; s) ]&sup2;<br>h(s) = 2.0 &middot; (1 + 0.06 &middot; (s &minus; 1))</div>
+
+<p><strong>The level is then recalibrated to realized outcomes.</strong> The smoothed
+predicted curve has the right <em>shape</em> and the wrong <em>level</em>. The draft model
+ranks prospects well but cannot call superstar magnitude &mdash; its slot-1 prediction
+averages about +1.4 against a realized +4.2 &mdash; so the raw predicted curve prices the
+first pick roughly like the twentieth. A count-weighted linear map, realized &asymp;
+a + b &middot; predicted, is fitted across slots and applied to the smooth predicted curve.
+That is the curve the tool ships: predicted shape, realized level, isotonic last. Reading
+this section as "predicted fans, smoothed" and reproducing it would give materially
+different numbers at exactly the picks that decide trades.</p>
+
+<p>The alternative &mdash; using realized value by slot directly &mdash; has an honest level
+and an unusable shape: about eighteen observations per slot, one draw each, which is the
+noise the smoothing exists to remove.</p>
+
+<p><strong>Why smooth at all.</strong> Each slot has one observation per draft class
+&mdash; about nineteen &mdash; so a single star or bust moves that slot bodily. Averaging
+within a slot produced a curve where pick 3 priced above pick 2.</p>
+
+<p><strong>Why this was not fixed by the monotonicity constraint already applied.</strong>
+An isotonic projection does remove inversions from the value curve, but it does so by
+pooling violators into <em>plateaus</em>. Surplus is value minus rookie cost, and rookie
+cost declines smoothly with slot &mdash; so across a plateau, a flat value met a falling
+cost and surplus <em>rose</em>. The long upward ramps through the middle of the first
+round were not noise; they were the shape of the repair. Smoothing first leaves isotonic
+with almost nothing to bind on: inversions fell from nineteen to one, and that one is the
+second-round floor engaging, not an artifact.</p>
+
+<p><strong>Why local-linear rather than a weighted average.</strong> At slot 1 &mdash; the
+boundary, and the pick that matters most &mdash; every neighbour a smoother can see is
+worse, so a local-constant estimate is biased downward. Fitting a slope and reading the
+intercept removes that bias exactly where it would be most expensive.</p>
+
+<p>The bandwidth widens with slot because the curve is steep across the top few picks,
+where over-smoothing would erase real differences, and nearly flat in the second round,
+where borrowing from neighbours is close to free. Effective sample size rises from about
+nineteen to roughly ninety near the top of the draft.</p>
+
+<p>A traded pick is priced across where it might <em>land</em>, not where it is expected
+to: lottery probabilities enter exactly where they apply, and protections truncate the
+landing distribution rather than being approximated by a discount. Second-round surplus
+is floored at zero, because a bust on a minimum deal can be waived &mdash; the pick is
+an option, not a debt, and options are not negative.</p>
+
+<h2>7. Risk</h2>
+
+<p>Uncertainty is carried rather than averaged away. Each player's projection is a fan
+over rate, availability and minutes, propagated by simulation and collapsed to a
+certainty equivalent under constant relative risk aversion:</p>
+
+<div class="eqn">CE = u<sup>&minus;1</sup>( E[u(W)] ),   u(W) = W<sup>1&minus;&gamma;</sup> / (1 &minus; &gamma;)</div>
+
+<p>Two assets with equal expected value are therefore not interchangeable &mdash; the
+more volatile one is worth less, which is the right treatment for a front office that
+cannot diversify across many rosters.</p>
+
+<h2>Limitations</h2>
+
+<ul>
+<li><strong>The rest penalty is a choice, not a measurement.</strong> Stated in full
+above and repeated here because it is the single assumption most capable of flipping a
+trade's sign.</li>
+<li><strong>Concentration is over-rewarded.</strong> The convex top-1 term prices
+star-heavy rosters above market-implied levels, and the rest penalty currently masks
+that from the opposite direction rather than correcting it.</li>
+<li><strong>Roster consequences only.</strong> No view on locker rooms, coaching fit, or
+whether a player wants to be there.</li>
+<li><strong>Trade legality is not evaluated.</strong> Salary matching, aprons and the
+rest of the CBA's machinery sit outside the model.</li>
+<li><strong>The allocator is an optimiser, not a coach.</strong> It assigns minutes to
+maximise value; real rotations answer to pressures it cannot see.</li>
+<li><strong>Everything inherits the value board.</strong> The assumptions on the
+<a href="methodology-value.html">measurement page</a> apply in full and propagate here
+undiminished.</li>
+</ul>
+
+<footer>
+<p><strong>The Marginal Player</strong> — basketball analytics through the lens of economics.
+Figures are model output, not official NBA statistics. Player value is measured on this
+model's own scale; see <a href="methodology-value.html">the method</a>.</p>
+</footer>
+</div>
+</body>
+</html>

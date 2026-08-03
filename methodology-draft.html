@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Projecting a prospect — The Marginal Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<link rel="icon" href="assets/favicon.png">
+</head>
+<body>
+<header><div class="wrap"><nav>
+<a class="brand" href="index.html"><img src="assets/mark-light.png" alt="The Marginal Player" width="34" height="34" style="display:block;flex:none;width:34px;height:auto"><span>The<br>Marginal<br>Player</span></a>
+<a href="index.html">Home</a><a href="players.html">Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trade-tool.html">Trade Lab</a><a href="methodology-value.html">Method</a>
+</nav></div></header>
+<div class="wrap">
+<nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><span class="on">Draft model</span><a href="methodology-trade.html">Trade pricing</a></nav>
+<h1>Projecting a prospect</h1>
+<p class="lede">The useful question about a draft pick is rarely how good a player will be.
+It is how wide the range is, and how bad the bottom of it gets. The model therefore
+estimates a distribution, not a number.</p>
+
+<h2>What is predicted</h2>
+
+<p>Three fixed horizons, each anchored to the draft year and each measured in the same
+impact units the value board uses:</p>
+
+<ul>
+<li><strong>Rookie year</strong> — impact in season 1.</li>
+<li><strong>Four-year mean</strong> — precision-weighted mean impact over whichever of
+seasons 1–4 the player logged above the possession floor.</li>
+<li><strong>Peak</strong> — his <em>best single season</em> within seasons 1–7, again over
+seasons actually played.</li>
+</ul>
+
+<p>Peak is a maximum over up to seven noisy draws, so it is upward-biased by construction:
+even a player whose true level never changes will post a best season above his mean. That is
+a property of the target, not an error in the model — but it means peak should be read as
+"how high did this player ever get", not "how good was he at his best", and the two are not
+the same quantity when seasons are measured with error.</p>
+
+<p>Fixed horizons rather than career averages, deliberately. A career mean is an artifact of
+when a player happened to be drafted: players from older classes have longer careers to
+average over, so a career-based target would encode era rather than ability.</p>
+
+<h2>Censoring, and why busts must count</h2>
+
+<p>This is the design choice that most affects what the model learns. Train only on
+prospects who made it and the model learns that draft picks reliably become NBA players,
+because in its training data they always did. Every projection is then conditioned on
+survival, and the bottom of the fan — the part a general manager is actually buying
+insurance against — is missing.</p>
+
+<p>The fix is a <strong>two-part (hurdle) model</strong> rather than a flooring rule. The
+extensive margin is its own head: a <strong>propensity</strong> that the prospect ever
+becomes an NBA player at all, fit on every drafted and undrafted prospect in the class. The
+intensive margin — availability and on-court quality — is fit <em>conditional on playing</em>,
+so the quality heads are never asked to explain a zero that means "was not there" rather
+than "was there and was bad".</p>
+
+<p>The two are recombined at scoring time. Realized value is a propensity-weighted mixture of
+a <strong>floor set below the worst player who plays</strong> and the played-case
+availability × quality distribution. So a prospect the model thinks probably never sticks
+ranks beneath a mediocre-but-real rotation piece, which is the ordering a team wants, and the
+never-play mass shows up in the fan as genuine downside instead of being averaged away.</p>
+
+<p>This replaced an earlier Heckman inverse-Mills selection correction. Seasons that simply
+have not happened yet remain genuinely missing and are excluded from the relevant target —
+unobserved is not the same as zero.</p>
+
+<h2>Estimator</h2>
+
+<p>For quantile <em>τ</em>, the models minimize the pinball loss</p>
+
+<div class="eqn">L<sub>τ</sub>(y, ŷ) = max{ τ(y − ŷ), (τ − 1)(y − ŷ) }</div>
+
+<p>which is minimized in expectation at the τ-th conditional quantile. Fitting τ ∈
+{0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99} separately traces the predictive
+distribution without
+assuming it is symmetric or Gaussian — and prospect outcomes are neither, being bounded
+below by replacement level and long-tailed above.</p>
+
+<p>Two model families are fit: a quantile <strong>neural network</strong> with a learned
+embedding for competition circuit — college conference or international league, so league
+strength is estimated rather than hand-assigned — and a quantile <strong>gradient-boosted
+tree</strong> ensemble with circuit as a categorical. Network predictions average several
+independently initialized seeds, since at this sample size initialization noise is not
+negligible.</p>
+
+<p>Inputs are pre-draft only: competition-adjusted college and international production,
+combine measurements, published big boards, and high-school all-star events.
+<strong>Draft position is never an input.</strong> It is held out so that model and market
+can be compared honestly, which is the comparison below.</p>
+
+<p>Sample: <strong>4,741 prospects</strong> across
+298 engineered features.</p>
+
+<h2>Validation</h2>
+
+<p>Evaluation is <strong>expanding-window over draft classes</strong>: fit on earlier
+classes, predict later ones, never the reverse. Early stopping uses an inner split of the
+training classes, so the outer validation fold is untouched during fitting. Every figure
+below is out-of-fold.</p>
+
+<p>Rank correlation between predicted and realized outcome, against the draft order itself
+as the benchmark to beat:</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Horizon</th><th>Neural net</th><th>Gradient boosting</th><th>Draft order</th><th>n</th></tr></thead>
+<tbody>
+<tr><td>Rookie year</td><td>0.306</td><td>0.322</td><td>0.094</td><td>795</td></tr>
+<tr><td>Four-year mean</td><td>0.319</td><td>0.389</td><td>0.120</td><td>984</td></tr>
+<tr><td>Peak</td><td>0.380</td><td>0.418</td><td>0.232</td><td>996</td></tr>
+</tbody></table></div>
+
+<p>Both models rank prospects substantially better than the league did, on every horizon.
+The margin is widest early — the draft order's correlation with rookie-year impact is close
+to nothing — and narrows for peak outcomes, which is intuitive: teams are drafting for
+upside, and are better at identifying it than at forecasting immediate contribution.</p>
+
+<p><strong>The tree ensemble outperforms the neural network on all three horizons</strong>,
+despite the network being the model whose predictions are shipped. On tabular data at this
+sample size that ordering is common, and it is reported here rather than resolved.</p>
+
+<h2>Are the intervals honest?</h2>
+
+<p>A quantile model earns trust by coverage: the share of realized outcomes falling at or
+below each predicted quantile should equal the nominal level.</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Horizon</th><th>p5</th><th>p10</th><th>p25</th><th>p50</th><th>p75</th><th>p90</th><th>p95</th><th>p99</th></tr></thead>
+<tbody>
+<tr><td>Rookie year</td><td>0.084</td><td>0.165</td><td>0.317</td><td>0.494</td><td>0.716</td><td>0.853</td><td>0.896</td><td>0.945</td></tr>
+<tr><td>Four-year mean</td><td>0.085</td><td>0.158</td><td>0.329</td><td>0.544</td><td>0.739</td><td>0.853</td><td>0.904</td><td>0.932</td></tr>
+<tr><td>Peak</td><td>0.069</td><td>0.131</td><td>0.305</td><td>0.518</td><td>0.720</td><td>0.826</td><td>0.861</td><td>0.869</td></tr>
+<tr><td><em>nominal</em></td><td><em>0.050</em></td><td><em>0.100</em></td><td><em>0.250</em></td><td><em>0.500</em></td><td><em>0.750</em></td><td><em>0.900</em></td><td><em>0.950</em></td><td><em>0.990</em></td></tr>
+</tbody></table></div>
+
+<p>Medians are well calibrated — close to 0.50 on every horizon, so the central projection
+is neither optimistic nor pessimistic on average. <strong>The intervals are too narrow at
+both tails.</strong> Around 15% of outcomes fall below the stated 10th percentile and
+around 16% land above the stated 90th, against 10% each.</p>
+
+<p>The two outermost levels are the reason the fan was widened from five quantiles to eight.
+p95 and p99 are the region a draft pick's value actually lives in — one franchise player pays
+for a decade of misses — and reading them off a linear extrapolation past p90, which is what
+a five-level fan forces, is guessing at exactly the part that matters most. They are fit
+directly now, and they are the least well covered levels in the table: 13% of peak
+outcomes exceed the stated 99th percentile.</p>
+
+<p>Read the fans as somewhat too confident. Real busts are worse and real stars are better
+than the published bands imply, and the error is symmetric rather than a directional bias.
+Published intervals are conformally widened to correct for this; the table above is the
+raw model, before that correction.</p>
+
+<h2>Limitations</h2>
+
+<ul>
+<li><strong>Recent classes cannot be scored.</strong> Four-year and peak outcomes require
+four and seven completed seasons, so the most interesting classes are precisely the ones
+with no validation available.</li>
+<li><strong>Pre-draft data is thinner internationally.</strong> Competition adjustment
+helps; it does not equalize what was measured.</li>
+<li><strong>A distribution is only as good as the record it was fit to.</strong> A genuinely
+unprecedented prospect is by construction the case the model handles worst.</li>
+<li><strong>Draft order is a weak benchmark.</strong> Beating it establishes that the model
+adds information over where players were selected — not that it is close to the achievable
+frontier.</li>
+</ul>
+
+<footer>
+<p><strong>The Marginal Player</strong> — basketball analytics through the lens of economics.
+Figures are model output, not official NBA statistics. Player value is measured on this
+model's own scale; see <a href="methodology-value.html">the method</a>.</p>
+</footer>
+</div>
+</body>
+</html>
