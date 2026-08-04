@@ -74,7 +74,7 @@ svg{display:block}
 </header>
 
 <div class="bar">
-  <input type="text" id="q" placeholder="search player or team…">
+  <input type="text" id="q" placeholder="search player, team or city…">
   <select id="srt"><option value="tv">by trade value</option><option value="war">by current WAR</option><option value="y1">by next-year value</option><option value="age">youngest first</option></select>
   <span class="n" id="cnt"></span>
 </div>
@@ -132,9 +132,40 @@ function chart(p){
     ${yrs}</svg>`;
 }
 
+// Search aliases for the team column. The blob carries three-letter codes
+// only, so "Denver" and "Nuggets" matched nothing while the placeholder
+// invited exactly that. City and nickname are separate words so either finds
+// the team; historical relocations are not needed here because this board is
+// current-season only.
+const TEAM_SEARCH={ATL:'atlanta hawks',BOS:'boston celtics',BKN:'brooklyn nets',
+ CHA:'charlotte hornets',CHI:'chicago bulls',CLE:'cleveland cavaliers',
+ DAL:'dallas mavericks',DEN:'denver nuggets',DET:'detroit pistons',
+ GSW:'golden state warriors',HOU:'houston rockets',IND:'indiana pacers',
+ LAC:'los angeles la clippers',LAL:'los angeles la lakers',MEM:'memphis grizzlies',
+ MIA:'miami heat',MIL:'milwaukee bucks',MIN:'minnesota timberwolves',
+ NOP:'new orleans pelicans',NYK:'new york knicks',OKC:'oklahoma city thunder',
+ ORL:'orlando magic',PHI:'philadelphia 76ers sixers',PHX:'phoenix suns',
+ POR:'portland trail blazers',SAC:'sacramento kings',SAS:'san antonio spurs',
+ TOR:'toronto raptors',UTA:'utah jazz',WAS:'washington wizards'};
+
+// Fold accents before matching -- "Jokic" found nothing because the name is
+// spelled with an acute and nobody types it. Same fix the site's other two
+// search boxes already carry; this template is separate and was missed.
+const fold=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+              .replace(/[Đđ]/g,'d').toLowerCase();
+
 function render(){
-  const q=$('q').value.toLowerCase(), srt=$('srt').value;
-  let list=P.filter(p=>!q||p.nm.toLowerCase().includes(q)||p.tm.toLowerCase()===q);
+  // trim: a trailing space made the exact team test fail, so "lal " silently
+  // fell through to the name filter and returned Bilal Coulibaly.
+  const q=fold($('q').value.trim()), srt=$('srt').value;
+  // An exact three-letter code is unambiguous, so it short-circuits to that
+  // roster. Without this, "DEN" returned 43 rows -- Denver's 17 plus every name
+  // containing "den", with Deni Avdija sorted to the top, which reads as broken
+  // even though both halves are doing what they were asked.
+  const codeHit=Object.keys(TEAM_SEARCH).some(c=>c.toLowerCase()===q);
+  let list=P.filter(p=>!q||(codeHit ? p.tm.toLowerCase()===q
+                                    : fold(p.nm).includes(q)
+                                      ||(TEAM_SEARCH[p.tm]||'').includes(q)));
   list.sort((a,b)=>srt==='tv'?b.tv-a.tv:srt==='war'?(b.war??-999)-(a.war??-999):srt==='y1'?b.path[0][2]-a.path[0][2]:a.age-b.age);
   const show=q?list:list.slice(0,120);
   $('cnt').textContent=`${show.length} of ${P.length}`;
