@@ -70,6 +70,47 @@ never-play mass shows up in the fan as genuine downside instead of being average
 have not happened yet remain genuinely missing and are excluded from the relevant target —
 unobserved is not the same as zero.</p>
 
+<h2>Scouting reports, and who wrote them</h2>
+
+<p>Most inputs here are measurements: box production, tracking, combine anthropometrics,
+competition strength. One is not. Each prospect who has one also carries a
+<strong>scouting rubric</strong> — ten dimensions scored 1–10, shown on the draft board when
+you open a row.</p>
+
+<p>Those scores are not this site's opinion of the player, and it matters that the page says
+so. The underlying judgements are <strong>NBADraft.net's</strong>, taken from their pre-draft
+player profiles: a published attribute grid plus free-text Strengths and Weaknesses written by
+their scouts. A language model reads that text and scores it against a fixed rubric — shooting,
+defense, athleticism, feel, motor, self-creation, upside, bust risk, and two flags for injury
+and character concerns. The model is summarising someone else's assessment into numbers. It is
+not evaluating the player.</p>
+
+<p><strong>The two flagged dimensions deserve their own sentence.</strong> "Injury concern" and
+"character concern" are scored the same way as the rest: from what the scout wrote, with a
+neutral 5 where the report is silent, and no inference drawn from omission. They describe what
+a scouting report raised about a named, usually 18-to-22-year-old person before he was drafted.
+They are worth publishing because a reader deserves to see the same inputs the model saw, and
+worth labelling clearly because a number on a bar chart looks like a measurement no matter
+where it came from.</p>
+
+<p>Coverage is partial and not random. 1,174 prospects have a report; the rest show
+"no scouting report on file" rather than an imputed score. NBADraft.net profiles the players
+their audience cares about, which skews toward the top of each class — so the rubric is
+densest exactly where the draft is most consequential, and thinnest among the undrafted, where
+the model relies on the measured inputs alone.</p>
+
+<p>Two wrinkles worth stating because they affected the data. The site serves <em>two</em>
+attribute grids: guards and wings get "Ball Handling" and "Passing" where big men get "Post
+Skills" and "Rebounding". Only the guard set was parsed at first, so 395 big men carried
+two empty fields that were quietly filled with the population median — a seven-footer scored on
+a guard's ball-handling. And player URLs are built from the name, so every hyphenated name
+resolved to a dead address and was silently absent: Karl-Anthony Towns, Shai Gilgeous-Alexander
+and 20 others had no report at all until that was fixed.</p>
+
+<p><strong>Timing.</strong> The reports are pre-draft and NBADraft.net does not re-grade players
+after the fact, so these features carry no knowledge of what the prospect went on to do. That is
+what makes them usable as inputs rather than leakage.</p>
+
 <h2>Estimator</h2>
 
 <p>For quantile <em>τ</em>, the models minimize the pinball loss</p>
