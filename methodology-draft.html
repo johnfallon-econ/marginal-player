@@ -95,7 +95,7 @@ combine measurements, published big boards, and high-school all-star events.
 can be compared honestly, which is the comparison below.</p>
 
 <p>Sample: <strong>4,741 prospects</strong> across
-298 engineered features.</p>
+300 engineered features.</p>
 
 <h2>Validation</h2>
 
@@ -110,9 +110,9 @@ as the benchmark to beat:</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>Neural net</th><th>Gradient boosting</th><th>Draft order</th><th>n</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.347</td><td>0.329</td><td>0.090</td><td>786</td></tr>
-<tr><td>Four-year mean</td><td>0.347</td><td>0.385</td><td>0.116</td><td>973</td></tr>
-<tr><td>Peak</td><td>0.396</td><td>0.421</td><td>0.230</td><td>985</td></tr>
+<tr><td>Rookie year</td><td>0.343</td><td>0.341</td><td>0.090</td><td>786</td></tr>
+<tr><td>Four-year mean</td><td>0.345</td><td>0.388</td><td>0.116</td><td>973</td></tr>
+<tr><td>Peak</td><td>0.389</td><td>0.416</td><td>0.230</td><td>985</td></tr>
 </tbody></table></div>
 
 <p>Both models rank prospects substantially better than the league did, on every horizon.
@@ -132,22 +132,22 @@ below each predicted quantile should equal the nominal level.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>p5</th><th>p10</th><th>p25</th><th>p50</th><th>p75</th><th>p90</th><th>p95</th><th>p99</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.102</td><td>0.169</td><td>0.309</td><td>0.500</td><td>0.711</td><td>0.855</td><td>0.897</td><td>0.952</td></tr>
-<tr><td>Four-year mean</td><td>0.101</td><td>0.160</td><td>0.325</td><td>0.544</td><td>0.715</td><td>0.854</td><td>0.895</td><td>0.939</td></tr>
-<tr><td>Peak</td><td>0.074</td><td>0.140</td><td>0.305</td><td>0.530</td><td>0.715</td><td>0.827</td><td>0.869</td><td>0.880</td></tr>
+<tr><td>Rookie year</td><td>0.095</td><td>0.174</td><td>0.313</td><td>0.499</td><td>0.719</td><td>0.851</td><td>0.905</td><td>0.954</td></tr>
+<tr><td>Four-year mean</td><td>0.087</td><td>0.160</td><td>0.318</td><td>0.548</td><td>0.729</td><td>0.855</td><td>0.899</td><td>0.937</td></tr>
+<tr><td>Peak</td><td>0.057</td><td>0.139</td><td>0.307</td><td>0.522</td><td>0.722</td><td>0.822</td><td>0.853</td><td>0.890</td></tr>
 <tr><td><em>nominal</em></td><td><em>0.050</em></td><td><em>0.100</em></td><td><em>0.250</em></td><td><em>0.500</em></td><td><em>0.750</em></td><td><em>0.900</em></td><td><em>0.950</em></td><td><em>0.990</em></td></tr>
 </tbody></table></div>
 
 <p>Medians are well calibrated — close to 0.50 on every horizon, so the central projection
 is neither optimistic nor pessimistic on average. <strong>The intervals are too narrow at
 both tails.</strong> Around 16% of outcomes fall below the stated 10th percentile and
-around 15% land above the stated 90th, against 10% each.</p>
+around 16% land above the stated 90th, against 10% each.</p>
 
 <p>The two outermost levels are the reason the fan was widened from five quantiles to eight.
 p95 and p99 are the region a draft pick's value actually lives in — one franchise player pays
 for a decade of misses — and reading them off a linear extrapolation past p90, which is what
 a five-level fan forces, is guessing at exactly the part that matters most. They are fit
-directly now, and they are the least well covered levels in the table: 12% of peak
+directly now, and they are the least well covered levels in the table: 11% of peak
 outcomes exceed the stated 99th percentile.</p>
 
 <p>Read the fans as somewhat too confident. Real busts are worse and real stars are better
