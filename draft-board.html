@@ -745,6 +745,30 @@ function detail(p, showActual, year){
 }
 
 /* ---- render a class ---- */
+// The last column shows THREE different quantities depending on the view, and
+// the header was a single static "vs pick" describing only one of them:
+//
+//   forward class  a +/- chip, model rank minus actual draft slot -- genuinely
+//                  "vs pick", since the draft has happened but the careers
+//                  have not
+//   closed class   #N, the player's rank by REALIZED value within his class.
+//                  Nothing to do with where he was picked.
+//   all-time       mostly the realized-value rank again, mixed with the
+//                  forward class's pick numbers.
+//
+// So on the all-time board the header named a comparison the column was not
+// making. Label it per view instead.
+function setPickHeader(kind){
+  const h=document.querySelector('.rowhead .h-p');
+  // The all-time list mixes closed classes (which have a realized rank) with
+  // the forward class (which cannot). "class - actual" covers both: a 2026 row
+  // showing a pick instead of a rank is self-evidently unresolved, because the
+  // class year is right there next to it.
+  if(h) h.textContent = kind==='fwd' ? 'vs pick'
+                      : kind==='all' ? 'class · actual'
+                      : 'actual rank';
+}
+
 function render(year){
   CURRENT_YEAR=year;
   document.querySelectorAll('.yr').forEach(b=>b.setAttribute('aria-pressed', b.dataset.y===String(year)));
@@ -776,6 +800,7 @@ function render(year){
     vd.innerHTML=`Forward-looking — outcomes haven't happened yet. Ranked by the <b>risk-neutral open-market value E[V]</b>; raise risk aversion γ to rank on the CRRA certainty-equivalent instead.`;
   }
 
+  setPickHeader(fwd ? 'fwd' : 'closed');
   const board=document.getElementById('board'); board.innerHTML='';
   const ranked=cls.players.slice().sort((a,b)=>RAval(b)-RAval(a));
   ranked.forEach((p,_i)=>{
@@ -844,6 +869,7 @@ function renderAll(){
   document.getElementById('classbar').innerHTML=`<div class="title">All-time board
     <small>top ${ALLTIME_N} of ${ALL_PLAYERS.length} prospects · ${DATA.years[0]}–${DATA.years[DATA.years.length-1]} · production priced at the ${REF_YEAR} cap (era-neutral)</small></div>`;
   document.getElementById('verdict').innerHTML=`Every prospect since ${DATA.years[0]} in one ranking, by the risk-adjusted open-market value of their <b>projected</b> production valued at a common (${REF_YEAR}) cap. Out-of-fold for closed classes; the ${REF_YEAR} class is forward-looking.`;
+  setPickHeader('all');
   const board=document.getElementById('board'); board.innerHTML='';
   ALL_PLAYERS.slice().sort((a,b)=>RAval(b)-RAval(a)).slice(0,ALLTIME_N).forEach((p,_i)=>{
     p._rr=_i+1; const yr=p._year, fwd=(yr===REF_YEAR), showA=!fwd, yy=`'${String(yr).slice(2)}`;
