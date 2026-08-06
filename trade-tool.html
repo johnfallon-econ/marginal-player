@@ -51,6 +51,15 @@ header .sub b{color:var(--amber-soft);font-weight:600}
 .cmpl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
   margin-bottom:1px}
 .cmp .net{font-size:20px}
+.vrow3{display:grid;grid-template-columns:1fr 68px 68px;gap:6px;align-items:baseline;
+  font-size:12px;padding:2px 0}
+.vrow3 b{font-family:var(--mono);text-align:right;font-weight:500}
+.vrow3 span:first-child{color:var(--muted)}
+.vrow3.vhead span{font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--faint);text-align:right}
+.vrow3.vhead span:first-child{text-align:left}
+.vrow3.vnet{border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:4px}
+.vrow3.vnet b{font-size:17px}
 .vjudge{margin-top:7px;padding:5px 8px;border-radius:5px;font-size:11.5px;line-height:1.4}
 .vjudge.agree{background:color-mix(in srgb,var(--pos) 12%,transparent);color:var(--pos)}
 .vjudge.disagree{background:color-mix(in srgb,var(--amber) 14%,transparent);
@@ -1406,13 +1415,24 @@ function render(){
       const verdict=agree
         ? (np>=0?'sound call, and it worked':'bad call, and it showed')
         : (np>=0?'defensible call that did not work out':'poor call that got away with it');
+      // The components stay visible here, not just the two totals. A single net
+      // figure is what hid the Luka problem: the headline read -$4M while the
+      // asset row beside it read +$116M, and nothing on screen reconciled them.
+      const a=rp[k], b=rr[k];
+      const cmp=(label,x,y)=>(Math.abs(x)<0.5&&Math.abs(y)<0.5)?'':
+        `<div class="vrow3"><span>${label}</span>
+           <b class="${x>=0?'pos':'neg'}">${fmt(x)}</b>
+           <b class="${y>=0?'pos':'neg'}">${fmt(y)}</b></div>`;
       return `<div class="vcard"><div class="who">${k} · ${S[k].tm}</div>
-        <div class="cmp">
-          <div><div class="cmpl">process</div>
-            <div class="net ${np>=0?'pos':'neg'}">${fmt(np)}</div></div>
-          <div><div class="cmpl">realized</div>
-            <div class="net ${nr>=0?'pos':'neg'}">${fmt(nr)}</div></div>
-        </div>
+        <div class="vrow3 vhead"><span></span><span>process</span><span>realized</span></div>
+        <div class="vrow3 vnet"><span>net</span>
+          <b class="${np>=0?'pos':'neg'}">${fmt(np)}</b>
+          <b class="${nr>=0?'pos':'neg'}">${fmt(nr)}</b></div>
+        ${cmp('players acquired − sent',a.direct,b.direct)}
+        ${cmp(YEAR==='current'?'minutes reallocated':'new-team adjustment',a.mins,b.mins)}
+        ${cmp('development',a.dev,b.dev)}
+        ${cmp('picks',a.pk,b.pk)}
+        ${useT?cmp('title equity',a.eq,b.eq):''}
         <div class="vrow"><span>outcome − process</span>
           <b class="${gap>=0?'pos':'neg'}">${fmt(gap)}</b></div>
         <div class="vjudge ${agree?'agree':'disagree'}">${verdict}</div>
@@ -1434,7 +1454,7 @@ function render(){
     return `<div class="vcard"><div class="who">${k} · ${S[k].tm} nets</div>
       <div class="net ${net>=0?'pos':'neg'}">${fmt(net)}</div>
       <div class="vrow"><span>players acquired − sent</span><b class="${v.direct>=0?'pos':'neg'}">${fmt(v.direct)}</b></div>
-      <div class="vrow"><span>minutes reallocated</span><b class="${v.mins>=0?'pos':'neg'}">${fmt(v.mins)}</b></div>
+      <div class="vrow"><span>${YEAR==='current'?'minutes reallocated':'new-team adjustment'}</span><b class="${v.mins>=0?'pos':'neg'}">${fmt(v.mins)}</b></div>
       ${Math.abs(v.dev)>=0.5?`<div class="vrow"><span>development</span><b class="${v.dev>=0?'pos':'neg'}">${fmt(v.dev)}</b></div>`:''}
       <div class="vrow"><span>picks</span><b class="${v.pk>=0?'pos':'neg'}">${fmt(v.pk)}</b></div>
       ${useT?`<div class="vrow"><span>title equity (ΔW ${v.dW>=0?'+':''}${v.dW.toFixed(1)})</span><b class="${v.eq>=0?'pos':'neg'}">${fmt(v.eq)}</b></div>`:''}
