@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="icon" href="assets/favicon.png"><title>Trade Lab — The Marginal Player</title></head>
 <body style="margin:0">
-<div class="tmp-bar" style="display:flex;align-items:center;gap:26px;padding:14px 24px;background:#fff;border-bottom:1px solid #d8dde5;font-family:Inter,system-ui,sans-serif;flex-wrap:wrap"><a href="index.html" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:#0D1B2A;font:700 14px 'Playfair Display',Georgia,serif;line-height:1.05;margin-right:auto"><img src="assets/mark-light.png" alt="The Marginal Player" width="28" height="28" style="display:block;flex:none;width:28px;height:auto"><span>The Marginal Player</span></a><a href="index.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Home</a><a href="players.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Players</a><a href="player.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Careers</a><a href="value-board.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Value Board</a><a href="draft-board.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Draft</a><a href="trade-tool.html" style="color:#0D1B2A;text-decoration:none;font:600 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid #FF6B00">Trade Lab</a><a href="methodology-value.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Method</a></div>
+<div class="tmp-bar" style="display:flex;align-items:center;gap:26px;padding:14px 24px;background:#fff;border-bottom:1px solid #d8dde5;font-family:Inter,system-ui,sans-serif;flex-wrap:wrap"><a href="index.html" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:#0D1B2A;font:700 14px 'Playfair Display',Georgia,serif;line-height:1.05;margin-right:auto"><img src="assets/mark-light.png" alt="The Marginal Player" width="28" height="28" style="display:block;flex:none;width:28px;height:auto"><span>The Marginal Player</span></a><a href="index.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Home</a><a href="players.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Players</a><a href="player.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Careers</a><a href="value-board.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Value Board</a><a href="draft-board.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Draft</a><a href="trades.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Trades</a><a href="trade-tool.html" style="color:#0D1B2A;text-decoration:none;font:600 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid #FF6B00">Trade Lab</a><a href="methodology-value.html" style="color:#0D1B2A;text-decoration:none;font:500 14px Inter,system-ui,sans-serif;padding-bottom:3px;border-bottom:2px solid transparent">Method</a></div>
 <style>
 :root{
   --ground:#0e1420; --panel:#161e2d; --panel2:#1d2739; --line:#293449;
@@ -195,19 +195,6 @@ header .sub b{color:var(--amber-soft);font-weight:600}
 
 <div class="build" id="build"></div>
 <div id="datalists" style="display:none"></div>
-
-<div class="tvb" id="trb" style="display:none">
-  <h2>Real trades
-    <select id="trsrt">
-      <option value="gap">rank by outcome − process</option>
-      <option value="proc">rank by best process call</option>
-      <option value="real">rank by best outcome</option>
-      <option value="worst">rank by worst outcome</option>
-      <option value="date">by date</option>
-    </select>
-    <span class="tvb-sub">every trade that season, scored both ways · click to load</span></h2>
-  <div id="trbody"></div>
-</div>
 
 <div class="tvb" id="tvb">
   <h2>Trade Value Board
@@ -1344,57 +1331,31 @@ function scoreTrade(t,H){
   return per;
 }
 
-function renderTrades(){
-  const box=$('trb'); if(!box)return;
-  const list=(HIST&&HIST.trades&&YEAR!=='current')?(HIST.trades[String(YEAR)]||[]):[];
-  if(!list.length){box.style.display='none'; return;}
-  box.style.display='';
+// ── build-time scoring hook ──────────────────────────────────────────────────
+// The trades LIST is its own page now, and it is scored here rather than there
+// so that page carries a table instead of a two-megabyte payload and an engine.
+// 12_trades_page.py drives this through headless Chromium, which means the list
+// is produced by the same evaluator the tool uses -- a second implementation in
+// Python would have to restate projRate, the aging curve, the switch shock and
+// the option rules, and would drift from this one the first time either moved.
+window.__scoreSeason=function(y){
+  const list=(HIST&&HIST.trades&&HIST.trades[String(y)])||[];
+  if(!list.length)return [];
   const H=+$('hz').value;
-  // both modes, same trade -- state is restored to whatever the view wants after
-  const before=MODE;
-  const proc={}, real={};
-  if(asofAvailable(YEAR)){
-    evaluateAs('asof');  list.forEach(t=>{proc[t.id]=scoreTrade(t,H);});
-  }
-  evaluateAs('retro');   list.forEach(t=>{real[t.id]=scoreTrade(t,H);});
-  if(before==='asof')evaluateAs('asof');
-
-  const best=o=>{let k=null,v=-1e9; for(const tm in o)if(o[tm]>v){v=o[tm];k=tm;} return [k,v];};
-  const rows=list.map(t=>{
+  const grab=mode=>{const out={}; evaluateAs(mode);
+    list.forEach(t=>{out[t.id]=scoreTrade(t,H);}); return out;};
+  const proc=asofAvailable(y)?grab('asof'):{};
+  const real=grab('retro');
+  return list.map(t=>{
     const pr=proc[t.id]||{}, rl=real[t.id]||{};
-    const [wtm,wv]=best(rl);
-    const pv=pr[wtm]==null?null:pr[wtm];
-    return {t, tm:wtm, real:wv, proc:pv, gap:(pv==null?null:wv-pv)};
+    const teams={};
+    Object.keys(rl).forEach(tm=>{teams[tm]={real:Math.round(rl[tm]),
+      proc:pr[tm]==null?null:Math.round(pr[tm])};});
+    return {id:t.id, d:t.d, tm:t.tm, seed:t.seed, npick:(t.picks||[]).length,
+            who:(t.legs||[]).map(l=>(byId[String(l.id)]||{}).nm).filter(Boolean),
+            teams};
   });
-  const key=$('trsrt').value;
-  rows.sort((a,b)=>
-    key==='date'?(a.t.d<b.t.d?1:-1):
-    key==='proc'?((b.proc??-1e9)-(a.proc??-1e9)):
-    key==='worst'?(a.real-b.real):
-    key==='real'?(b.real-a.real):
-    (Math.abs(b.gap??0)-Math.abs(a.gap??0)));
-
-  $('trbody').innerHTML=rows.slice(0,30).map((r,i)=>{
-    const t=r.t;
-    const who=(t.legs||[]).slice(0,4).map(l=>(byId[String(l.id)]||{}).nm||'?').join(', ');
-    const extra=(t.legs.length>4?` +${t.legs.length-4}`:'')+
-                (t.picks.length?` · ${t.picks.length} pick${t.picks.length>1?'s':''}`:'');
-    return `<div class="tvrow trrow" data-tid="${t.id}">
-      <span class="rk">${i+1}</span>
-      <span class="nm">${who}${extra}</span>
-      <span class="tm">${t.tm.join('/')}</span>
-      <span class="ag">${t.d.slice(0,7)}</span>
-      <span class="deal">${r.tm} best</span>
-      <span class="tv ${r.proc>=0?'pos':'neg'}">${r.proc==null?'—':fmt(r.proc)}</span>
-      <span class="tv ${r.real>=0?'pos':'neg'}">${fmt(r.real)}</span>
-    </div>`;}).join('')+
-    `<div class="tvsec" style="padding-top:8px">columns are PROCESS then OUTCOME for the
-     team that did best. Draft picks are priced by the forward model at their original year;
-     protections are known to exist but not at what number, so protected picks are priced as
-     unprotected and the receiving side is flattered.</div>`;
-  document.querySelectorAll('.trrow').forEach(el=>{el.onclick=()=>{
-    const t=list.find(x=>x.id===el.dataset.tid); if(t)stageTrade(t);};});
-}
+};
 
 function render(){
   $('build').innerHTML=TEAMS.map(k=>`<div class="side" id="side${k}"></div>`).join('');
@@ -1611,11 +1572,10 @@ if(HIST&&HIST.years&&HIST.years.length){
       el.textContent=`${t.tm.join('–')}: ${who}`;
       el.onclick=()=>stageTrade(t);
     });
-    modeNote(); renderBoard(); renderTrades(); render();
+    modeNote(); renderBoard(); render();
   };
   sel.onchange=reseason;
   $('vmode').onchange=reseason;
-  $('trsrt').onchange=renderTrades;
 }
 function modeNote(){
   const n=$('modenote'); if(!n)return;
@@ -1690,6 +1650,29 @@ DEMO_FN[2]=()=>{TEAMS=['A','B','C'];
                   {kind:'pk',own:'ATL',yr:2032,rd:2,prot:0,from:'A'});
   render();};
 ['demo1','demo2','demo3'].forEach((b,i)=>{$(b).onclick=DEMO_FN[i];});
+
+// ── deep link: trades.html sends people here with a trade already chosen ─────
+// ?season=2017&trade=20170706:IND-OKC
+// Season is applied FIRST and through the picker's own handler, so the era
+// constants, the roster, the pre-trade correction and the mode controls all set
+// themselves exactly as they would if the year had been chosen by hand. Staging
+// the trade without that would drop it onto whatever season happened to be
+// loaded, which for a 2017 trade is the current roster and mostly empty.
+(function deepLink(){
+  const q=new URLSearchParams(location.search);
+  const y=q.get('season'), tid=q.get('trade');
+  if(!y||!HIST||!HIST.trades)return;
+  const sel=$('yr');
+  if(![...sel.options].some(o=>o.value===y))return;
+  sel.value=y;
+  if(q.get('mode')&&[...$('vmode').options].some(o=>o.value===q.get('mode')))
+    $('vmode').value=q.get('mode');
+  sel.onchange();
+  if(!tid)return;
+  const t=(HIST.trades[y]||[]).find(x=>x.id===tid);
+  if(t)stageTrade(t);
+})();
+
 render();
 })();
 </script>
