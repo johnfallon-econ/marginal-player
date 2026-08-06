@@ -265,9 +265,10 @@ function seasonPlayers(y,causal){
     // as-of calibration. The label (s.rate) has already seen T+1..T+4, so using
     // it here would be the whole leak this mode exists to close.
     const av=s.av[i]==null?0.7:s.av[i];
+    const tm=(PRETRADE&&PRETRADE[String(pid)])||s.tm[i];
     const rate=(causal&&s.rc[i]!=null)?s.rc[i]:s.rate[i];
     const war=causal?K.beta*(av*82*s.mpg[i]/48)*(rate-K.repl):s.war[i];
-    out.push({id:String(pid), nm:HIST.names[pid], tm:s.tm[i], age:s.age[i],
+    out.push({id:String(pid), nm:HIST.names[pid], tm:tm, age:s.age[i],
               rate:rate, se:s.se[i], av:av,
               mpg:s.mpg[i], war:war, ch:s.ch[i],
               sal:s.sal[i], val:s.val[i], sur:s.sur[i],
@@ -755,7 +756,16 @@ function teamSurplus(roster,H,newSet,noDev,ref){
   // realized number and again in the counterfactual. The honest retrospective
   // statement is narrower and it is the one made here -- you get what his
   // contract returned, you give up what theirs did.
-  if(RETRO){
+  // BOTH past modes, not just realized. The minute budget, the substitution
+  // kernel and development are counterfactuals about a coherent 15-man roster at
+  // a point in time; a historical roster is a season aggregate of everyone who
+  // appeared, so any acquisition trips the squeeze -- Utah was charged $42M for
+  // receiving one marginal player, and the Lakers $78M of "minutes reallocated"
+  // for acquiring Luka. It also breaks the comparison this exists for: process
+  // and realized must differ in what the players are WORTH, not in whether a
+  // counterfactual was applied to one of them. Left running for `current`, where
+  // the roster really is a roster.
+  if(YEAR!=='current'){
     let tot=0,y1war=0,best=0;
     for(const p of roster){
       tot+=playerSurplus(p,H).sur;
@@ -1278,7 +1288,19 @@ function netOf(v,useT){ return v.pl+v.pk+(useT?v.eq:0); }
 // ── real trades ──────────────────────────────────────────────────────────────
 // Staged exactly as a hypothetical is, so a historical trade and one you invent
 // go through the same evaluator rather than a parallel scoring path.
+// A player's team in the season payload is where he ENDED the season, so a
+// historical trade is already reflected in the rosters it is being staged
+// against: Luka is listed on LAL for 2024-25, so moving him from DAL to LAL adds
+// him to a roster that already had him and the team delta comes out near zero
+// while his own asset row reads +$116M. PRETRADE puts each traded man back on
+// the club he came from, and lives at season scope rather than inside
+// stageTrade because the comparison view rebuilds the roster once per mode.
+let PRETRADE=null;
+
 function stageTrade(t){
+  PRETRADE={};
+  (t.legs||[]).forEach(l=>{PRETRADE[String(l.id)]=l.f;});
+  applySeason(YEAR, VIEW==='both'?'retro':VIEW);
   const tms=t.tm.slice(0,4);
   TEAMS=['A','B','C','D'].slice(0,tms.length);
   S={}; TEAMS.forEach((k,i)=>{S[k]={tm:tms[i],assets:[]};});
@@ -1525,6 +1547,7 @@ if(HIST&&HIST.years&&HIST.years.length){
   const reseason=()=>{
     const y=sel.value==='current'?'current':+sel.value;
     VIEW=$('vmode').value;
+    PRETRADE=null;          // a hand-picked season is not a staged trade
     // 'both' is two evaluations, not a mode -- seed the state with the realized
     // one so the board and rosters have something coherent to draw before
     // render() re-evaluates under each.
@@ -1619,7 +1642,7 @@ modeNote();
 $('dr').oninput=()=>{$('drv').textContent=$('dr').value+'%';render();};
 $('vt').oninput=()=>{$('vtv').textContent='$'+$('vt').value+'M';render();};
 $('addteam').onclick=addTeam;
-$('clear').onclick=()=>{TEAMS=['A','B'];S={A:{tm:'BOS',assets:[]},B:{tm:'MIA',assets:[]}};render();};
+$('clear').onclick=()=>{PRETRADE=null;applySeason(YEAR,VIEW==='both'?'retro':VIEW);TEAMS=['A','B'];S={A:{tm:'BOS',assets:[]},B:{tm:'MIA',assets:[]}};render();};
 function find(nm){const p=P.find(p=>p.nm.toLowerCase().includes(nm.toLowerCase()));return p?p.id:null;}
 const DEMO_LABEL=['Load: Giannis → MIA','Load: Brown → PHI','Load: 3-team Dort deal'];
 const DEMO_FN=[];
