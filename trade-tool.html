@@ -794,7 +794,61 @@ function allocPass(roster,h,newSet,adj,gone){
     // So each position gets its own slice of the 240 (2G/2F/1C), filled by
     // marginal value inside the group; only what a group genuinely cannot cover
     // spills to the others. Unknown positions pool with F, the flexible slot.
+    // HOW FAR A REAL PLAYER CAN BE STRETCHED, which is the constraint that
+    // actually binds -- not av*HARD_CAP, which sits far above any rotation a
+    // coach plays and therefore never triggered the residual at all.
+    //
+    // Minnesota came out of the Gobert trade with NINE men under contract and
+    // 182.5 minutes of demand against a budget of 240, so the nine absorbed all
+    // of it: McLaughlin +91%, Prince +74%, Nowell +70% over their own established
+    // workloads, and the full-base load charge billed each across his whole
+    // enlarged load. -100M of "minutes reallocated" for acquiring one centre.
+    //
+    // The ceiling is each man's OWN OPTIMUM, not a flat stretch factor. Value
+    // from one more team-game minute is (r - repl) - C*M/(48-M), so it runs out
+    // at M* = 48(r-repl)/(C + r-repl) minutes per game played. Past that point
+    // the load charge exceeds what he adds, and a replacement-level body -- who
+    // is fresh and costs nothing above replacement by construction -- is the
+    // better man to play. THAT is what makes the filler's minutes optimal, and
+    // it needs no constant: M* falls out of the rate and the load coefficient.
+    //
+    // Floored at his own established workload so this is a ceiling on being
+    // STRETCHED, never a reset. A man below replacement has M* of 0, but he
+    // keeps the minutes he actually plays; the optimum is used to decide who
+    // absorbs a shortfall, not to re-cut the rotation. A filler is exempt --
+    // it has no established workload to be stretched past.
+    const LOADC=PPM_TO_RATE*LOGREST_B;
+    // MARGINAL VALUE of one more minute per game played, at workload M.
+    //
+    //   value(M) = av*M * (r + loadAdj(M,M0) - repl)
+    //   loadAdj  = C*[log(48-M) - log(48-M0)]        <- RELATIVE TO HIS BASELINE
+    //   d/dM = av*[ (r-repl) + loadAdj(M,M0) - C*M/(48-M) ]
+    //
+    // The closed form 48*ex/(C+ex) that stood here kept only the derivative and
+    // dropped the loadAdj LEVEL, so M0 vanished from it entirely. That is not a
+    // rounding error: checked against a brute-force scan of the same value
+    // expression it missed by -1.2 on Edwards, -3.8 on Russell and +2.2 on
+    // McLaughlin -- understating the optimum for men who already play a lot and
+    // overstating it for bench players, which is precisely the direction that
+    // makes a whole league look overplayed.
+    const restm=m=>Math.max(48-m,1);
+    const mval=(x,M)=>{
+      const M0=Math.max(Math.min(x.p.mpg||0,HARD_CAP),1);
+      return (x.r-K.repl)+LOADC*(Math.log(restm(M))-Math.log(restm(M0)))
+             -LOADC*M/restm(M);
+    };
+    // Highest workload whose marginal value still clears `lam`. Monotone in M,
+    // so bisection is exact enough and needs no closed form.
+    const peak=(x,lam)=>{
+      if(mval(x,HARD_CAP)>lam) return HARD_CAP;
+      if(mval(x,0.1)<=lam) return 0;
+      let lo=0.1,hi=HARD_CAP;
+      for(let i=0;i<40;i++){const mid=(lo+hi)/2; if(mval(x,mid)>lam)lo=mid;else hi=mid;}
+      return (lo+hi)/2;
+    };
     elig.forEach(x=>{out[x.id]=Math.min(x.dem,x.cap);
+                     x.fcap=x.p&&x.p.fa?x.cap
+                            :Math.min(x.cap,Math.max(x.dem,(x.p.av||0)*peak(x,0)));
                      x.aff=subAffinity(x.p,gone);      // tilt on the rotation
                      x.shr=subShare(x.p,gone);});      // claim on the vacancy
     // PROPORTIONAL, which is what the paragraph above always claimed and what the
@@ -823,13 +877,13 @@ function allocPass(roster,h,newSet,adj,gone){
     const spread=(list,amount,wf)=>{
       let rem=amount,guard=0;
       while(guard++<200&&rem>0.01){
-        const open=list.filter(x=>out[x.id]<x.cap-1e-9);
+        const open=list.filter(x=>out[x.id]<(x.fcap==null?x.cap:x.fcap)-1e-9);
         if(!open.length)break;
         const ws=open.map(wf), b=ws.reduce((s,w)=>s+Math.max(0,w),0);
         if(b<=1e-9){    // nobody has a claim on this channel: split it evenly
           let moved=0;
           const e=rem/open.length;
-          open.forEach(x=>{const add=Math.min(e,x.cap-out[x.id]);
+          open.forEach(x=>{const add=Math.min(e,(x.fcap==null?x.cap:x.fcap)-out[x.id]);
                            out[x.id]+=add; moved+=add;});
           rem-=moved;
           if(moved<=1e-9)break;
@@ -837,7 +891,8 @@ function allocPass(roster,h,newSet,adj,gone){
         }
         let moved=0;
         open.forEach((x,i)=>{
-          const add=Math.min(rem*Math.max(0,ws[i])/b, x.cap-out[x.id]);
+          const add=Math.min(rem*Math.max(0,ws[i])/b,
+                             (x.fcap==null?x.cap:x.fcap)-out[x.id]);
           out[x.id]+=add; moved+=add;});
         rem-=moved;
         if(moved<=1e-9)break;
@@ -867,8 +922,14 @@ function allocPass(roster,h,newSet,adj,gone){
     //
     // ORDINARY SLACK is the rest -- availability-weighted demand sums below 240
     // on 26 of 30 rosters because an injured man's minutes do not evaporate. No
-    // one departed, so there is nobody to resemble; it scales with the observed
-    // rotation, which is the only evidence about how a coach hands minutes out.
+    // one departed, so there is nobody to resemble. It goes to whoever it costs
+    // LEAST to stretch, by marginal value, because a club short of bodies signs
+    // a replacement and chooses where to put him.
+    //
+    // It used to be weighted by out[id]*aff -- by minutes ALREADY HELD -- which
+    // is backwards. Marginal fatigue is C*M/(48-M), steeply increasing in M, so
+    // weighting by current minutes stretched the most expensive men first. The
+    // cheap minutes belong to whoever has room.
     //
     // The old single channel weighted by minutes*affinity, which made the kernel
     // decorative: minutes span 21x across a roster and affinity at most 1.6x, so
@@ -880,12 +941,85 @@ function allocPass(roster,h,newSet,adj,gone){
     // With no departures `vac` is 0, subAffinity is a uniform 1.0, and this is
     // exactly the proportional scaling that preceded it -- so no-trade
     // allocations are unchanged and the empty-trade invariant still prices at 0.
-    const held=elig.reduce((s,x)=>s+out[x.id],0);
-    let rem=TEAM_MIN-held;
-    const vac=Math.min(rem,(gone||[]).reduce(
-                (s,g)=>s+Math.max(0,(g.av||0)*Math.min(g.mpg||0,HARD_CAP)),0));
-    if(vac>0.01) rem-=vac-spread(elig,vac,x=>x.shr||0);
-    out.__unused=spread(elig,rem,x=>out[x.id]*(x.aff==null?1:x.aff));
+    // ONE WATER-FILL, AND THE CHEAPEST MINUTE WINS.
+    //
+    // Give the next minute to whoever it costs least, until his marginal value
+    // falls to the second cheapest, then to both, and so on. Equivalently: pick
+    // a price `lam` and let every man take minutes until his marginal value
+    // reaches it. A replacement body is available at exactly 0, so lam stops
+    // there -- any minute worth less than zero belongs to the filler, and that
+    // is what makes the filler's minutes the optimal ones.
+    //
+    // THE KERNEL RUNS ONLY WHEN NO BODY IS FORCED INTO THE LINEUP, and that is
+    // the line between the two rules. If the men already here can cover 240,
+    // a departure is covered FROM WITHIN and the question is purely who steps
+    // in for him -- a substitution, which is what the kernel measures. Once the
+    // roster is thin enough that a replacement must be signed, the question
+    // stops being "who resembles him" and becomes "is this minute worth more to
+    // one of ours than to a new man", and cost decides.
+    //
+    // Running both at once was the bug: the vacancy channel placed minutes by
+    // resemblance that were never priced against anyone's marginal cost, so the
+    // marginal values could not level -- a median gap of 4.65 rating points
+    // between men stretched on the same roster.
+    //
+    // FLOORED AT WHAT HE ALREADY PLAYS. Nobody plays less than he does unless
+    // demand genuinely exceeds the budget, and that is the over-subscribed
+    // branch above. So the floor binds here and a man already past the water
+    // line simply keeps his workload; the fill levels the men it can move.
+    const base={}; elig.forEach(x=>{base[x.id]=x.p&&x.p.fa?0:Math.min(x.dem,x.cap);});
+    const want=(x,lam)=>{
+      if(x.p&&x.p.fa) return 0;                   // residual claimant, not a bidder
+      const av=Math.max(x.p.av||0,0.05);
+      return Math.max(base[x.id], Math.min(x.cap, av*peak(x,lam)));
+    };
+    // `tot2` counts REAL players only -- want() returns 0 for a filler -- so any
+    // target handed to solve() must already have the fillers' minutes taken out
+    // of it. Solving real men to the full 240 after the bodies had been given
+    // 27.6 put Golden State on 267.6.
+    const tot2=lam=>elig.reduce((s,x)=>s+want(x,lam),0);
+    const solve=(lo,hi,target)=>{
+      for(let i=0;i<52;i++){const mid=(lo+hi)/2; if(tot2(mid)>target)lo=mid;else hi=mid;}
+      return (lo+hi)/2;
+    };
+    // At lam=0 every real man sits at his own optimum. If that still cannot
+    // cover 240 a body has to be signed, and cost takes over from resemblance.
+    const forcedFill = tot2(0) < TEAM_MIN-0.01;
+    if(!forcedFill){
+      // Covered from within: the departed man's workload goes to whoever
+      // resembles him, and that placement becomes the floor the fill levels
+      // around -- it is never taken back off him.
+      const vac=Math.min(TEAM_MIN-elig.reduce((s,x)=>s+out[x.id],0),
+                         (gone||[]).reduce((s,g)=>
+                           s+Math.max(0,(g.av||0)*Math.min(g.mpg||0,HARD_CAP)),0));
+      if(vac>0.01){
+        spread(elig,vac,x=>x.shr||0);
+        elig.forEach(x=>{base[x.id]=out[x.id];});
+      }
+    }
+    let lam=0;
+    if(tot2(0)>TEAM_MIN) lam=solve(0,64,TEAM_MIN);   // more appetite than budget
+    elig.forEach(x=>{out[x.id]=want(x,lam);});
+    const fills=elig.filter(x=>x.p&&x.p.fa);
+    let left=TEAM_MIN-elig.reduce((s,x)=>s+out[x.id],0);
+    if(left>0.01&&fills.length){
+      // Everything no real player is worth playing goes to the bodies, evenly,
+      // up to what they can physically absorb.
+      left=spread(fills,Math.min(left,fills.reduce((s,x)=>s+x.cap,0)),()=>1)
+           +Math.max(0,left-fills.reduce((s,x)=>s+x.cap,0));
+    }
+    // SOMEONE HAS TO PLAY 240. A club already carrying 15 men gets no filler at
+    // all -- it cannot sign a 16th -- so when the bodies cannot cover the rest
+    // the price goes NEGATIVE and real men take minutes that lose value, which
+    // is what actually happens to a short-handed team. Left unhandled this was
+    // dropped on the floor: 32 of 92 rosters lost minutes, one 129 of its 240.
+    if(left>0.01){
+      const onFills=fills.reduce((s,x)=>s+out[x.id],0);
+      lam=solve(-64,0,TEAM_MIN-onFills);
+      elig.forEach(x=>{if(!(x.p&&x.p.fa))out[x.id]=want(x,lam);});
+      left=TEAM_MIN-elig.reduce((s,x)=>s+out[x.id],0);
+    }
+    out.__unused=Math.max(0,left);
   }
   return out;
 }
@@ -1554,6 +1688,13 @@ window.__probe={
   // inferring it from minutes and getting that wrong.
   subAffinity:(p,gone)=>subAffinity(p,gone),
   projRate:(p,h,isNew)=>projRate(p,h,isNew),
+  // Stage a real trade the way the page does -- point-in-time roster, era, mode
+  // and all. Rebuilding that by hand in a test produced a 16-man Minnesota with
+  // Gobert listed twice and no departures at all, which would have diagnosed a
+  // bug that was not there.
+  stageTrade:(t,opts)=>stageTrade(t,opts),
+  evaluate:()=>evaluate(),
+  get S(){return S;}, get TEAMS(){return TEAMS;},
   get ROSTER(){return ROSTER;}, get P(){return P;}, get K(){return K;},
 };
 window.__scoreSeason=function(y){
