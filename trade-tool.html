@@ -321,10 +321,31 @@ function applySeason(y,mode){
   // process number priced on the era's curve would differ by 2.1x in slope before
   // a single thing happened on the floor, and that difference would be read as
   // outcome. Today's curve is still used for `current`, where it is the right one.
-  const era=(y!=='current'&&asofAvailable(y))?HIST.asof[String(y)]:null;
-  if(era){
-    K={aging:era.aging,price:era.price,beta:era.calibration.beta,
-       repl:era.calibration.repl,caps:HIST.capproj[String(y)]};
+  // TWO separate questions, which one gate used to answer at once.
+  //
+  // (1) Is this a past season? Then it must be priced against ITS OWN cap path.
+  // (2) Is the as-of price curve trustworthy here? Only from 2002; before that it
+  //     rests on 81 to 270 signings and is mostly prior.
+  //
+  // Conflating them meant pre-2002 seasons fell all the way back to D.caps, whose
+  // earliest key is 2026, so every lookup missed and returned the terminal 2033
+  // cap: 1999 production priced against $286M instead of $34M. Median trade value
+  // in 1999-2001 ran 25-46 against 4-15 everywhere after, and the largest trades
+  // on the whole board were early ones for that reason alone.
+  //
+  // Era caps and calibration now apply to every past season. The as-of PRICE
+  // CURVE is still withheld before 2002, where the full-sample curve is the
+  // better estimate of what a win was worth -- it is expressed as a share of cap,
+  // and the cap it is now multiplied by is the right one.
+  const past=(y!=='current');
+  const era=past?HIST.asof[String(y)]:null;
+  const trust=past&&asofAvailable(y);
+  if(past&&era){
+    K={aging:trust?era.aging:D.aging,
+       price:trust?era.price:D.price,
+       beta:trust?era.calibration.beta:D.beta,
+       repl:trust?era.calibration.repl:D.repl,
+       caps:HIST.capproj[String(y)]||D.caps};
     BASE=y;
   }else{
     K={aging:D.aging,price:D.price,beta:D.beta,repl:D.repl,caps:D.caps};
