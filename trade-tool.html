@@ -427,7 +427,24 @@ function applySeason(y,mode){
     K={aging:D.aging,price:D.price,beta:D.beta,repl:D.repl,caps:D.caps};
     BASE=(y==='current')?2025:y;
   }
-  if(y==='current'){P=D.players; T=D.teams;}
+  // PRETRADE APPLIES TO `current` TOO. seasonPlayers() honours it for past
+  // seasons, but this branch took D.players verbatim, and that was invisible
+  // only while D.players carried LAST season's clubs -- a man traded in July was
+  // still listed where he finished the year, which is pre-trade by accident.
+  // Now that the current roster comes from the league's own record it is
+  // POST-trade, so staging a real one asked the tool to move a player onto the
+  // club he is already on and off a club he already left: Chicago's side of the
+  // four-team Naz Reid deal came out at exactly 0.00, having "received" Claxton,
+  // who was already there. Same correction as everywhere else -- put each traded
+  // man back where he came from -- and a copy, never a mutation, because
+  // D.players is shared across every season switch.
+  if(y==='current'){
+    P=PRETRADE ? D.players.map(p=>{
+        const f=PRETRADE[String(p.id)];
+        return (f&&f!==p.tm) ? Object.assign({},p,{tm:f}) : p;
+      }) : D.players;
+    T=D.teams;
+  }
   else {P=seasonPlayers(y,MODE==='asof'); T=seasonTeams(P);}
   // The league title baseline is a function of THIS season's 30 teams and this
   // mode's ratings, and it was cached forever. Nothing invalidated it, so a
