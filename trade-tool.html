@@ -1649,7 +1649,8 @@ function renderSide(k){
   const rmBtn=TEAMS.length>2?`<button class="rmteam" data-rm="${k}" title="remove side">×</button>`:'';
   $('side'+k).innerHTML=`
    <h2>${k} <select data-team="${k}">${teamOpts(s.tm)}</select> receives
-     <span class="ctx">${t.ew??'—'} proj W · top1 ${t.top1??'—'} WAR · pay $${t.pay??'—'}M</span>${rmBtn}</h2>
+     <span class="ctx">${NF.wins(t.ew)} proj W · top1 ${NF.wins(t.top1)} WAR
+       · pay ${NF.money(t.pay,false)}</span>${rmBtn}</h2>
    <div class="assets">${s.assets.map(a=>assetRow(a,k)).join('')||'<span class="hint">no assets yet</span>'}</div>
    <div class="adders">
      <div class="addrow"><input type="text" list="plist${k}" placeholder="add player from ${others.map(j=>S[j].tm).join('/')}…" data-add="${k}"></div>
