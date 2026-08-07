@@ -643,8 +643,18 @@ function buildRosters(){
   // trade. Membership comes from the ledger; the stats still come from the
   // season payload, so this changes WHO is on the floor, not what they are worth.
   if(ROSTER_AT){
-    for(const tm in ROSTER_AT){
-      const want=new Set(ROSTER_AT[tm].map(String));
+    for(const tm0 in ROSTER_AT){
+      // KEYED IN THE PAYLOAD'S SPELLING, not the ledger's. ROSTER_AT comes from
+      // the contract ledger in era codes (CHO, PHO, BRK); the current payload
+      // comes from the league in its own (CHA, PHX, BKN). Written through
+      // unmapped it does not overwrite Charlotte -- it creates a SECOND one, so
+      // the league had 32 clubs, ROSTER.CHO and ROSTER.CHA each holding 15 men,
+      // and a trade staged against whichever code it happened to name. Past
+      // seasons are unaffected: there the era code is already the payload's key,
+      // so ROSTER[tm0] exists and nothing is remapped.
+      const tm = (ROSTER[tm0] || !TEAM_ALIAS[tm0] || !ROSTER[TEAM_ALIAS[tm0]])
+                 ? tm0 : TEAM_ALIAS[tm0];
+      const want=new Set(ROSTER_AT[tm0].map(String));
       const r=P.filter(p=>want.has(String(p.id)));
       if(r.length)ROSTER[tm]=r;
     }
