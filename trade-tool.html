@@ -1226,8 +1226,18 @@ function evaluate(){
     //   minutes  what re-allocating the rest of the roster did (the residual)
     //   dev      development, already isolated
     // direct + minutes + dev == the old single "players" figure, exactly.
-    const inb=post[K].filter(q=>incoming[K].has(q.id));
-    const outb=pre.filter(q=>!post[K].some(z=>z.id===q.id));
+    // Who moved is KNOWN -- `moves` is built from the staged assets -- so take it
+    // from there rather than inferring it by differencing rosters.
+    //
+    // ROSTER is trimmed to the top 15 by rate, and a historical roster carries
+    // 20-25 men, so roughly a third of every past team is absent from that array.
+    // A traded player outside his own team's top 15 therefore never appeared in
+    // `pre`, so the SENDING side never subtracted him while the receiving side
+    // added him: "players acquired − sent" failed to mirror on 99 of 714 two-team
+    // trades, and failed more often the more players moved (3.3 legs on the
+    // broken ones against 2.3 on the sound ones).
+    const inb=moves.filter(m=>m.to===K).map(m=>m.p);
+    const outb=moves.filter(m=>m.from===K).map(m=>m.p);
     const direct=inb.reduce((a,q)=>a+soloSurplus(q,H,true),0)
                 -outb.reduce((a,q)=>a+soloSurplus(q,H,false),0);
     const mins=(rPost.sur-rPre.sur)-direct-devDelta;
@@ -1469,7 +1479,10 @@ window.__scoreSeason=function(y){
       teams[tm]={real:Math.round(rl[tm].net),
                  proc:pr[tm]==null?null:Math.round(pr[tm].net),
                  mins:Math.round(rl[tm].mins), eq:Math.round(rl[tm].eq),
-                 pk:Math.round(rl[tm].pk)};
+                 pk:Math.round(rl[tm].pk),
+                 // the assets that actually moved, at their own minutes
+                 dir:Math.round(rl[tm].dir),
+                 dirp:pr[tm]==null?null:Math.round(pr[tm].dir)};
     });
     return {id:t.id, d:t.d, tm:t.tm, seed:t.seed, npick:(t.picks||[]).length,
             who:(t.legs||[]).map(l=>(byId[String(l.id)]||{}).nm).filter(Boolean),
