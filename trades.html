@@ -66,12 +66,17 @@ let KEY="gap", DIR=-1;
 // is all that differs -- so sorting Outcome descending must show the winner and
 // ascending must show the loser, or the table contradicts its own header.
 function side(x,key,dir){
-  const v=x.s.filter(z=>z.r!=null);
+  // A trade made for a season not yet played has a process number and NO
+  // outcome. Filtering on outcome dropped the whole 2026 offseason from a page
+  // that had just been fixed to include it -- fall back to process, and rank on
+  // whichever quantity the row actually has.
+  const v=x.s.filter(z=>z.r!=null||z.p!=null);
   if(!v.length)return null;
+  const primary=z=>z.r!=null?z.r:z.p;
   const pick=(f,d)=>v.reduce((a,b)=>(d<0?f(b)>f(a):f(b)<f(a))?b:a);
   if(key==="proc")return pick(z=>z.p==null?-1e9:z.p,dir);
-  if(key==="gap") return pick(z=>Math.abs(z.r-(z.p==null?z.r:z.p)),-1);
-  return pick(z=>z.r,dir);
+  if(key==="gap") return pick(z=>(z.r==null||z.p==null)?-1:Math.abs(z.r-z.p),-1);
+  return pick(z=>primary(z)==null?-1e9:primary(z),dir);
 }
 function draw(){
   const sea=$("tsea").value, pk=$("tpk").checked;
@@ -81,7 +86,8 @@ function draw(){
             .filter(Boolean);
   const val=o=>KEY==="date"?o.x.d:KEY==="tm"?(o.v.tm||""):
              KEY==="proc"?(cmpv(o.v.p,o.x.cap)??-1e9):
-             KEY==="gap"?(cmpv(o.gap,o.x.cap)??0):cmpv(o.v.r,o.x.cap);
+             KEY==="gap"?(cmpv(o.gap,o.x.cap)??0):
+             cmpv(o.v.r!=null?o.v.r:o.v.p,o.x.cap);
   r.sort((a,b)=>{const x=val(a),y=val(b);
     return (typeof x==="string"?x.localeCompare(y):x-y)*(DIR<0?-1:1);});
   $("tcnt").textContent=r.length+" trade"+(r.length===1?"":"s");
