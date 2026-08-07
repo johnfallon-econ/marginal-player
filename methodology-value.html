@@ -112,10 +112,10 @@ a season, where the noise averages out.</p>
 
 <p>A player logging <em>sec</em> seconds at rating <em>θ̃</em> therefore contributes</p>
 
-<div class="eqn">WAR = β · (sec ⁄ 2880) · (θ̃ − θ<sub>repl</sub>),   θ<sub>repl</sub> = -1.344</div>
+<div class="eqn">WAR = β · (sec ⁄ 2880) · (θ̃ − θ<sub>repl</sub>),   θ<sub>repl</sub> = -1.774</div>
 
 <p>Replacement level is the freely available alternative, not zero. Setting it at
--1.34 rather than 0 is why a strong season here reads near 20 rather than the
+-1.77 rather than 0 is why a strong season here reads near 20 rather than the
 10 familiar from public win-value statistics. It is a different ruler, not a bigger number.</p>
 
 <h2>3. Price: a censored-regression market curve</h2>
@@ -124,8 +124,8 @@ a season, where the noise averages out.</p>
 they are <strong>censored on both sides</strong>: the collective bargaining agreement caps
 individual pay, so a fifteen-win superstar earns the maximum rather than his worth, and the
 minimum props up the bottom. Ordinary least squares on observed pay therefore underprices
-exactly the players the question is about — the naïve slope is 0.0156 cap
-share per win, against 0.0651 here.</p>
+exactly the players the question is about — the naïve slope is 0.0151 cap
+share per win, against 0.0671 here.</p>
 
 <p>Treat both bounds as censoring and estimate the latent curve by full-information maximum
 likelihood:</p>
@@ -165,8 +165,8 @@ that voluntarily pays the tax values the player at no less than the tax-inclusiv
 does not require teams to be right about the player, only to be willing.</p>
 
 <p>This is what produces the headline result. The cap-constrained rate — what teams actually
-pay, censoring and all — is 0.0233 of the cap per win. The free-market rate is
-0.0651, a <strong>2.82× premium</strong>. Every market value,
+pay, censoring and all — is 0.0228 of the cap per win. The free-market rate is
+0.0671, a <strong>2.79× premium</strong>. Every market value,
 every surplus figure and every trade verdict on this site is denominated at the free-market
 rate, and the section below on superstar value follows directly from it. A reader who rejects
 the tax-censoring argument should read all of those numbers as roughly 2.8
@@ -175,10 +175,10 @@ times too large.</p>
 <p>Sample: 1999-2025, new deals, svc>=4.</p>
 
 <div class="stats">
-  <div><span class="sv">0.0235</span><span class="sl">â — intercept, the replacement floor</span></div>
-  <div><span class="sv">0.0651</span><span class="sl">b̂ — cap share per win</span></div>
-  <div><span class="sv">0.00022</span><span class="sl">ĉ — convexity, the star premium</span></div>
-  <div><span class="sv">0.349</span><span class="sl">σ̂ — residual dispersion</span></div>
+  <div><span class="sv">0.0108</span><span class="sl">â — intercept, the replacement floor</span></div>
+  <div><span class="sv">0.0671</span><span class="sl">b̂ — cap share per win</span></div>
+  <div><span class="sv">-0.00027</span><span class="sl">ĉ — convexity, the star premium</span></div>
+  <div><span class="sv">0.347</span><span class="sl">σ̂ — residual dispersion</span></div>
   <div><span class="sv">2,542</span><span class="sl">contracts</span></div>
 </div>
 
@@ -187,8 +187,8 @@ because a team cannot be paid to hold a roster spot. Negative <em>surplus</em> i
 possible and is where the interesting players are.</p>
 
 <p><strong>The convex term is not statistically significant, and the page should say so.</strong>
-Its 95% interval is [-0.00164, 0.00356], straddling zero, with
-P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.58. It is retained because three independent
+Its 95% interval is [-0.00188, 0.00275], straddling zero, with
+P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.38. It is retained because three independent
 lines of evidence lean the same way — roster-slot scarcity, stars outperforming their total
 win contribution in the playoffs, and the curve's own mild convex tilt — but a reader who
 prefers the linear curve is not arguing against the data.</p>
