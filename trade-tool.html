@@ -306,7 +306,30 @@ function seasonTeams(list){
 // grades luck. Keeping them separate variables matters because 'both' is not a
 // mode anything can be evaluated in -- it is two evaluations.
 let MODE='current', VIEW='both';
+// TWO gates, previously one.
+//
+// asofAvailable  -- can this season be evaluated as a forecast at all? Yes for
+//                   every season we have an as-of block for, which is all of
+//                   them: rapm_causal runs from 1996, and the win calibration
+//                   and aging curve are well determined even in 1999 (4,576
+//                   games).
+// trustPrice     -- is the as-of MARKET CURVE usable? Only from 2002. Before
+//                   that it is fit on 81 to 270 new-deal signings and is not
+//                   merely noisy but attenuated: b climbs monotonically
+//                   0.0115 -> 0.018 -> 0.025 -> ... -> 0.061 as signings
+//                   accumulate. Running process mode on it would score every
+//                   early trade about 5.7x too small against a correctly priced
+//                   outcome and manufacture an enormous fake gap for the era.
+//
+// So pre-2002 forecasts use the PUBLISHED price curve. That is a real leak and
+// is labelled as one: the curve is fit through 2025. It is the narrow one worth
+// accepting, because the hindsight that matters for a forecast is knowing how
+// players turned out, and rapm_causal still blocks that -- what leaks is only
+// the price of a win, not who was good.
 function asofAvailable(y){
+  return !!(HIST&&HIST.asof&&HIST.asof[String(y)]);
+}
+function trustPrice(y){
   return !!(HIST&&HIST.asof&&HIST.asof[String(y)]&&y>=(HIST.asof_from||2002));
 }
 function applySeason(y,mode){
@@ -339,7 +362,7 @@ function applySeason(y,mode){
   // and the cap it is now multiplied by is the right one.
   const past=(y!=='current');
   const era=past?HIST.asof[String(y)]:null;
-  const trust=past&&asofAvailable(y);
+  const trust=past&&trustPrice(y);
   if(past&&era){
     K={aging:trust?era.aging:D.aging,
        price:trust?era.price:D.price,
@@ -1712,7 +1735,10 @@ function modeNote(){
     +'symmetric one that has already seen the next four. The aging curve, market price curve '
     +'and win calibration are all refit on seasons through '+YEAR+' only '
     +'(β '+a.calibration.beta.toFixed(4)+' vs '+D.beta.toFixed(4)+' published; price slope '
-    +a.price.b.toFixed(4)+' from '+a.price.n.toLocaleString()+' signings), and the cap path is '
+    +(trustPrice(YEAR)?a.price.b.toFixed(4)+' from '+a.price.n.toLocaleString()+' signings'
+      :'<b>published</b>, because the '+YEAR+' curve rests on only '
+       +a.price.n.toLocaleString()+' signings and is attenuated — the one part of this '
+       +'valuation that sees past '+YEAR)+'), and the cap path is '
     +'extrapolated from trailing growth rather than read off what the cap turned out to be. '
     +'<b>This is a forecast</b> — compare it against “how it turned out” to see what the model '
     +'actually knew in advance.';
