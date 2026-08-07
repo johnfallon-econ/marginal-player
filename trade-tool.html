@@ -385,6 +385,33 @@ function asofAvailable(y){
 function trustPrice(y){
   return !!(HIST&&HIST.asof&&HIST.asof[String(y)]&&y>=(HIST.asof_from||2002));
 }
+// SAME FRANCHISE, DIFFERENT SPELLING. Trade records carry the bref/RealGM codes
+// -- BRK, CHO, PHO -- and the CURRENT roster carries the league's own: BKN, CHA,
+// PHX. Past seasons are unaffected, because there the era code IS the roster
+// key; this only bites on `current`, where the payload comes from PlayerIndex.
+//
+// Unmapped, all three staged against an EMPTY roster and the team selector,
+// having no such option, fell back to its first entry: the Grayson Allen / Miles
+// Bridges trade showed Atlanta on both sides. It also quietly reduced those
+// clubs to standalone value -- Brooklyn's side of the four-team Naz Reid deal
+// came out with pl exactly equal to direct, the signature of a team whose roster
+// interaction never happened.
+//
+// Applied only when the code is absent and its alias is present, so an era code
+// that is genuinely this season's key is left alone.
+const TEAM_ALIAS = {BRK:'BKN', PHO:'PHX', CHO:'CHA',
+                    BKN:'BRK', PHX:'PHO', CHA:'CHO'};
+function teamKey(t){
+  if(!t) return t;
+  if(ROSTER[t] && ROSTER[t].length) return t;
+  const a=TEAM_ALIAS[t];
+  return (a && ROSTER[a] && ROSTER[a].length) ? a : t;
+}
+
+// opts {year, mode, quiet} exists for the build-time scorer, which walks every
+// trade in every season and must not repaint the page 1,682 times to do it.
+// Called with no opts it behaves exactly as before.
+
 function applySeason(y,mode){
   YEAR=y;
   MODE=(y==='current')?'current':((mode==='asof'&&asofAvailable(y))?'asof':'retro');
@@ -439,8 +466,14 @@ function applySeason(y,mode){
   // man back where he came from -- and a copy, never a mutation, because
   // D.players is shared across every season switch.
   if(y==='current'){
+    // PRETRADE holds the trade record's spelling -- BRK, CHO, PHO -- while
+    // D.players holds the league's: BKN, CHA, PHX. Sending a man "back" to a
+    // code this payload has never heard of would strand him on no roster at
+    // all, so the code is translated against the clubs actually present.
+    const live=new Set(D.players.map(p=>p.tm));
+    const fix=c=>live.has(c)?c:(TEAM_ALIAS[c]&&live.has(TEAM_ALIAS[c])?TEAM_ALIAS[c]:c);
     P=PRETRADE ? D.players.map(p=>{
-        const f=PRETRADE[String(p.id)];
+        const f=PRETRADE[String(p.id)] && fix(PRETRADE[String(p.id)]);
         return (f&&f!==p.tm) ? Object.assign({},p,{tm:f}) : p;
       }) : D.players;
     T=D.teams;
@@ -1680,9 +1713,6 @@ function netOf(v,useT){ return v.pl+v.pk+(useT?v.eq:0); }
 // stageTrade because the comparison view rebuilds the roster once per mode.
 let PRETRADE=null;
 
-// opts {year, mode, quiet} exists for the build-time scorer, which walks every
-// trade in every season and must not repaint the page 1,682 times to do it.
-// Called with no opts it behaves exactly as before.
 function stageTrade(t,opts){
   opts=opts||{};
   PRETRADE={};
@@ -1699,16 +1729,19 @@ function stageTrade(t,opts){
   ROSTER_AT=t.ros||null;
   applySeason(opts.year===undefined?YEAR:opts.year,
               opts.mode||(VIEW==='both'?'retro':VIEW));
-  const tms=t.tm.slice(0,4);
+  // teamKey AFTER applySeason: it decides by what is actually in ROSTER, and
+  // ROSTER is rebuilt in there. Legs and picks are mapped the same way, or the
+  // side lookup misses and the asset is silently dropped.
+  const tms=t.tm.slice(0,4).map(teamKey);
   TEAMS=['A','B','C','D'].slice(0,tms.length);
   S={}; TEAMS.forEach((k,i)=>{S[k]={tm:tms[i],assets:[]};});
   const side={}; TEAMS.forEach(k=>{side[S[k].tm]=k;});
   (t.legs||[]).forEach(l=>{
-    const to=side[l.t], fr=side[l.f];
+    const to=side[teamKey(l.t)], fr=side[teamKey(l.f)];
     if(to&&fr&&byId[String(l.id)])S[to].assets.push({kind:'pl',id:String(l.id),from:fr});
   });
   (t.picks||[]).forEach(p=>{
-    const to=side[p.t], fr=side[p.f];
+    const to=side[teamKey(p.t)], fr=side[teamKey(p.f)];
     // Protections survive as a flag, not a threshold: the manifest records that a
     // pick WAS protected, never at what number. Priced as unprotected here, which
     // overstates the receiving side, and is why the board says so.
