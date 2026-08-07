@@ -1452,7 +1452,12 @@ function render(){
        ${YEAR}-${String(YEAR+1).slice(2)} — a backward-only window, no knowledge of the next four seasons.
        <b>Realized</b> values it on the production those contracts actually delivered. Both are priced with the
        SAME era constants (aging curve, price curve, win calibration and cap path all fit on seasons through
-       ${YEAR}), so the difference between them is what the players did, not how the model was calibrated. Today's
+       ${YEAR}), They are not symmetric and should not be: process is a forecast and runs the full
+       roster counterfactual — minutes, substitution, title equity — exactly as current mode
+       does, while realized is a sum of what the contracts returned and applies none of it,
+       because those minutes were actually played and reallocating them would charge the trade
+       twice. The difference between the columns is therefore what the players did AND what the
+       roster did not do as forecast. Today's
        published price curve values a win about twice what the ${YEAR} data supported; using it on one side only
        would put that factor into this line and call it an outcome.</div>`;
   }
