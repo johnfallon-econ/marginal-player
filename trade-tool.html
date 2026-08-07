@@ -1447,6 +1447,18 @@ function scoreTrade(t,H){
 // is produced by the same evaluator the tool uses -- a second implementation in
 // Python would have to restate projRate, the aging curve, the switch shock and
 // the option rules, and would drift from this one the first time either moved.
+// Diagnostic handles. Everything here is closed inside an IIFE, which is right
+// for a page and makes the model untestable from outside -- every check of the
+// allocator so far has had to read numbers back out of rendered HTML. These are
+// references to the functions the page itself uses, so a test exercises the
+// shipped code rather than a copy of it.
+window.__probe={
+  evaluateAs:(m,y)=>evaluateAs(m,y),
+  teamSurplus:(r,H,n,nd,ref)=>teamSurplus(r,H,n,nd,ref),
+  soloSurplus:(p,H,isNew)=>soloSurplus(p,H,isNew),
+  allocate:(r,h,n,d,g)=>allocate(r,h,n,d,g),
+  get ROSTER(){return ROSTER;}, get P(){return P;}, get K(){return K;},
+};
 window.__scoreSeason=function(y){
   const list=(HIST&&HIST.trades&&HIST.trades[String(y)])||[];
   if(!list.length)return [];
