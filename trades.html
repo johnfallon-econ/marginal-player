@@ -82,7 +82,10 @@ function draw(){
   const sea=$("tsea").value, pk=$("tpk").checked;
   let r=ROWS.filter(x=>(!sea||String(x.y)===sea)&&(!pk||x.np>0))
             .map(x=>{const v=side(x,KEY,DIR);
-                     return v?{x,v,gap:v.p==null?null:v.r-v.p}:null;})
+                     // BOTH sides must exist. With only a process number, v.r-v.p coerced null
+                     // to 0 and reported the forecast itself as the difference from an
+                     // outcome that has not happened.
+                     return v?{x,v,gap:(v.p==null||v.r==null)?null:v.r-v.p}:null;})
             .filter(Boolean);
   const val=o=>KEY==="date"?o.x.d:KEY==="tm"?(o.v.tm||""):
              KEY==="proc"?(cmpv(o.v.p,o.x.cap)??-1e9):
