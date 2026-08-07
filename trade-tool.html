@@ -353,6 +353,18 @@ function applySeason(y,mode){
   }
   if(y==='current'){P=D.players; T=D.teams;}
   else {P=seasonPlayers(y,MODE==='asof'); T=seasonTeams(P);}
+  // The league title baseline is a function of THIS season's 30 teams and this
+  // mode's ratings, and it was cached forever. Nothing invalidated it, so a
+  // scorer walking 1999 to 2025 computed the denominator from the 1999 league
+  // and divided every later season by it. Jason Thompson, a twelfth man, came
+  // out costing Golden State $231M of title equity in 2015 for that reason and
+  // no other.
+  //
+  // It was harmless until recently by accident: every historical team was handed
+  // ew=41, so the baseline really was identical in every season and a stale cache
+  // could not be detected. Giving teams their real records made the denominator
+  // season-specific and the latent bug immediate.
+  _LG=null;
   reindex();
   buildRosters();   // both are derived from P and must move with it
 }
