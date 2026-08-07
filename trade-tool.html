@@ -1273,8 +1273,14 @@ function addTeam(){
 // P/T/K/BASE/ROSTER, and the staged assets survive because both modes key
 // players by the same id. `tv` is cleared because it is cached per player and
 // means something different in each mode.
-function evaluateAs(mode){
-  applySeason(YEAR, mode);
+// `y` is optional and defaults to the season on screen. It exists because the
+// build-time scorer walks every season in one page load, and without it
+// evaluateAs read the global YEAR -- which the scorer never set, so all 27
+// seasons were scored against whichever roster happened to be loaded. The tell
+// was that process and realized came out identical on every row: both were being
+// computed in the same mode against the same roster.
+function evaluateAs(mode,y){
+  applySeason(y===undefined?YEAR:y, mode);
   P.forEach(p=>{p.tv=null; p.tvc=null;});
   return evaluate();
 }
@@ -1342,7 +1348,7 @@ window.__scoreSeason=function(y){
   const list=(HIST&&HIST.trades&&HIST.trades[String(y)])||[];
   if(!list.length)return [];
   const H=+$('hz').value;
-  const grab=mode=>{const out={}; evaluateAs(mode);
+  const grab=mode=>{const out={}; evaluateAs(mode,y);
     list.forEach(t=>{out[t.id]=scoreTrade(t,H);}); return out;};
   const proc=asofAvailable(y)?grab('asof'):{};
   const real=grab('retro');
