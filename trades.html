@@ -33,7 +33,6 @@ Click any row to open it in the Trade Lab.</p>
 <table class="brd" id="ttab"><thead><tr>
   <th>#</th><th>Trade</th><th data-k="tm">Teams</th><th data-k="date">Date</th>
   <th class="r" data-k="proc">Process</th><th class="r" data-k="real">Outcome</th>
-  <th class="r" data-k="gap">Difference</th>
 </tr></thead><tbody id="tbody"></tbody></table>
 
 <div class="note"><p><strong>Reading these.</strong> Value in a trade is conserved — the sides sum to
@@ -135,21 +134,15 @@ function side(x,key,dir){
   const primary=z=>z.r!=null?z.r:z.p;
   const pick=(f,d)=>v.reduce((a,b)=>(d<0?f(b)>f(a):f(b)<f(a))?b:a);
   if(key==="proc")return pick(z=>z.p==null?-1e9:z.p,dir);
-  if(key==="gap") return pick(z=>(z.r==null||z.p==null)?-1:Math.abs(z.r-z.p),-1);
   return pick(z=>primary(z)==null?-1e9:primary(z),dir);
 }
 function draw(){
   const sea=$("tsea").value, pk=$("tpk").checked;
   let r=ROWS.filter(x=>(!sea||String(x.y)===sea)&&(!pk||x.np>0))
-            .map(x=>{const v=side(x,KEY,DIR);
-                     // BOTH sides must exist. With only a process number, v.r-v.p coerced null
-                     // to 0 and reported the forecast itself as the difference from an
-                     // outcome that has not happened.
-                     return v?{x,v,gap:(v.p==null||v.r==null)?null:v.r-v.p}:null;})
+            .map(x=>{const v=side(x,KEY,DIR); return v?{x,v}:null;})
             .filter(Boolean);
   const val=o=>KEY==="date"?o.x.d:KEY==="tm"?(o.v.tm||""):
              KEY==="proc"?(cmpv(o.v.p,o.x.cap)??-1e9):
-             KEY==="gap"?(cmpv(o.gap,o.x.cap)??0):
              cmpv(o.v.r!=null?o.v.r:o.v.p,o.x.cap);
   r.sort((a,b)=>{const x=val(a),y=val(b);
     return (typeof x==="string"?x.localeCompare(y):x-y)*(DIR<0?-1:1);});
@@ -170,8 +163,7 @@ function draw(){
       <td><b>${v.tm}</b> <span class="mut">of ${x.tm.join("/")}</span></td>
       <td class="mut">${x.d}${x.up?' <span class="mut">(no outcome yet)</span>':''}</td>
       <td class="r ${v.p>=0?"pos":"neg"}" ${x.lk?'title="Priced with the published market curve — the as-of curve for this season rests on too few signings to use, so this figure sees past its own season."':''}>${show(v.p,x.cap)}${x.lk?'<sup class="mut">†</sup>':''}</td>
-      <td class="r ${v.r>=0?"pos":"neg"}">${show(v.r,x.cap)}</td>
-      <td class="r ${o.gap>=0?"pos":"neg"}">${show(o.gap,x.cap)}</td></tr>`;}).join("");
+      <td class="r ${v.r>=0?"pos":"neg"}">${show(v.r,x.cap)}</td></tr>`;}).join("");
   document.querySelectorAll("#tbody tr").forEach(tr=>{
     tr.tabIndex=0; tr.style.cursor="pointer";
     const go=()=>{location.href=tr.dataset.h;};
