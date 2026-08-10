@@ -81,25 +81,32 @@ from three independent estimates on different samples. What the arrivals do not 
 settles on the incumbents by capacity, and a club that receives nobody gets a
 replacement body priced by the same logic rather than a fixed constant.</p>
 
-<p>Held out, that predicts post-trade minutes to
-<strong>6.17 per man</strong> against
-6.77 for simply removing the departed and
-renormalising. The honest reading of that gap is that most of it comes from knowing
-<em>who arrived</em>: naming the incoming player and doing nothing else scores
-6.23. Every theory of who covers the hole is worth
-a fraction of a minute beyond that.</p>
+<p>Held out, it predicts each man's post-trade minutes with a mean absolute error of
+<strong>6.17 minutes per player per game</strong>,
+against 6.77 for simply removing the departed and
+renormalising. Lower is better, and neither is good: six minutes is a large error when
+a rotation player's allocation is fifteen to thirty. The honest reading of the gap is
+that most of it comes from knowing <em>who arrived</em> &mdash; naming the incoming
+player and doing nothing else gives 6.23. Every theory
+of who covers the hole is worth a fraction of a minute beyond that.</p>
+
+<p>That figure scores <em>minutes</em>, not valuations. Whether the dollar figures this
+page produces are more accurate under one allocation rule than another is not something
+any test here establishes, and the change of rule moved team surplus by a median of
+$77M. Take the minute errors as what they are.</p>
 
 <p>Two rules that lost are worth recording, because both are more elaborate than the
 one that ships. The substitution kernel that used to sit here &mdash; share decaying
 with characteristic distance, still estimated at R&sup2; 0.0302
 against 0.0256 for a positional benchmark on
-77,156 player-games &mdash; scores 6.13 on
-trades, which is marginally BETTER than the rule that replaced it. The two are level
+77,156 player-games &mdash; has an error of
+6.13 minutes on the same test, marginally BETTER than
+the rule that replaced it. The two are level
 within the noise of a 268-case backtest, and the simpler one is preferred on grounds
 other than accuracy. A fitted two-part model of whether a
 man dresses and how much he then plays, which predicts per-night minutes better than
-anything else tested, scores 6.37: worst of the
-four, because it cannot express an acquired man inheriting the job of the man he
+anything else tested, comes in at 6.37 minutes: worst
+of the four, because it cannot express an acquired man inheriting the job of the man he
 replaced.</p>
 
 <p>The split it replaced is instructive about assumptions generally. It had been set at
