@@ -31,14 +31,15 @@ lets a calculator buy ten thirty-minute players and count all ten &mdash; 300 mi
 on a 240-minute team &mdash; which is why naive trade tools conclude that acquiring
 talent is always good.</p>
 
-<p>Instead the roster is re-optimised. With <em>m<sub>i</sub></em> the minutes assigned
-to player <em>i</em> and <em>v<sub>i</sub></em> his per-minute value:</p>
+<p>Instead the roster is re-allocated, subject to the budget and to the fact that five
+men are on the floor at once, so nobody can hold more than a fifth of it:</p>
 
-<div class="eqn">max<sub>m</sub>  &Sigma;<sub>i</sub> v<sub>i</sub>(m<sub>i</sub>)<br>s.t.  &Sigma;<sub>i</sub> m<sub>i</sub> = 240,   0 &le; m<sub>i</sub> &le; 38,   |&#123;i : m<sub>i</sub> &gt; 0&#125;| &le; 15</div>
+<div class="eqn">&Sigma;<sub>i</sub> m<sub>i</sub> = 240,   0 &le; m<sub>i</sub> &le; 48,   |&#123;i : m<sub>i</sub> &gt; 0&#125;| &le; 15</div>
 
-<p>The value of a trade is the difference between the solved optima before and after,
-for every team involved. An incoming player <em>displaces</em> minutes rather than
-adding them, and the 38-minute cap stops the optimiser answering "play the best man 48".</p>
+<p>The value of a trade is the difference in team value before and after, for every
+club involved. An incoming player <em>displaces</em> minutes rather than adding them.
+How they are re-allocated is the next section, and it is the part of this model that
+changed most recently and on the clearest evidence.</p>
 
 <h2>2. The roster limit, and a bug it caused</h2>
 
@@ -58,30 +59,59 @@ about the counterfactual.</p>
 
 <h2>3. Who absorbs the minutes</h2>
 
-<p>Displacement is not uniform. When a player is unavailable his minutes go
-disproportionately to teammates who resemble him. Rather than impose positional
-buckets, substitution share is estimated as decay in characteristic distance <em>d</em>
-&mdash; height, rebounding, assists, blocks, steals, usage and shot profile,
-standardised within season:</p>
+<p>This model used to answer that by optimisation: give the freed minutes to whoever
+produces most per minute. That is what a club <em>should</em> do and it is not what
+clubs do. Checked against <strong>268 club-sides</strong> of real in-season
+trades, scored on minutes actually played in the twenty games after each deal, the
+reallocation turns out to be close to mechanical.</p>
 
-<div class="eqn">share(d) = 0.154 &middot; exp(&minus;0.407 &middot; d)</div>
+<p>An acquired player takes the departed player's share roughly one-for-one and
+immediately &mdash; about two thirds of it when one man arrives, essentially all of it
+when three do. Incumbents <em>lose</em> share rather than gaining it. And where a
+vacancy does reach the incumbents it follows spare capacity, meaning who has room to
+play more, rather than resemblance to the man who left.</p>
 
-<p>Estimated on <strong>98,584 player-games</strong> in which at least one rotation
-teammate was out. The half-life is about 1.70 distance units against a median
-pair distance near 3, so a same-archetype teammate absorbs roughly five times what a
-distant one does. It beats the positional benchmark it replaces &mdash; R&sup2;
-0.0331 against 0.0304 &mdash; though both explain little
-of the variance, which is the honest characterisation of minute reallocation: coaching
-decisions drive much of it and this model observes none of them.</p>
+<p>So each arriving player is seated from an equation fitted on trades themselves, in
+shares of the 240:</p>
+
+<div class="eqn">share = -0.0152 + 0.518 &middot; (his share at his old club) + 0.0818 &middot; hole + 0.0337 &middot; projected wins</div>
+
+<p>A traded player keeps about half the role he had, a coefficient that lands near 0.5
+from three independent estimates on different samples. What the arrivals do not absorb
+settles on the incumbents by capacity, and a club that receives nobody gets a
+replacement body priced by the same logic rather than a fixed constant.</p>
+
+<p>Held out, that predicts post-trade minutes to
+<strong>6.17 per man</strong> against
+6.77 for simply removing the departed and
+renormalising. The honest reading of that gap is that most of it comes from knowing
+<em>who arrived</em>: naming the incoming player and doing nothing else scores
+6.23. Every theory of who covers the hole is worth
+a fraction of a minute beyond that.</p>
+
+<p>Two rules that lost are worth recording, because both are more elaborate than the
+one that ships. The substitution kernel that used to sit here &mdash; share decaying
+with characteristic distance, still estimated at R&sup2; 0.0302
+against 0.0256 for a positional benchmark on
+77,156 player-games &mdash; scores 6.13 on
+trades, which is marginally BETTER than the rule that replaced it. The two are level
+within the noise of a 268-case backtest, and the simpler one is preferred on grounds
+other than accuracy. A fitted two-part model of whether a
+man dresses and how much he then plays, which predicts per-night minutes better than
+anything else tested, scores 6.37: worst of the
+four, because it cannot express an acquired man inheriting the job of the man he
+replaced.</p>
 
 <p>The split it replaced is instructive about assumptions generally. It had been set at
 96/96/48 minutes on the reasoning that a lineup is two guards, two forwards and a
 centre. Measured, minutes actually divide <strong>47.0 / 39.5 / 13.4 percent</strong>:
 roster labels are not lineup slots.</p>
 
-<p>One further correction: when a roster cannot fill 240 minutes, the allocator claimed
-to scale everyone proportionally and in fact ran a greedy rate waterfall, pinning the
-top few men at their caps. It is now genuinely proportional, which halved a spurious
+<p>The optimising allocator both of those describe has since been replaced, for the
+reasons above. Its history is kept because the failures were instructive: it claimed
+to scale everyone proportionally when a roster could not fill 240 minutes and in fact
+ran a greedy rate waterfall, pinning the top few men at their caps. Making it genuinely
+proportional halved a spurious
 finding that subtracting rotation players paid.</p>
 
 <h2>4. The rest penalty &mdash; a choice, not a finding</h2>
@@ -217,8 +247,17 @@ that from the opposite direction rather than correcting it.</li>
 whether a player wants to be there.</li>
 <li><strong>Trade legality is not evaluated.</strong> Salary matching, aprons and the
 rest of the CBA's machinery sit outside the model.</li>
-<li><strong>The allocator is an optimiser, not a coach.</strong> It assigns minutes to
-maximise value; real rotations answer to pressures it cannot see.</li>
+<li><strong>The allocator describes, it does not optimise.</strong> It predicts how
+minutes actually move after a trade, so a club that deploys its roster badly is priced
+as it plays rather than as it could. The opposite assumption &mdash; that freed minutes
+go to whoever produces most &mdash; is what this used to do, and it fits worse.</li>
+<li><strong>Minute reallocation is mostly unexplained.</strong> The best rule tested
+beats "remove the departed and renormalise" by under a minute per man, and roughly a
+tenth of a club's minutes after a trade go to men nobody could have named on the day.</li>
+<li><strong>Rookies are priced by workload, not by draft position.</strong> On a roster
+where neither has played, the shipped rule cannot tell a first pick from an undrafted
+free agent. That information exists elsewhere in the model and is not used here, because
+the version carrying it predicts trades worse.</li>
 <li><strong>Everything inherits the value board.</strong> The assumptions on the
 <a href="methodology-value.html">measurement page</a> apply in full and propagate here
 undiminished.</li>
