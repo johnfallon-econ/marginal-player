@@ -100,7 +100,7 @@ minutes-weighted rating differential of the players who actually appeared:</p>
 <strong>37,895 games</strong>:</p>
 
 <div class="stats">
-  <div><span class="sv">0.0454</span><span class="sl">β̂ — win probability per point of expected margin (se 0.00044)</span></div>
+  <div><span class="sv">0.0453</span><span class="sl">β̂ — win probability per point of expected margin (se 0.00044)</span></div>
   <div><span class="sv">0.586</span><span class="sl">α̂ — home win probability at zero differential</span></div>
   <div><span class="sv">0.178</span><span class="sl">R² — single games are mostly noise, as expected</span></div>
 </div>
@@ -125,7 +125,7 @@ they are <strong>censored on both sides</strong>: the collective bargaining agre
 individual pay, so a fifteen-win superstar earns the maximum rather than his worth, and the
 minimum props up the bottom. Ordinary least squares on observed pay therefore underprices
 exactly the players the question is about — the naïve slope is 0.0151 cap
-share per win, against 0.0671 here.</p>
+share per win, against 0.0673 here.</p>
 
 <p>Treat both bounds as censoring and estimate the latent curve by full-information maximum
 likelihood:</p>
@@ -167,18 +167,18 @@ does not require teams to be right about the player, only to be willing.</p>
 
 <p>This is what produces the headline result. The cap-constrained rate — what teams actually
 pay, censoring and all — is 0.0228 of the cap per win. The free-market rate is
-0.0671, a <strong>2.95× premium</strong>. Every market value,
+0.0673, a <strong>2.96× premium</strong>. Every market value,
 every surplus figure and every trade verdict on this site is denominated at the free-market
 rate, and the section below on superstar value follows directly from it. A reader who rejects
-the tax-censoring argument should read all of those numbers as roughly 2.9
+the tax-censoring argument should read all of those numbers as roughly 3.0
 times too large.</p>
 
 <p>Sample: 1999-2025, new deals, svc>=4.</p>
 
 <div class="stats">
   <div><span class="sv">0.0108</span><span class="sl">â — intercept, the replacement floor</span></div>
-  <div><span class="sv">0.0671</span><span class="sl">b̂ — cap share per win</span></div>
-  <div><span class="sv">-0.00027</span><span class="sl">ĉ — convexity, the star premium</span></div>
+  <div><span class="sv">0.0673</span><span class="sl">b̂ — cap share per win</span></div>
+  <div><span class="sv">-0.00030</span><span class="sl">ĉ — convexity, the star premium</span></div>
   <div><span class="sv">0.347</span><span class="sl">σ̂ — residual dispersion</span></div>
   <div><span class="sv">2,542</span><span class="sl">contracts</span></div>
 </div>
@@ -188,8 +188,8 @@ because a team cannot be paid to hold a roster spot. Negative <em>surplus</em> i
 possible and is where the interesting players are.</p>
 
 <p><strong>The convex term is not statistically significant, and the page should say so.</strong>
-Its 95% interval is [-0.00188, 0.00275], straddling zero, with
-P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.38. It is retained because three independent
+Its 95% interval is [-0.00189, 0.00272], straddling zero, with
+P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.36. It is retained because three independent
 lines of evidence lean the same way — roster-slot scarcity, stars outperforming their total
 win contribution in the playoffs, and the curve's own mild convex tilt — but a reader who
 prefers the linear curve is not arguing against the data.</p>
