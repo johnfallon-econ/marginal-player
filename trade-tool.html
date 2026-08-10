@@ -1195,8 +1195,11 @@ function _mfeat(p,n){
 // Water-fill onto the capped simplex: five men on the floor, so nobody holds
 // more than 48/240 of a club. A softmax over an unbounded index cannot know
 // that, and predicted 94.5-minute games before this was added.
-function _capfill(w,cap){
-  let s=w.reduce((a,b)=>a+b,0)||1e-12; w=w.map(v=>v/s);
+// `keep` preserves the incoming sum instead of forcing it to 1. A roster that
+// supplies less than a full club's minutes must stay short here, or the deficit
+// is handed straight back to the men who are already on it.
+function _capfill(w,cap,keep){
+  if(!keep){ let s=w.reduce((a,b)=>a+b,0)||1e-12; w=w.map(v=>v/s); }
   for(let it=0;it<8;it++){
     const over=w.map(v=>v>cap);
     if(!over.some(Boolean)) break;
@@ -1285,8 +1288,29 @@ function tradeAlloc(roster,newSet,gone,projW){
     const z=s.reduce((a,x)=>a+x,0)||1;
     s=s.map(v=>Math.max(0,v+resid*v/z));
   }
+  // THE GAP IS SIGNED, NOT SPREAD.
+  //
+  // _shr is av*mpg/240 -- expected minutes per team-game, the nights he does not
+  // play included -- so a roster's shares sum to 1 only when it holds a full
+  // complement. Dividing by `tot` unconditionally asserted the opposite: that
+  // whoever is on the list covers all 240 minutes however few of them there are.
+  // On a mid-offseason snapshot that is badly false. Utah on 2022-07-06 has nine
+  // men expecting 155 of 240, so every one of them was multiplied by 1.54,
+  // Mitchell was sent to 55.7 minutes, the cap clipped him at 48 and pushed the
+  // overflow onto Gobert and Conley -- and loadAdj then billed all three for
+  // minutes nobody would ever have played. The untouched roster scored -58.4
+  // WAR against +42.1 without the load charge, so an empty counterfactual, not
+  // the trade, produced a 74.6-win title-equity swing.
+  //
+  // A club short of bodies signs bodies. They are replacement level, and WAR is
+  // measured above replacement, so their minutes are worth exactly nothing and
+  // need no row here: leaving the deficit unallocated IS the signing. The
+  // fatigue channel is untouched and still charges whoever is genuinely
+  // stretched -- it just no longer charges anyone for a shortfall in the list.
+  //
+  // Scaling DOWN is still right: an overfull roster really must ration 240.
   const all=s.concat(inc), tot=all.reduce((a,x)=>a+x,0)||1e-12;
-  const w=_capfill(all.map(v=>v/tot),MM?MM.cap:0.2), out={};
+  const w=_capfill(all.map(v=>v/Math.max(tot,1)),MM?MM.cap:0.2,true), out={};
   stay.concat(ins).forEach((p,i)=>{out[p.id]=TEAM_MIN*w[i];});
   return out;
 }
