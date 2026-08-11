@@ -61,7 +61,7 @@ about the counterfactual.</p>
 
 <p>This model used to answer that by optimisation: give the freed minutes to whoever
 produces most per minute. That is what a club <em>should</em> do and it is not what
-clubs do. Checked against <strong>268 club-sides</strong> of real in-season
+clubs do. Checked against <strong>270 club-sides</strong> of real in-season
 trades, scored on minutes actually played in the twenty games after each deal, the
 reallocation turns out to be close to mechanical.</p>
 
@@ -74,7 +74,7 @@ play more, rather than resemblance to the man who left.</p>
 <p>So each arriving player is seated from an equation fitted on trades themselves, in
 shares of the 240:</p>
 
-<div class="eqn">share = -0.0152 + 0.518 &middot; (his share at his old club) + 0.0818 &middot; hole + 0.0337 &middot; projected wins</div>
+<div class="eqn">share = -0.0156 + 0.511 &middot; (his share at his old club) + 0.0879 &middot; hole + 0.0339 &middot; projected wins</div>
 
 <p>A traded player keeps about half the role he had, a coefficient that lands near 0.5
 from three independent estimates on different samples. What the arrivals do not absorb
@@ -82,12 +82,12 @@ settles on the incumbents by capacity, and a club that receives nobody gets a
 replacement body priced by the same logic rather than a fixed constant.</p>
 
 <p>Held out, it predicts each man's post-trade minutes with a mean absolute error of
-<strong>6.17 minutes per player per game</strong>,
-against 6.77 for simply removing the departed and
+<strong>5.97 minutes per player per game</strong>,
+against 6.63 for simply removing the departed and
 renormalising. Lower is better, and neither is good: six minutes is a large error when
 a rotation player's allocation is fifteen to thirty. The honest reading of the gap is
 that most of it comes from knowing <em>who arrived</em> &mdash; naming the incoming
-player and doing nothing else gives 6.23. Every theory
+player and doing nothing else gives 6.03. Every theory
 of who covers the hole is worth a fraction of a minute beyond that.</p>
 
 <p>That figure scores <em>minutes</em>, not valuations. Whether the dollar figures this
@@ -95,17 +95,32 @@ page produces are more accurate under one allocation rule than another is not so
 any test here establishes, and the change of rule moved team surplus by a median of
 $77M. Take the minute errors as what they are.</p>
 
+<p>It also scored only <em>half</em> the question until recently, and the half it left
+out was the one that failed. The error above rescales each rule's prediction to the
+club total that was actually played before comparing, so it can measure how minutes are
+divided <em>between</em> men and is blind to how many are claimed altogether. Scored
+without that help the same rule reads
+6.29 minutes, and every rule tested overstates a
+club's total &mdash; this one by 23.4 minutes a
+game, the kernel by 30.2. A metric that hands
+the model the answer to the level cannot see a nine-man offseason roster being sent out
+to play all 240 minutes, which is what shipped here until it was found by hand.</p>
+
 <p>Two rules that lost are worth recording, because both are more elaborate than the
 one that ships. The substitution kernel that used to sit here &mdash; share decaying
 with characteristic distance, still estimated at R&sup2; 0.0302
 against 0.0256 for a positional benchmark on
 77,156 player-games &mdash; has an error of
-6.13 minutes on the same test, marginally BETTER than
+5.96 minutes on the same test, marginally BETTER than
 the rule that replaced it. The two are level
 within the noise of a 268-case backtest, and the simpler one is preferred on grounds
-other than accuracy. A fitted two-part model of whether a
+other than accuracy &mdash; though that comparison reverses once the club total counts:
+6.42 for the kernel against
+6.29 for the shipped rule, which claims
+6.75 fewer
+minutes a game that nobody played. A fitted two-part model of whether a
 man dresses and how much he then plays, which predicts per-night minutes better than
-anything else tested, comes in at 6.37 minutes: worst
+anything else tested, comes in at 6.18 minutes: worst
 of the four, because it cannot express an acquired man inheriting the job of the man he
 replaced.</p>
 
