@@ -638,7 +638,17 @@ const _rosterWar=p=>((p.rate==null?K.repl:p.rate)-K.repl)*
                     Math.max(0,(p.av||0)*Math.min(p.mpg||0,HARD_CAP));
 function buildRosters(){
   ROSTER={}; _trimmed=0;
-  P.forEach(p=>{(ROSTER[p.tm]=ROSTER[p.tm]||[]).push(p);});
+  // A FREE AGENT IS NOT A CLUB. 11_trade_tool deliberately gives a player absent
+  // from the current-roster snapshot no team -- he is unsigned, and in August
+  // that is 66 of 568 men including DeMar DeRozan, Chris Paul and Lonzo Ball.
+  // Pushed in unguarded they collected under the key `null`, which then behaved
+  // like a 31st franchise: trimmed to the top 15 by WAR, handed 240 minutes by
+  // the allocator, and returned as the worst case by both parity tests, which
+  // spent months reporting a disagreement about a club that does not exist.
+  //
+  // They stay in P, so they remain findable and tradeable exactly as the payload
+  // intends. They simply are not a roster.
+  P.forEach(p=>{if(p.tm)(ROSTER[p.tm]=ROSTER[p.tm]||[]).push(p);});
   // Point-in-time rosters replace the season aggregate for the clubs in the
   // trade. Membership comes from the ledger; the stats still come from the
   // season payload, so this changes WHO is on the floor, not what they are worth.
@@ -1473,7 +1483,10 @@ let S={A:{tm:'BOS',assets:[]},B:{tm:'MIA',assets:[]}};
 let byId={}, byName={};
 function reindex(){
   byId={}; byName={};
-  P.forEach(p=>{byId[p.id]=p; byName[p.nm+' ('+p.tm+')']=p.id;});
+  // `p.tm` is null for an unsigned free agent, and the template used to
+  // interpolate it straight into the label -- so the search box offered
+  // "DeMar DeRozan (null)". FA is what he is.
+  P.forEach(p=>{byId[p.id]=p; byName[p.nm+' ('+(p.tm||'FA')+')']=p.id;});
 }
 reindex();
 
