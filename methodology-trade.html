@@ -100,11 +100,20 @@ out was the one that failed. The error above rescales each rule's prediction to 
 club total that was actually played before comparing, so it can measure how minutes are
 divided <em>between</em> men and is blind to how many are claimed altogether. Scored
 without that help the same rule reads
-6.29 minutes, and every rule tested overstates a
-club's total &mdash; this one by 23.4 minutes a
-game, the kernel by 30.2. A metric that hands
-the model the answer to the level cannot see a nine-man offseason roster being sent out
-to play all 240 minutes, which is what shipped here until it was found by hand.</p>
+6.29 minutes, and every rule that HAS a level
+overstates a club's total &mdash; this one by
+23.4 minutes a game, the kernel by
+30.2. A metric that hands the model the answer
+to the level cannot see a nine-man offseason roster being sent out to play all 240
+minutes, which is what shipped here until it was found by hand.</p>
+
+<p>The two-part minutes model is exempt from that column rather than excused from it.
+Its outcome equation is a centred log-ratio, which divides each man's share by the
+within-night geometric mean, so anything constant across a club &mdash; the total
+included &mdash; differences out of the estimate. It predicts proportions and has no
+level to be right or wrong about, and its prediction sums to one by construction on
+every case. Scoring it here would have produced a number that looks like the others
+and measures only what fraction of a club's minutes go to men no rule can name.</p>
 
 <p>Two rules that lost are worth recording, because both are more elaborate than the
 one that ships. The substitution kernel that used to sit here &mdash; share decaying
