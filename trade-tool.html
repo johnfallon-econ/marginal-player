@@ -1301,6 +1301,40 @@ function pickHolder(own,yr,rd){
   if(!e)return own;              // no row = clear = still with the origin club
   return e.h||null;
 }
+// WHAT A SIDE CAN ACTUALLY SEND. The adder used to be a free cross product --
+// any club x any year x either round -- and then argued with the user about the
+// combinations that were not real. Offering only what the sending club holds
+// makes those unreachable instead of refused, which is both kinder and a
+// smaller surface: no duplicate, no wrong sender, no pick that has been dealt.
+//
+// A pick whose holder cannot be established is listed under its ORIGIN club
+// rather than dropped. Dropping it would quietly make a legal trade unstageable
+// and leave no way to find out why -- the same objection as refusing one, with
+// less to show for it.
+function sideInventory(k){
+  const tm=(S[k]||{}).tm; if(!tm)return [];
+  const out=[];
+  for(const own of Object.keys(T)) for(const yr of PICK_YEARS) for(const rd of [1,2]){
+    const e=LEDGER[`${own}|${yr}|${rd}`]||null;
+    const holder=e?(e.h||null):own;
+    if(holder!==tm&&!(holder===null&&own===tm))continue;
+    // already staged anywhere in this trade -- one pick is one asset
+    if(TEAMS.some(j=>S[j].assets.some(a=>a.kind==='pk'&&
+        a.own===own&&a.yr===yr&&a.rd===rd)))continue;
+    const notes=[];
+    if(own!==tm)notes.push(`acquired from ${own}`);
+    if(holder===null)notes.push('holder unconfirmed');
+    if(e){const n=e.t==='gone'?'':tierNote(e); if(n)notes.push(n);}
+    out.push({own,yr,rd,label:`${own} ${yr} ${rd===1?'1st':'2nd'}`+
+      (notes.length?` · ${notes.join('; ')}`:''),enc:notes.join('; ')||null});
+  }
+  return out.sort((a,b)=>a.yr-b.yr||a.rd-b.rd||a.own.localeCompare(b.own));
+}
+function pickOpts(k){
+  const inv=sideInventory(k);
+  if(!inv.length)return '<option value="">no picks available</option>';
+  return inv.map(p=>`<option value="${p.own}|${p.yr}|${p.rd}">${p.label}</option>`).join('');
+}
 // The years a pick can still be traded in, taken from the ledger rather than
 // written down. The list used to start at 2026 and that draft has been held --
 // you cannot trade a pick that has already been used, but the tool offered it,
@@ -1921,13 +1955,10 @@ function renderSide(k){
    <div class="adders">
      <div class="addrow"><input type="text" list="plist${k}" placeholder="add player from ${others.map(j=>S[j].tm).join('/')}…" data-add="${k}"></div>
      <div class="addrow">
-       <span class="hint">pick:</span>
-       <select data-pkteam="${k}">${teamOpts(others.length?S[others[0]].tm:s.tm)}</select>
-       <select data-pkyr="${k}">${PICK_YEARS.map(y=>`<option>${y}</option>`).join('')}</select>
-       <select data-pkrd="${k}"><option value="1">1st</option><option value="2">2nd</option></select>
-       <label>prot <input type="number" data-pkprot="${k}" min="0" max="14" value="0"></label>
-       <span class="hint">sent by</span>
+       <span class="hint">pick from</span>
        <select data-pkfrom="${k}">${sideOpts(k,others[0])}</select>
+       <select data-pkopt="${k}">${pickOpts(others[0])}</select>
+       <label>prot <input type="number" data-pkprot="${k}" min="0" max="14" value="0"></label>
        <button data-addpick="${k}">add pick</button>
        <span class="pkerr" data-pkerr="${k}"></span>
      </div>
@@ -2250,53 +2281,40 @@ function render(){
       const from=id?TEAMS.find(j=>j!==k&&byId[id].tm===S[j].tm):null;
       if(from){S[k].assets.push({kind:'pl',id,from});render();}
       else if(inp.value){inp.value='';inp.placeholder="not on another side's roster";}};});
+  // The list belongs to the SENDING side, so changing who sends rebuilds it.
+  document.querySelectorAll('[data-pkfrom]').forEach(sel=>{
+    sel.onchange=()=>{const k=sel.dataset.pkfrom;
+      document.querySelector(`[data-pkopt="${k}"]`).innerHTML=pickOpts(sel.value);};});
   document.querySelectorAll('[data-addpick]').forEach(b=>{
     b.onclick=()=>{const k=b.dataset.addpick;
-      const pk={kind:'pk',own:document.querySelector(`[data-pkteam="${k}"]`).value,
-        yr:+document.querySelector(`[data-pkyr="${k}"]`).value,
-        rd:+document.querySelector(`[data-pkrd="${k}"]`).value,
+      const chosen=document.querySelector(`[data-pkopt="${k}"]`).value;
+      const err0=document.querySelector(`[data-pkerr="${k}"]`);
+      if(!chosen){if(err0)err0.textContent='that side has no picks left to send';return;}
+      const [own,yr,rd]=chosen.split('|');
+      const pk={kind:'pk',own,yr:+yr,rd:+rd,
         prot:+document.querySelector(`[data-pkprot="${k}"]`).value,
         from:document.querySelector(`[data-pkfrom="${k}"]`).value};
-      // A pick is one asset, and (own, yr, rd) names it uniquely -- protection is
-      // a term of the conveyance, not part of its identity. So the same pick
-      // cannot be staged twice: not to two sides, and not twice to one side under
-      // different protections. It used to be allowed, and because pick value is
-      // additive (see PICK VALUE IS ADDITIVE above) the duplicate was counted
-      // twice. That is the failure mode worth blocking first -- it does not look
-      // wrong on screen, it just quietly moves the verdict.
-      //
-      // Whether the sending team CONTROLS the pick is the larger question and is
-      // not checked here: RealGM's future-pick data resolves ~half of all
-      // obligations only at lottery time (swaps and conditional conveyances), so
-      // it supports a gone/encumbered/clear tiering rather than a binary test.
-      const dup=TEAMS.some(j=>S[j].assets.some(a=>a.kind==='pk'&&
-        a.own===pk.own&&a.yr===pk.yr&&a.rd===pk.rd));
+      // Belt and braces. sideInventory already excludes anything staged and
+      // anything the sender does not hold, so neither of these should ever fire
+      // -- they are kept because the list is rebuilt on a change event and a
+      // missed event would otherwise fail silently, which is the failure mode
+      // this whole feature exists to remove.
       const err=document.querySelector(`[data-pkerr="${k}"]`);
       const name=`${pk.own} ${pk.yr} ${pk.rd===1?'1st':'2nd'}`;
-      if(dup){if(err)err.textContent=`${name} is already in this trade`;return;}
-      // The holder test replaces the blanket refusal of `gone` picks, which was
-      // wrong in the one case that matters: a conveyed pick is not out of the
-      // game, it belongs to whoever received it, and THAT club can trade it on.
-      // Refusing outright blocked every legal onward trade of an acquired pick.
-      const tier=pickTier(pk.own,pk.yr,pk.rd);
+      if(TEAMS.some(j=>S[j].assets.some(a=>a.kind==='pk'&&
+          a.own===pk.own&&a.yr===pk.yr&&a.rd===pk.rd))){
+        if(err)err.textContent=`${name} is already in this trade`;return;}
       const holder=pickHolder(pk.own,pk.yr,pk.rd);
       const sender=(S[pk.from]||{}).tm;
       if(holder&&sender&&holder!==sender){
-        if(err)err.textContent=
-          `${name}: ${holder} holds this pick, not ${sender}`;
+        if(err)err.textContent=`${name}: ${holder} holds this pick, not ${sender}`;
         return;}
       if(err)err.textContent='';
-      // Carried on the asset so the row can say so and the note survives a
-      // re-render, rather than being looked up again at paint time. A pick whose
-      // holder is not its origin is labelled as acquired: "BOS 2029 2nd" sent by
-      // Oklahoma City is correct but reads like a mistake without it.
-      if(tier){
-        const bits=[];
-        if(holder&&holder!==pk.own)bits.push(`acquired from ${pk.own}`);
-        const note=tier.t==='gone'?'':tierNote(tier);
-        if(note)bits.push(note);
-        pk.enc=bits.join('; ')||null;
-      }
+      // Reuse the note the option was labelled with, so the staged row says the
+      // same thing the list said rather than deriving it a second way.
+      const inv=sideInventory(pk.from)
+        .find(p=>p.own===pk.own&&p.yr===pk.yr&&p.rd===pk.rd);
+      pk.enc=inv?inv.enc:null;
       S[k].assets.push(pk);render();};});
 }
 // ── trade value board ────────────────────────────────────────────────────────
