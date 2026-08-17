@@ -93,7 +93,7 @@ They are worth publishing because a reader deserves to see the same inputs the m
 worth labelling clearly because a number on a bar chart looks like a measurement no matter
 where it came from.</p>
 
-<p>Coverage is partial and not random. 1,191 prospects have a report; the rest show
+<p>Coverage is partial and not random. 1,213 prospects have a report; the rest show
 "no scouting report on file" rather than an imputed score. NBADraft.net profiles the players
 their audience cares about, which skews toward the top of each class — so the rubric is
 densest exactly where the draft is most consequential, and thinnest among the undrafted, where
@@ -136,7 +136,7 @@ combine measurements, published big boards, and high-school all-star events.
 can be compared honestly, which is the comparison below.</p>
 
 <p>Sample: <strong>4,741 prospects</strong> across
-300 engineered features.</p>
+310 engineered features.</p>
 
 <h2>Validation</h2>
 
@@ -151,9 +151,9 @@ as the benchmark to beat:</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>Neural net</th><th>Gradient boosting</th><th>Draft order</th><th>n</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.362</td><td>0.367</td><td>0.157</td><td>786</td></tr>
-<tr><td>Four-year mean</td><td>0.362</td><td>0.420</td><td>0.175</td><td>973</td></tr>
-<tr><td>Peak</td><td>0.410</td><td>0.457</td><td>0.266</td><td>985</td></tr>
+<tr><td>Rookie year</td><td>0.245</td><td>0.272</td><td>0.157</td><td>786</td></tr>
+<tr><td>Four-year mean</td><td>0.261</td><td>0.300</td><td>0.175</td><td>973</td></tr>
+<tr><td>Peak</td><td>0.316</td><td>0.348</td><td>0.266</td><td>985</td></tr>
 </tbody></table></div>
 
 <p>Both models rank prospects substantially better than the league did, on every horizon.
@@ -173,22 +173,22 @@ below each predicted quantile should equal the nominal level.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>p5</th><th>p10</th><th>p25</th><th>p50</th><th>p75</th><th>p90</th><th>p95</th><th>p99</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.074</td><td>0.149</td><td>0.294</td><td>0.496</td><td>0.706</td><td>0.833</td><td>0.883</td><td>0.930</td></tr>
-<tr><td>Four-year mean</td><td>0.096</td><td>0.169</td><td>0.341</td><td>0.548</td><td>0.718</td><td>0.839</td><td>0.877</td><td>0.919</td></tr>
-<tr><td>Peak</td><td>0.078</td><td>0.155</td><td>0.324</td><td>0.539</td><td>0.720</td><td>0.809</td><td>0.829</td><td>0.863</td></tr>
+<tr><td>Rookie year</td><td>0.078</td><td>0.128</td><td>0.280</td><td>0.483</td><td>0.693</td><td>0.841</td><td>0.887</td><td>0.906</td></tr>
+<tr><td>Four-year mean</td><td>0.069</td><td>0.140</td><td>0.317</td><td>0.551</td><td>0.734</td><td>0.854</td><td>0.876</td><td>0.896</td></tr>
+<tr><td>Peak</td><td>0.059</td><td>0.124</td><td>0.306</td><td>0.528</td><td>0.722</td><td>0.808</td><td>0.827</td><td>0.825</td></tr>
 <tr><td><em>nominal</em></td><td><em>0.050</em></td><td><em>0.100</em></td><td><em>0.250</em></td><td><em>0.500</em></td><td><em>0.750</em></td><td><em>0.900</em></td><td><em>0.950</em></td><td><em>0.990</em></td></tr>
 </tbody></table></div>
 
 <p>Medians are well calibrated — close to 0.50 on every horizon, so the central projection
 is neither optimistic nor pessimistic on average. <strong>The intervals are too narrow at
-both tails.</strong> Around 16% of outcomes fall below the stated 10th percentile and
+both tails.</strong> Around 13% of outcomes fall below the stated 10th percentile and
 around 17% land above the stated 90th, against 10% each.</p>
 
 <p>The two outermost levels are the reason the fan was widened from five quantiles to eight.
 p95 and p99 are the region a draft pick's value actually lives in — one franchise player pays
 for a decade of misses — and reading them off a linear extrapolation past p90, which is what
 a five-level fan forces, is guessing at exactly the part that matters most. They are fit
-directly now, and they are the least well covered levels in the table: 14% of peak
+directly now, and they are the least well covered levels in the table: 17% of peak
 outcomes exceed the stated 99th percentile.</p>
 
 <p>Read the fans as somewhat too confident. Real busts are worse and real stars are better
