@@ -1631,8 +1631,21 @@ function playerSurplus(p,H){
   }
   return {sur:tot,y1war};
 }
-// landing distribution -> E[discounted surplus]; prot: conveys only if slot>prot
-function pickValue(own,yr,rd,prot,dr){
+// landing distribution -> E[discounted surplus]. Protection is a RANGE of draft
+// slots [plo, phi] that do not convey, not a top-N cutoff.
+//
+// Top-N was the wrong shape and quietly mispriced half the real protections.
+// It can only say "protected 1 through N", and of the 22 protections in the
+// pick ledger only 12 start at slot 1: the rest are windows -- 9-30, 17-30,
+// 31-55 -- where "protected 9-30" means the pick conveys ONLY if it lands in
+// the top 8, very nearly the opposite of what a top-N reading would do with
+// the same numbers.
+function pickValue(own,yr,rd,plo,phi,dr){
+  // SECOND ROUNDERS ARE A FLAT CONSTANT, so a protection on one changes nothing
+  // here. That is a modelling choice older than this function and not a defect
+  // of the range: 8 of the 22 real protections sit on 2nd round picks and none
+  // of them can move a price that never looked at the slot. assetRow says so on
+  // the row rather than letting the tag imply an effect on the number.
   if(rd===2){const yo=Math.max(yr-2026,0);return 3/Math.pow(1+dr,yo);}
   const t=T[own]||{ew:41,sd:8}, yo=Math.max(yr-2026,0.5);
   const sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
@@ -1643,7 +1656,8 @@ function pickValue(own,yr,rd,prot,dr){
   // approximation. Without it every future pick was quoted in 2026 dollars and
   // then discounted on top, charging the horizon twice.
   const pcap=(D.caps[String(yr)]||D.slot_surplus_cap)/D.slot_surplus_cap;
-  const conv=r=>(prot>0&&r<=prot)?0:D.slot_surplus[r-1]*pcap;  // protected: not conveyed
+  // protected: lands inside the range, so it does not convey
+  const conv=r=>(plo>0&&r>=plo&&r<=(phi||plo))?0:D.slot_surplus[r-1]*pcap;
   // Deterministic on both axes. The record was resampled every render, so a
   // pick's price drifted ~$1M between identical calls and moved whenever any
   // unrelated slider did. Win totals come off the same stratified grid as
@@ -1832,7 +1846,7 @@ function evaluate(){
           if(toK)salIn+=(p.sal||0);
           if(fromK)salOut+=(p.sal||0);
         } else {
-          const v=pickValue(a.own,a.yr,a.rd,a.prot,dr);
+          const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,dr);
           if(toK)inPicks.push({yr:a.yr,v});
           if(fromK)pkOut+=v;                       // what you send is gone at full value
         }
@@ -1932,9 +1946,11 @@ function assetRow(a,side){
       <span class="fromtag">from ${fromLabel}</span>
       <span class="val ${r.sur>=0?'pos':'neg'}">${fmt(r.sur)}</span>
       <button class="x" data-side="${side}" data-i="${S[side].assets.indexOf(a)}">×</button></div>`;}
-  const v=pickValue(a.own,a.yr,a.rd,a.prot,+$('dr').value/100);
+  const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,+$('dr').value/100);
   return `<div class="arow"><span class="nm">${a.own} ${a.yr} ${a.rd===1?'1st':'2nd'}</span>
-    ${a.prot>0?`<span class="picktag">top-${a.prot} prot</span>`:'<span class="picktag">unprot</span>'}
+    ${a.plo>0
+      ? `<span class="picktag"${a.rd===2?' title="second-round picks price as a flat constant, so this range does not change the number"':''}>prot ${a.plo}${a.phi>a.plo?'–'+a.phi:''}${a.rd===2?' (not priced)':''}</span>`
+      : '<span class="picktag">unprot</span>'}
     ${a.enc?`<span class="enctag" title="from the pick ledger; the trade is still priced">${a.enc}</span>`:''}
     <span class="fromtag">from ${fromLabel}</span>
     <span class="val ${v>=0?'pos':'neg'}">${fmt(v)}</span>
@@ -1958,7 +1974,8 @@ function renderSide(k){
        <span class="hint">pick from</span>
        <select data-pkfrom="${k}">${sideOpts(k,others[0])}</select>
        <select data-pkopt="${k}">${pickOpts(others[0])}</select>
-       <label>prot <input type="number" data-pkprot="${k}" min="0" max="14" value="0"></label>
+       <label>protected <input type="number" data-pkplo="${k}" min="0" max="60" value="0" title="first protected slot; 0 = unprotected">
+         –<input type="number" data-pkphi="${k}" min="0" max="60" value="0" title="last protected slot"></label>
        <button data-addpick="${k}">add pick</button>
        <span class="pkerr" data-pkerr="${k}"></span>
      </div>
@@ -2054,7 +2071,7 @@ function stageTrade(t,opts){
     // Protections survive as a flag, not a threshold: the manifest records that a
     // pick WAS protected, never at what number. Priced as unprotected here, which
     // overstates the receiving side, and is why the board says so.
-    if(to&&fr)S[to].assets.push({kind:'pk',own:p.o,yr:p.y,rd:p.r,prot:0,from:fr});
+    if(to&&fr)S[to].assets.push({kind:'pk',own:p.o,yr:p.y,rd:p.r,plo:0,phi:0,from:fr});
   });
   if(!opts.quiet)render();
 }
@@ -2282,9 +2299,25 @@ function render(){
       if(from){S[k].assets.push({kind:'pl',id,from});render();}
       else if(inp.value){inp.value='';inp.placeholder="not on another side's roster";}};});
   // The list belongs to the SENDING side, so changing who sends rebuilds it.
+  // Picking a pick fills the protection range from the ledger, because the real
+  // terms are known and typing them again is a chance to get them wrong. It
+  // stays editable: the tool is for hypotheticals, and "what if this were top-5
+  // instead" is one of them.
+  function fillProt(k){
+    const v=(document.querySelector(`[data-pkopt="${k}"]`)||{}).value;
+    const lo=document.querySelector(`[data-pkplo="${k}"]`);
+    const hi=document.querySelector(`[data-pkphi="${k}"]`);
+    if(!lo||!hi)return;
+    const e=v?LEDGER[v.split('|').join('|')]:null;
+    lo.value=e&&e.p?e.p[0]:0; hi.value=e&&e.p?e.p[1]:0;
+  }
   document.querySelectorAll('[data-pkfrom]').forEach(sel=>{
     sel.onchange=()=>{const k=sel.dataset.pkfrom;
-      document.querySelector(`[data-pkopt="${k}"]`).innerHTML=pickOpts(sel.value);};});
+      document.querySelector(`[data-pkopt="${k}"]`).innerHTML=pickOpts(sel.value);
+      fillProt(k);};});
+  document.querySelectorAll('[data-pkopt]').forEach(sel=>{
+    sel.onchange=()=>fillProt(sel.dataset.pkopt);});
+  TEAMS.forEach(k=>fillProt(k));
   document.querySelectorAll('[data-addpick]').forEach(b=>{
     b.onclick=()=>{const k=b.dataset.addpick;
       const chosen=document.querySelector(`[data-pkopt="${k}"]`).value;
@@ -2292,7 +2325,8 @@ function render(){
       if(!chosen){if(err0)err0.textContent='that side has no picks left to send';return;}
       const [own,yr,rd]=chosen.split('|');
       const pk={kind:'pk',own,yr:+yr,rd:+rd,
-        prot:+document.querySelector(`[data-pkprot="${k}"]`).value,
+        plo:+document.querySelector(`[data-pkplo="${k}"]`).value||0,
+        phi:+document.querySelector(`[data-pkphi="${k}"]`).value||0,
         from:document.querySelector(`[data-pkfrom="${k}"]`).value};
       // Belt and braces. sideInventory already excludes anything staged and
       // anything the sender does not hold, so neither of these should ever fire
@@ -2490,13 +2524,13 @@ const DEMO_FN=[];
 DEMO_FN[0]=()=>{TEAMS=['A','B'];S={A:{tm:'MIA',assets:[]},B:{tm:'MIL',assets:[]}};
   ['Giannis','Bobby Portis'].forEach(n=>{const id=find(n);if(id)S.A.assets.push({kind:'pl',id,from:'B'});});
   ['Tyler Herro',"Kel'el Ware",'Jaquez','Jaku'].forEach(n=>{const id=find(n);if(id)S.B.assets.push({kind:'pl',id,from:'A'});});
-  S.B.assets.push({kind:'pk',own:'MIA',yr:2026,rd:1,prot:0,from:'A'},{kind:'pk',own:'MIA',yr:2031,rd:1,prot:0,from:'A'},
-                  {kind:'pk',own:'MIA',yr:2033,rd:1,prot:0,from:'A'},{kind:'pk',own:'MIA',yr:2033,rd:2,prot:0,from:'A'});
+  S.B.assets.push({kind:'pk',own:'MIA',yr:2026,rd:1,plo:0,phi:0,from:'A'},{kind:'pk',own:'MIA',yr:2031,rd:1,plo:0,phi:0,from:'A'},
+                  {kind:'pk',own:'MIA',yr:2033,rd:1,plo:0,phi:0,from:'A'},{kind:'pk',own:'MIA',yr:2033,rd:2,plo:0,phi:0,from:'A'});
   render();};
 DEMO_FN[1]=()=>{TEAMS=['A','B'];S={A:{tm:'PHI',assets:[]},B:{tm:'BOS',assets:[]}};
   const jb=find('Jaylen Brown');if(jb)S.A.assets.push({kind:'pl',id:jb,from:'B'});
   const pg=find('Paul George');if(pg)S.B.assets.push({kind:'pl',id:pg,from:'A'});
-  S.B.assets.push({kind:'pk',own:'LAC',yr:2028,rd:1,prot:16,from:'A'},{kind:'pk',own:'PHI',yr:2031,rd:1,prot:0,from:'A'});
+  S.B.assets.push({kind:'pk',own:'LAC',yr:2028,rd:1,plo:1,phi:16,from:'A'},{kind:'pk',own:'PHI',yr:2031,rd:1,plo:0,phi:0,from:'A'});
   render();};
 // real 3-team trade (2026-07): OKC sends Dort to ATL; DAL sends Nembhard to ATL and a
 // 2027 2nd to OKC; ATL sends Risacher + a protected 2nd to DAL and two 2nds to OKC.
@@ -2505,10 +2539,10 @@ DEMO_FN[2]=()=>{TEAMS=['A','B','C'];
   const dort=find('Lu Dort')||find('Luguentz Dort'); if(dort)S.A.assets.push({kind:'pl',id:dort,from:'C'});
   const nemb=find('Ryan Nembhard'); if(nemb)S.A.assets.push({kind:'pl',id:nemb,from:'B'});
   const risa=find('Risacher'); if(risa)S.B.assets.push({kind:'pl',id:risa,from:'A'});
-  S.B.assets.push({kind:'pk',own:'ATL',yr:2029,rd:2,prot:0,from:'A'});
-  S.C.assets.push({kind:'pk',own:'DAL',yr:2027,rd:2,prot:0,from:'B'},
-                  {kind:'pk',own:'ATL',yr:2031,rd:2,prot:0,from:'A'},
-                  {kind:'pk',own:'ATL',yr:2032,rd:2,prot:0,from:'A'});
+  S.B.assets.push({kind:'pk',own:'ATL',yr:2029,rd:2,plo:0,phi:0,from:'A'});
+  S.C.assets.push({kind:'pk',own:'DAL',yr:2027,rd:2,plo:0,phi:0,from:'B'},
+                  {kind:'pk',own:'ATL',yr:2031,rd:2,plo:0,phi:0,from:'A'},
+                  {kind:'pk',own:'ATL',yr:2032,rd:2,plo:0,phi:0,from:'A'});
   render();};
 ['demo1','demo2','demo3'].forEach((b,i)=>{$(b).onclick=DEMO_FN[i];});
 
