@@ -2021,9 +2021,13 @@ function assetRow(a,side){
     ${a.plo>0
       ? `<span class="picktag"${a.rd===2?' title="round 2 carries a flat per-slot value, so this scales the pick by the chance it conveys rather than by where it lands"':''}>prot ${a.plo}${a.phi>a.plo?'–'+a.phi:''}</span>`+
         (a.sch?`<span class="picktag">rolls ${a.sch.map(x=>x[1]?x[0]+' '+x[1]+'–'+x[2]:x[0]+' unprot').join(', ')}</span>`:'')+
-        (a.fb&&!a.sch?`<span class="picktag">else ${a.fb[1]} ${a.fb[2]===1?'1st':'2nd'}</span>`:'')+
-        (a.sw?`<span class="picktag">swap ${a.sw[1]==='get'?'↑':'↓'} ${a.sw[0]}</span>`:'')
+        (a.fb&&!a.sch?`<span class="picktag">else ${a.fb[1]} ${a.fb[2]===1?'1st':'2nd'}</span>`:'')
       : '<span class="picktag">unprot</span>'}
+    ${/* OUTSIDE the protection ternary: a swap is independent of one, and
+          nesting it here meant an unprotected pick carrying a swap right showed
+          only "unprot" while its price moved by $14M with nothing to explain
+          it. A row that changes the number must say what changed it. */''}
+    ${a.sw?`<span class="picktag">swap ${a.sw[1]==='get'?'↑ better vs':'↓ worse vs'} ${a.sw[0]}</span>`:''}
     ${a.enc?`<span class="enctag" title="from the pick ledger; the trade is still priced">${a.enc}</span>`:''}
     <span class="fromtag">from ${fromLabel}</span>
     <span class="val ${v>=0?'pos':'neg'}">${fmt(v)}</span>
