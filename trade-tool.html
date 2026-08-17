@@ -1283,12 +1283,22 @@ const _TR=D.traderule;
 // until the balls come out. Refusing those would block real trades to look
 // strict, which is the worse error for a tool whose job is exploring what-ifs.
 const LEDGER=D.pickledger||{};
-function pickTier(own,yr,rd){
-  // 2026 has no ledger row -- RealGM publishes 2027-2033 -- so it reads clear.
-  // The imminent draft is exactly where people stage trades, so this is the
-  // year the check cannot vouch for. Said once here, and in the tag below.
-  return LEDGER[`${own}|${yr}|${rd}`]||null;
-}
+function pickTier(own,yr,rd){return LEDGER[`${own}|${yr}|${rd}`]||null;}
+// The years a pick can still be traded in, taken from the ledger rather than
+// written down. The list used to start at 2026 and that draft has been held --
+// you cannot trade a pick that has already been used, but the tool offered it,
+// and with no ledger row behind it every 2026 pick also read as clear. Deriving
+// the range means the same thing does not happen again next June: the ledger
+// starts at 2027 because RealGM publishes FUTURE drafts, and when 2027 is spent
+// it will start at 2028 and this follows without an edit.
+const PICK_YEARS=(()=>{
+  const ys=[...new Set(Object.keys(LEDGER).map(k=>+k.split('|')[1]))].sort();
+  if(ys.length)return ys;
+  // no ledger shipped: fall back to a plain forward window rather than nothing,
+  // so the adder still works with the check simply absent
+  const y0=new Date().getFullYear()+1;
+  return Array.from({length:7},(_,i)=>y0+i);
+})();
 function tierNote(e){
   if(!e)return '';
   if(e.t==='gone')return `already conveyed${e.h?' to '+e.h:''}`;
@@ -1896,7 +1906,7 @@ function renderSide(k){
      <div class="addrow">
        <span class="hint">pick:</span>
        <select data-pkteam="${k}">${teamOpts(others.length?S[others[0]].tm:s.tm)}</select>
-       <select data-pkyr="${k}">${[2026,2027,2028,2029,2030,2031,2032,2033].map(y=>`<option>${y}</option>`).join('')}</select>
+       <select data-pkyr="${k}">${PICK_YEARS.map(y=>`<option>${y}</option>`).join('')}</select>
        <select data-pkrd="${k}"><option value="1">1st</option><option value="2">2nd</option></select>
        <label>prot <input type="number" data-pkprot="${k}" min="0" max="14" value="0"></label>
        <span class="hint">sent by</span>
