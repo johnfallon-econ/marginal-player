@@ -1646,13 +1646,7 @@ function playerSurplus(p,H){
 // nothing understates them. `depth` stops a fallback chain from recursing --
 // every one in the data today is a second rounder, which returns a constant,
 // but nothing in the format guarantees that.
-function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch){
-  // SECOND ROUNDERS ARE A FLAT CONSTANT, so a protection on one changes nothing
-  // here. That is a modelling choice older than this function and not a defect
-  // of the range: 8 of the 22 real protections sit on 2nd round picks and none
-  // of them can move a price that never looked at the slot. assetRow says so on
-  // the row rather than letting the tag imply an effect on the number.
-  if(rd===2){const yo=Math.max(yr-2026,0);return 3/Math.pow(1+dr,yo);}
+function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch,sw){
   const t=T[own]||{ew:41,sd:8}, yo=Math.max(yr-2026,0.5);
   const sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
   const new321=yr>=2027, MTX=new321?D.lottery321:D.lottery, nl=new321?16:14;
@@ -1680,13 +1674,56 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch){
     // valuing the protected half at zero prices "will almost certainly convey,
     // just later" as "may well get nothing".
     const nx=sch[0];
-    const fv=pickValue(own,nx[0],rd,nx[1],nx[2],dr,fb,(depth||0)+1,sch.slice(1));
+    const fv=pickValue(own,nx[0],rd,nx[1],nx[2],dr,fb,(depth||0)+1,sch.slice(1),null);
     protVal=fv*Math.pow(1+dr,yo);
   }else if(fb&&(depth||0)<2){
-    const fv=pickValue(fb[0]||own,fb[1],fb[2],0,0,dr,null,(depth||0)+1);
+    const fv=pickValue(fb[0]||own,fb[1],fb[2],0,0,dr,null,(depth||0)+1,null,null);
     protVal=fv*Math.pow(1+dr,yo);
   }
-  const conv=r=>(plo>0&&r>=plo&&r<=(phi||plo))?protVal:D.slot_surplus[r-1]*pcap;
+  // PER-SLOT VALUE. Round 1 reads the fitted curve. Round 2 does NOT, and that
+  // is deliberate: pick_value.slot_surplus clips round 2 at zero ("waivable =
+  // option, not debt"), so the curve says slots 34-60 are worth exactly $0 and
+  // the round-2 mean is $0.47M. Pricing second rounders off it would value
+  // almost all of them at nothing, which is why the flat $3M was there in the
+  // first place. It stays.
+  //
+  // What changes is that the flat value now runs through the same landing
+  // machinery as round 1, so a PROTECTION bites even though the slot itself
+  // carries no information: an unprotected 2nd still comes out at exactly $3M
+  // (every slot pays the same), while one protected 31-55 is worth $3M times
+  // the chance it lands 56-60. That is P(conveys) applied to a flat asset --
+  // crude, and strictly better than ignoring the term. Making the SLOT matter
+  // in round 2 needs a round-2 value curve that does not floor at zero, which
+  // is a modelling project and not a wiring change.
+  const R2FLAT=3.0;
+  const base=rd===1?(r=>D.slot_surplus[r-1]*pcap):(()=>R2FLAT);
+  const conv=r=>(plo>0&&r>=plo&&r<=(phi||plo))?protVal:base(r);
+  // A SWAP IS A JOINT OUTCOME, so it cannot be priced from one pick's marginal
+  // distribution. The holder of the right ends with the BETTER of two picks and
+  // the grantor with the worse, and E[max] is not a function of the two
+  // expectations -- it needs both distributions at once. `sw` = [club, 'get'
+  // |'give'] names the counterparty and which side of the right this pick is
+  // on; the ledger cannot supply it, because it records THAT a swap exists and
+  // never who holds it, so it is a term the user states.
+  if(sw&&sw[0]&&(depth||0)<2){
+    const o=T[sw[0]]||{ew:41,sd:8};
+    const osd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
+    let acc=0,n=0;
+    for(let i=0;i<ZGRID.length;i++){
+      const wa=Math.max(10,Math.min(72,t.ew+sd*ZGRID[i]));
+      const ra=Math.max(1,Math.min(30,Math.round(30*0.5*(1+erf((wa-41)/(12*1.41421))))));
+      for(let j=0;j<ZGRID.length;j++){
+        const wb=Math.max(10,Math.min(72,o.ew+osd*ZGRID[j]));
+        const rb=Math.max(1,Math.min(30,Math.round(30*0.5*(1+erf((wb-41)/(12*1.41421))))));
+        // "more favorable" is the LOWER slot number. Independence across the two
+        // clubs' seasons is assumed, which understates a swap between clubs whose
+        // fortunes move together and is the honest simplification here.
+        const sa=rd===2?30+ra:ra, sb=rd===2?30+rb:rb;
+        acc+=conv(sw[1]==='give'?Math.max(sa,sb):Math.min(sa,sb)); n++;
+      }
+    }
+    return (acc/n)/Math.pow(1+dr,yo);
+  }
   // Deterministic on both axes. The record was resampled every render, so a
   // pick's price drifted ~$1M between identical calls and moved whenever any
   // unrelated slider did. Win totals come off the same stratified grid as
@@ -1698,6 +1735,10 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch){
     const w=Math.max(10,Math.min(72,t.ew+sd*ZGRID[i]));
     const cdf=0.5*(1+erf((w-41)/(12*1.41421)));
     const rank=Math.max(1,Math.min(30,Math.round(30*cdf)));
+    // Round 2 has no lottery: order is strictly reverse standings, so the slot
+    // is simply 30 + the club's rank. That is what lets a 31-55 protection be
+    // tested against something.
+    if(rd===2){sum+=conv(30+rank);continue;}
     if(rank<=nl){
       const row=MTX[rank-1]; let e=0,acc=0;
       for(let j=0;j<nl;j++){e+=row[j]*conv(j+1);acc+=row[j];}
@@ -1875,7 +1916,7 @@ function evaluate(){
           if(toK)salIn+=(p.sal||0);
           if(fromK)salOut+=(p.sal||0);
         } else {
-          const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,dr,a.fb,0,a.sch);
+          const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,dr,a.fb,0,a.sch,a.sw);
           if(toK)inPicks.push({yr:a.yr,v});
           if(fromK)pkOut+=v;                       // what you send is gone at full value
         }
@@ -1975,12 +2016,13 @@ function assetRow(a,side){
       <span class="fromtag">from ${fromLabel}</span>
       <span class="val ${r.sur>=0?'pos':'neg'}">${fmt(r.sur)}</span>
       <button class="x" data-side="${side}" data-i="${S[side].assets.indexOf(a)}">×</button></div>`;}
-  const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,+$('dr').value/100,a.fb,0,a.sch);
+  const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,+$('dr').value/100,a.fb,0,a.sch,a.sw);
   return `<div class="arow"><span class="nm">${a.own} ${a.yr} ${a.rd===1?'1st':'2nd'}</span>
     ${a.plo>0
-      ? `<span class="picktag"${a.rd===2?' title="second-round picks price as a flat constant, so this range does not change the number"':''}>prot ${a.plo}${a.phi>a.plo?'–'+a.phi:''}${a.rd===2?' (not priced)':''}</span>`+
+      ? `<span class="picktag"${a.rd===2?' title="round 2 carries a flat per-slot value, so this scales the pick by the chance it conveys rather than by where it lands"':''}>prot ${a.plo}${a.phi>a.plo?'–'+a.phi:''}</span>`+
         (a.sch?`<span class="picktag">rolls ${a.sch.map(x=>x[1]?x[0]+' '+x[1]+'–'+x[2]:x[0]+' unprot').join(', ')}</span>`:'')+
-        (a.fb&&!a.sch?`<span class="picktag">else ${a.fb[1]} ${a.fb[2]===1?'1st':'2nd'}</span>`:'')
+        (a.fb&&!a.sch?`<span class="picktag">else ${a.fb[1]} ${a.fb[2]===1?'1st':'2nd'}</span>`:'')+
+        (a.sw?`<span class="picktag">swap ${a.sw[1]==='get'?'↑':'↓'} ${a.sw[0]}</span>`:'')
       : '<span class="picktag">unprot</span>'}
     ${a.enc?`<span class="enctag" title="from the pick ledger; the trade is still priced">${a.enc}</span>`:''}
     <span class="fromtag">from ${fromLabel}</span>
@@ -2007,6 +2049,14 @@ function renderSide(k){
        <select data-pkopt="${k}">${pickOpts(others[0])}</select>
        <label>protected <input type="number" data-pkplo="${k}" min="0" max="60" value="0" title="first protected slot; 0 = unprotected">
          –<input type="number" data-pkphi="${k}" min="0" max="60" value="0" title="last protected slot"></label>
+       <label title="a swap right: this pick is exchanged against another club's, and the holder of the right takes the better one">swap
+         <select data-pkswd="${k}">
+           <option value="">none</option>
+           <option value="get">we take the better</option>
+           <option value="give">they take the better</option>
+         </select>
+         <select data-pkswt="${k}">${teamOpts('')}</select>
+       </label>
        <label title="what the receiving side gets if the protection bites">if not conveyed
          <select data-pkfail="${k}">
            <option value="">nothing</option>
@@ -2408,6 +2458,9 @@ function render(){
       // while the staged range still matches the one it belongs to.
       const _lr=LEDGER[`${pk.own}|${pk.yr}|${pk.rd}`];
       pk.sch=(_lr&&_lr.sch&&_lr.p&&_lr.p[0]===pk.plo&&_lr.p[1]===pk.phi)?_lr.sch:null;
+      const _sd=document.querySelector(`[data-pkswd="${k}"]`);
+      const _st=document.querySelector(`[data-pkswt="${k}"]`);
+      pk.sw=(_sd&&_sd.value&&_st&&_st.value)?[_st.value,_sd.value]:null;
       S[k].assets.push(pk);render();};});
 }
 // ── trade value board ────────────────────────────────────────────────────────
