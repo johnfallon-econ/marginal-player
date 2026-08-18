@@ -1396,30 +1396,42 @@ function slotDist(club,yr,rd){
   }
   _slotCache.set(key,p); return p;
 }
-// WHAT A CASCADING PROTECTION IS WORTH, slot by slot. The Clippers 2028 first is
-// the case this exists for: protected 1-16, and if it stays home Boston does not
-// get nothing -- it may swap for the better of that pick and Philadelphia's own
-// first WHEN Philadelphia's lands top-8, giving up the LESS favorable of its own
-// pick and San Antonio's, because San Antonio holds a swap right against Boston.
-// Three picks and two protections deep, and none of it expressible as one
-// protected pick with one substitute.
+// WHAT A CONDITIONAL PICK IS WORTH, priced over the joint outcome rather than
+// as a pick with a consolation prize bolted on. The Clippers 2028 first in the
+// Brown trade is the case that forced this. Its three outcomes:
 //
-// spec = {give:[clubs], get:[{c,lo,hi}]}. `give` is what the holder surrenders,
-// taking the least favorable when there is more than one. `get` names further
-// picks the holder may reach, each only while its own slot falls in [lo,hi] --
-// that is how "only if Philadelphia lands top-8" is said. The protected pick is
-// always reachable, at whatever slot it actually landed on, which is why this
-// returns a value PER SLOT rather than one number: a swap is worth far more when
-// the pick it reaches landed second than when it landed sixteenth, and averaging
-// over the whole distribution the way a plain swap does throws that away.
-function cascadeValue(own,yr,rd,spec,holder,dr){
-  const key=[own,yr,rd,holder,JSON.stringify(spec),_rankStamp].join('|');
-  const hit=_slotCache.get('C'+key); if(hit)return hit;
+//   Philadelphia lands 1-8   -> Boston swaps for the better of PHI and LAC
+//   else Clippers land 1-16  -> Boston swaps for LAC
+//   else                     -> the Clippers pick conveys, Boston keeps its own
+//
+// Note what the first line does: it decides the asset WITHOUT REFERENCE to
+// where the Clippers pick fell. A fallback hung off the Clippers protection
+// cannot say that, which is why the earlier version booked Philadelphia-top-8
+// with a late Clippers pick as a plain conveyance and came in $4M light. The
+// conveyance condition is itself conditional on another pick, so nothing short
+// of the joint distribution gets it right.
+//
+// spec = {give:[clubs], get:[{c,lo,hi}], preempt:bool}
+//   give     what the holder surrenders, least favorable of them if several --
+//            Boston sends the worse of its own pick and San Antonio's, because
+//            San Antonio holds a swap right against Boston.
+//   get      further picks the holder may reach, each only while its own slot
+//            falls in its window. Philadelphia's 1-8 is not a term Boston
+//            negotiated: it is Brooklyn's protection from the 2022 Harden
+//            trade, and outside the top 8 there is nothing of Philadelphia's
+//            left to reach.
+//   preempt  a reachable `get` also blocks the conveyance, turning the asset
+//            into a swap however the protected pick landed.
+//
+// Cost is 30^(2+|get|) -- 27,000 for one extra pick. Cached per league.
+function conditionalValue(own,yr,rd,plo,phi,spec,holder,dr){
+  const key=['V',own,yr,rd,plo,phi,holder,JSON.stringify(spec),_rankStamp].join('|');
+  const hit=_slotCache.get(key); if(hit!==undefined)return hit;
+  const yo=Math.max(yr-2026,0.5);
   const pcap=(D.caps[String(yr)]||D.slot_surplus_cap)/D.slot_surplus_cap;
   const v=r=>rd===1?D.slot_surplus[r-1]*pcap
                    :(D.slot_surplus_r2?D.slot_surplus_r2[Math.min(30+r,60)-31]:3.0)*pcap;
   const give=(spec.give&&spec.give.length)?spec.give:[holder];
-  // what the holder is left holding: the least favorable of the give side
   let pb=slotDist(give[0],yr,rd).slice();
   for(let i=1;i<give.length;i++){
     const q=slotDist(give[i],yr,rd), nx=new Array(31).fill(0);
@@ -1427,32 +1439,31 @@ function cascadeValue(own,yr,rd,spec,holder,dr){
       for(let b=1;b<=30;b++){ if(!q[b])continue; nx[Math.max(a,b)]+=pb[a]*q[b]; }}
     pb=nx;
   }
-  // the best further pick the holder can reach, with mass left on "none reachable"
-  let pg=new Array(31).fill(0), none=1;
-  for(const g of (spec.get||[])){
-    const q=slotDist(g.c,yr,rd), lo=g.lo||1, hi=g.hi||30;
-    const nx=new Array(31).fill(0); let nn=0;
-    for(let b=1;b<=30;b++){
-      const avail=(b>=lo&&b<=hi)?q[b]:0, gone=(b>=lo&&b<=hi)?0:q[b];
-      nn+=gone*none;
-      if(avail){ nx[b]+=avail*none;
-        for(let a=1;a<=30;a++) if(pg[a]) nx[Math.min(a,b)]+=pg[a]*avail; }
-      if(gone) for(let a=1;a<=30;a++) if(pg[a]) nx[a]+=pg[a]*gone;
-    }
-    pg=nx; none=nn;
-  }
-  const out=new Array(31).fill(0);
-  for(let r=1;r<=30;r++){
-    let acc=0;
-    for(let b=1;b<=30;b++){ const wb=pb[b]; if(!wb)continue;
-      acc+=wb*none*(v(Math.min(b,r))-v(b));                      // only the protected pick
-      for(let g=1;g<=30;g++){ const wg=pg[g]; if(!wg)continue;
-        acc+=wb*wg*(v(Math.min(b,Math.min(r,g)))-v(b));           // better of it and the extras
+  const gets=spec.get||[], pg=gets.map(g=>slotDist(g.c,yr,rd));
+  const pOwn=slotDist(own,yr,rd);
+  const protd=r=>plo>0&&r>=plo&&r<=(phi||plo);
+  let total=0;
+  // enumerate the extras, carrying the best reachable slot and whether any fired
+  const walk=(k,w,best,fired)=>{
+    if(w<1e-12)return;
+    if(k===gets.length){
+      for(let r=1;r<=30;r++){ const wr=pOwn[r]; if(!wr)continue;
+        const swap=(fired&&spec.preempt)||protd(r);
+        for(let b=1;b<=30;b++){ const wb=pb[b]; if(!wb)continue;
+          total+=w*wr*wb*(swap? v(Math.min(b,Math.min(r,best)))-v(b) : v(r));
+        }
       }
+      return;
     }
-    out[r]=acc;
-  }
-  _slotCache.set('C'+key,out);
+    const g=gets[k], lo=g.lo||1, hi=g.hi||30, q=pg[k];
+    for(let sl=1;sl<=30;sl++){ const p=q[sl]; if(!p)continue;
+      const reach=sl>=lo&&sl<=hi;
+      walk(k+1,w*p,reach?Math.min(best,sl):best,fired||reach);
+    }
+  };
+  walk(0,1,31,false);
+  const out=total/Math.pow(1+dr,yo);
+  _slotCache.set(key,out);
   return out;
 }
 function swapValue(sender,receiver,yr,rd,dr){
@@ -1813,6 +1824,12 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch,holder,fbsw){
   // approximation. Without it every future pick was quoted in 2026 dollars and
   // then discounted on top, charging the horizon twice.
   const pcap=(D.caps[String(yr)]||D.slot_surplus_cap)/D.slot_surplus_cap;
+  // A swap fallback makes the whole asset a joint outcome -- what it is worth
+  // when the pick does not convey depends on the same draws that decide whether
+  // it conveys at all. Priced together rather than as a pick plus a rider.
+  if(fbsw&&holder&&holder!==own&&(depth||0)<2&&!sch&&!fb)
+    return conditionalValue(own,yr,rd,plo,phi,
+      fbsw===true?{give:[holder],get:[]}:fbsw,holder,dr);
   // What a protected outcome is worth. The pick does not convey, so the slot
   // surplus is gone -- but the HOLDER may still receive the substitute, and its
   // value belongs here.
@@ -1836,11 +1853,6 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch,holder,fbsw){
   }else if(fb&&(depth||0)<2){
     const fv=pickValue(fb[0]||own,fb[1],fb[2],0,0,dr,null,(depth||0)+1,null,holder);
     protVal=fv*Math.pow(1+dr,yo);
-  }else if(fbsw&&holder&&holder!==own&&(depth||0)<2){
-    // PER SLOT, not one number. cascadeValue already returns undiscounted
-    // values on the same footing as base(), so unlike the fb and rollover
-    // branches above there is nothing to multiply back.
-    protArr=cascadeValue(own,yr,rd,fbsw===true?{give:[holder],get:[]}:fbsw,holder,dr);
   }else if(false){
     // A PROTECTION THAT CONVERTS INTO A SWAP. The pick does not convey, and the
     // holder does not walk away with nothing either -- it keeps its own
@@ -2927,7 +2939,7 @@ DEMO_FN[1]=()=>{TEAMS=['A','B'];S={A:{tm:'PHI',assets:[]},B:{tm:'BOS',assets:[]}
   // gives up is the LESS favorable of its pick and San Antonio's, because San
   // Antonio holds a swap right against Boston. Neither is expressible yet.
   S.B.assets.push({kind:'pk',own:'LAC',yr:2028,rd:1,plo:1,phi:16,
-      fbsw:{give:['BOS','SAS'],get:[{c:'PHI',lo:1,hi:8}]},from:'A'},
+      fbsw:{give:['BOS','SAS'],get:[{c:'PHI',lo:1,hi:8}],preempt:true},from:'A'},
     {kind:'pk',own:'PHI',yr:2031,rd:1,plo:0,phi:0,from:'A'});
   render();};
 // real 3-team trade (2026-07): OKC sends Dort to ATL; DAL sends Nembhard to ATL and a
