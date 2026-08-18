@@ -1377,6 +1377,84 @@ function swapPairOpts(fromK,toK){
 // left out of both legs. Both simplifications are inherited from the term this
 // replaces rather than introduced here; they understate a swap between clubs
 // whose fortunes move together, which is the honest direction to be wrong in.
+// P(this club picks at each slot), lottery included. Round 1 indexes real slots;
+// round 2 has no lottery, so it indexes the club's reverse-standings rank and
+// callers add the thirty. Cached per league, year and round.
+const _slotCache=new Map();
+function slotDist(club,yr,rd){
+  const key=club+'|'+yr+'|'+rd+'|'+_rankStamp;
+  const hit=_slotCache.get(key); if(hit)return hit;
+  const new321=yr>=2027, MTX=new321?D.lottery321:D.lottery, nl=new321?16:14;
+  const pr=rankDist(club,yr), p=new Array(31).fill(0);
+  for(let rank=1;rank<=30;rank++){
+    const w=pr[rank]; if(!w)continue;
+    if(rd===1&&rank<=nl){
+      const row=MTX[rank-1]; let acc=0;
+      for(let j=0;j<nl;j++){p[j+1]+=w*row[j];acc+=row[j];}
+      if(acc<0.999999)p[nl]+=w*(1-acc);            // residual mass -> worst lottery slot
+    }else p[rank]+=w;
+  }
+  _slotCache.set(key,p); return p;
+}
+// WHAT A CASCADING PROTECTION IS WORTH, slot by slot. The Clippers 2028 first is
+// the case this exists for: protected 1-16, and if it stays home Boston does not
+// get nothing -- it may swap for the better of that pick and Philadelphia's own
+// first WHEN Philadelphia's lands top-8, giving up the LESS favorable of its own
+// pick and San Antonio's, because San Antonio holds a swap right against Boston.
+// Three picks and two protections deep, and none of it expressible as one
+// protected pick with one substitute.
+//
+// spec = {give:[clubs], get:[{c,lo,hi}]}. `give` is what the holder surrenders,
+// taking the least favorable when there is more than one. `get` names further
+// picks the holder may reach, each only while its own slot falls in [lo,hi] --
+// that is how "only if Philadelphia lands top-8" is said. The protected pick is
+// always reachable, at whatever slot it actually landed on, which is why this
+// returns a value PER SLOT rather than one number: a swap is worth far more when
+// the pick it reaches landed second than when it landed sixteenth, and averaging
+// over the whole distribution the way a plain swap does throws that away.
+function cascadeValue(own,yr,rd,spec,holder,dr){
+  const key=[own,yr,rd,holder,JSON.stringify(spec),_rankStamp].join('|');
+  const hit=_slotCache.get('C'+key); if(hit)return hit;
+  const pcap=(D.caps[String(yr)]||D.slot_surplus_cap)/D.slot_surplus_cap;
+  const v=r=>rd===1?D.slot_surplus[r-1]*pcap
+                   :(D.slot_surplus_r2?D.slot_surplus_r2[Math.min(30+r,60)-31]:3.0)*pcap;
+  const give=(spec.give&&spec.give.length)?spec.give:[holder];
+  // what the holder is left holding: the least favorable of the give side
+  let pb=slotDist(give[0],yr,rd).slice();
+  for(let i=1;i<give.length;i++){
+    const q=slotDist(give[i],yr,rd), nx=new Array(31).fill(0);
+    for(let a=1;a<=30;a++){ if(!pb[a])continue;
+      for(let b=1;b<=30;b++){ if(!q[b])continue; nx[Math.max(a,b)]+=pb[a]*q[b]; }}
+    pb=nx;
+  }
+  // the best further pick the holder can reach, with mass left on "none reachable"
+  let pg=new Array(31).fill(0), none=1;
+  for(const g of (spec.get||[])){
+    const q=slotDist(g.c,yr,rd), lo=g.lo||1, hi=g.hi||30;
+    const nx=new Array(31).fill(0); let nn=0;
+    for(let b=1;b<=30;b++){
+      const avail=(b>=lo&&b<=hi)?q[b]:0, gone=(b>=lo&&b<=hi)?0:q[b];
+      nn+=gone*none;
+      if(avail){ nx[b]+=avail*none;
+        for(let a=1;a<=30;a++) if(pg[a]) nx[Math.min(a,b)]+=pg[a]*avail; }
+      if(gone) for(let a=1;a<=30;a++) if(pg[a]) nx[a]+=pg[a]*gone;
+    }
+    pg=nx; none=nn;
+  }
+  const out=new Array(31).fill(0);
+  for(let r=1;r<=30;r++){
+    let acc=0;
+    for(let b=1;b<=30;b++){ const wb=pb[b]; if(!wb)continue;
+      acc+=wb*none*(v(Math.min(b,r))-v(b));                      // only the protected pick
+      for(let g=1;g<=30;g++){ const wg=pg[g]; if(!wg)continue;
+        acc+=wb*wg*(v(Math.min(b,Math.min(r,g)))-v(b));           // better of it and the extras
+      }
+    }
+    out[r]=acc;
+  }
+  _slotCache.set('C'+key,out);
+  return out;
+}
 function swapValue(sender,receiver,yr,rd,dr){
   const yo=Math.max(yr-2026,0.5);
   const sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
@@ -1393,20 +1471,7 @@ function swapValue(sender,receiver,yr,rd,dr){
   // exact, and collapsing ZGRID^2 to a 30x30 slot grid takes a call from ~76ms
   // to under a millisecond -- which matters because every render reprices every
   // staged asset.
-  const dist=club=>{
-    const pr=rankDist(club,yr), p=new Array(31).fill(0);
-    for(let rank=1;rank<=30;rank++){
-      const w=pr[rank]; if(!w)continue;
-      // Round 2 has no lottery: order is strictly reverse standings.
-      if(rd===1&&rank<=nl){
-        const row=MTX[rank-1]; let acc=0;
-        for(let j=0;j<nl;j++){p[j+1]+=w*row[j];acc+=row[j];}
-        if(acc<0.999999)p[nl]+=w*(1-acc);          // residual mass -> worst lottery slot
-      }else p[rank]+=w;
-    }
-    return p;
-  };
-  const pa=dist(sender), pb=dist(receiver);
+  const pa=slotDist(sender,yr,rd), pb=slotDist(receiver,yr,rd);
   const v=r=>base(rd===2?30+r:r);
   // Independence across the two clubs' seasons is assumed -- and, within the
   // lottery, across the two draws, which no real lottery allows since two clubs
@@ -1738,7 +1803,7 @@ function playerSurplus(p,H){
 // nothing understates them. `depth` stops a fallback chain from recursing --
 // every one in the data today is a second rounder, which returns a constant,
 // but nothing in the format guarantees that.
-function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch){
+function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch,holder,fbsw){
   const t=T[own]||{ew:41,sd:8}, yo=Math.max(yr-2026,0.5);
   const sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
   const new321=yr>=2027, MTX=new321?D.lottery321:D.lottery, nl=new321?16:14;
@@ -1757,7 +1822,7 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch){
   // by its own pickValue call. Multiplying back by (1+dr)^yo makes the outer
   // division cancel exactly, leaving the substitute discounted once, from the
   // year it actually arrives.
-  let protVal=0;
+  let protVal=0, protArr=null;
   if(sch&&sch.length&&(depth||0)<8){
     // A ROLLOVER. The obligation is not discharged when the protection bites --
     // it is retried at the next draft on that year's terms, so the protected
@@ -1766,11 +1831,30 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch){
     // valuing the protected half at zero prices "will almost certainly convey,
     // just later" as "may well get nothing".
     const nx=sch[0];
-    const fv=pickValue(own,nx[0],rd,nx[1],nx[2],dr,fb,(depth||0)+1,sch.slice(1));
+    const fv=pickValue(own,nx[0],rd,nx[1],nx[2],dr,fb,(depth||0)+1,sch.slice(1),holder,fbsw);
     protVal=fv*Math.pow(1+dr,yo);
   }else if(fb&&(depth||0)<2){
-    const fv=pickValue(fb[0]||own,fb[1],fb[2],0,0,dr,null,(depth||0)+1,null);
+    const fv=pickValue(fb[0]||own,fb[1],fb[2],0,0,dr,null,(depth||0)+1,null,holder);
     protVal=fv*Math.pow(1+dr,yo);
+  }else if(fbsw&&holder&&holder!==own&&(depth||0)<2){
+    // PER SLOT, not one number. cascadeValue already returns undiscounted
+    // values on the same footing as base(), so unlike the fb and rollover
+    // branches above there is nothing to multiply back.
+    protArr=cascadeValue(own,yr,rd,fbsw===true?{give:[holder],get:[]}:fbsw,holder,dr);
+  }else if(false){
+    // A PROTECTION THAT CONVERTS INTO A SWAP. The pick does not convey, and the
+    // holder does not walk away with nothing either -- it keeps its own
+    // selection and may take this one instead if this one lands better. The
+    // ledger has recorded on_fail=convert_to_swap since the pick ledger was
+    // built, and it drove a tooltip and nothing else, so the branch was priced
+    // at zero. On the Clippers 2028 first that is most of the asset: the pick
+    // conveys in only about 30% of outcomes, and the swap is what Boston holds
+    // in the other 70%.
+    //
+    // Worth what the swap is worth, which is an upgrade over the holder's OWN
+    // pick, not a whole selection -- swapValue already prices exactly that. The
+    // multiply cancels the caller's division so it is discounted once.
+    protVal=swapValue(own,holder,yr,rd,dr)*Math.pow(1+dr,yo);
   }
   // PER-SLOT VALUE. Round 1 reads the fitted curve. Round 2 reads a curve built
   // in 11_trade_tool (_round2_curve), because the fitted one clips to exactly
@@ -1779,7 +1863,7 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch){
   // later pick is always worth less, which the flat $3M it replaces was not.
   const base=rd===1?(r=>D.slot_surplus[r-1]*pcap)
                    :(r=>(D.slot_surplus_r2?D.slot_surplus_r2[Math.min(r,60)-31]:3.0)*pcap);
-  const conv=r=>(plo>0&&r>=plo&&r<=(phi||plo))?protVal:base(r);
+  const conv=r=>(plo>0&&r>=plo&&r<=(phi||plo))?(protArr?protArr[r]:protVal):base(r);
   // Deterministic on both axes. The record was resampled every render, so a
   // pick's price drifted ~$1M between identical calls and moved whenever any
   // unrelated slider did. Win totals come off the same stratified grid as
@@ -2018,7 +2102,7 @@ function evaluate(){
           if(toK)swIn+=v;
           if(fromK)pkOut+=v;                       // exactly what the receiver gains
         } else {
-          const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,dr,a.fb,0,a.sch);
+          const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,dr,a.fb,0,a.sch,(S[J]||{}).tm,a.fbsw);
           if(toK)inPicks.push({yr:a.yr,v});
           if(fromK)pkOut+=v;                       // what you send is gone at full value
         }
@@ -2126,12 +2210,13 @@ function assetRow(a,side){
       <span class="fromtag">from ${fromLabel}</span>
       <span class="val ${sv>=0?'pos':'neg'}">${fmt(sv)}</span>
       <button class="x" data-side="${side}" data-i="${S[side].assets.indexOf(a)}">×</button></div>`;}
-  const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,+$('dr').value/100,a.fb,0,a.sch);
+  const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,+$('dr').value/100,a.fb,0,a.sch,(S[side]||{}).tm,a.fbsw);
   return `<div class="arow"><span class="nm">${a.own} ${a.yr} ${a.rd===1?'1st':'2nd'}</span>
     ${a.plo>0
       ? `<span class="picktag"${a.rd===2?' title="round 2 carries a flat per-slot value, so this scales the pick by the chance it conveys rather than by where it lands"':''}>prot ${a.plo}${a.phi>a.plo?'–'+a.phi:''}</span>`+
         (a.sch?`<span class="picktag">rolls ${a.sch.map(x=>x[1]?x[0]+' '+x[1]+'–'+x[2]:x[0]+' unprot').join(', ')}</span>`:'')+
-        (a.fb&&!a.sch?`<span class="picktag">else ${a.fb[1]} ${a.fb[2]===1?'1st':'2nd'}</span>`:'')
+        (a.fb&&!a.sch?`<span class="picktag">else ${a.fb[1]} ${a.fb[2]===1?'1st':'2nd'}</span>`:'')+
+        (a.fbsw&&!a.sch&&!a.fb?`<span class="picktag" title="if the protection bites the pick does not convey; the holder instead keeps its own selection and may take this one if it lands better">else swap${a.fbsw!==true&&a.fbsw.get&&a.fbsw.get.length?` (or ${a.fbsw.get.map(g=>g.c+' '+g.lo+'-'+g.hi).join(', ')})`:` vs ${a.own}`}${a.fbsw!==true&&a.fbsw.give&&a.fbsw.give.length>1?`, gives worse of ${a.fbsw.give.join('/')}`:''}</span>`:'')
       : '<span class="picktag">unprot</span>'}
     ${a.enc?`<span class="enctag" title="from the pick ledger; the trade is still priced">${a.enc}</span>`:''}
     <span class="fromtag">from ${fromLabel}</span>
@@ -2172,6 +2257,7 @@ function renderSide(k){
            <option value="">nothing</option>
            <option value="2">a 2nd</option>
            <option value="1">a 1st</option>
+           <option value="sw">swap rights</option>
          </select>
          <select data-pkfby="${k}">${PICK_YEARS.map(y=>`<option>${y}</option>`).join('')}</select>
        </label>
@@ -2558,7 +2644,10 @@ function render(){
         const sc=e&&e.sch?e.sch:null;
         rl.value=!sc?'':String(sc.length)+(sc[sc.length-1][1]===0?'u':'');
       }
-      fs.value=e&&e.fb?String(e.fb[2]):'';
+      // The ledger has said convert_to_swap since it was built; now that the
+      // branch is priced, prefill it rather than making the user rediscover it.
+      fs.value = (e && e.f === 'convert_to_swap') ? 'sw'
+               : (e && e.fb) ? String(e.fb[2]) : '';
       fy.value=String(e&&e.fb?e.fb[1]:(v?+v.split('|')[1]:PICK_YEARS[0]));
     }
   }
@@ -2611,7 +2700,8 @@ function render(){
       // meaningful alongside a protection, since nothing else can trigger it.
       const _fr=document.querySelector(`[data-pkfail="${k}"]`);
       const _fy=document.querySelector(`[data-pkfby="${k}"]`);
-      pk.fb=(_fr&&_fr.value)?[null,+(_fy||{}).value||pk.yr,+_fr.value]:null;
+      pk.fbsw=!!(_fr&&_fr.value==='sw');
+      pk.fb=(_fr&&_fr.value&&!pk.fbsw)?[null,+(_fy||{}).value||pk.yr,+_fr.value]:null;
       // The rollover schedule is a property of the real obligation, not
       // something the controls express, so it comes from the ledger and only
       // while the staged range still matches the one it belongs to.
@@ -2828,7 +2918,17 @@ DEMO_FN[0]=()=>{TEAMS=['A','B'];S={A:{tm:'MIA',assets:[]},B:{tm:'MIL',assets:[]}
 DEMO_FN[1]=()=>{TEAMS=['A','B'];S={A:{tm:'PHI',assets:[]},B:{tm:'BOS',assets:[]}};
   const jb=find('Jaylen Brown');if(jb)S.A.assets.push({kind:'pl',id:jb,from:'B'});
   const pg=find('Paul George');if(pg)S.B.assets.push({kind:'pl',id:pg,from:'A'});
-  S.B.assets.push({kind:'pk',own:'LAC',yr:2028,rd:1,plo:1,phi:16,from:'A'},{kind:'pk',own:'PHI',yr:2031,rd:1,plo:0,phi:0,from:'A'});
+  // The Clippers 2028 first is protected 1-16, and if it stays home Boston does
+  // not get nothing -- it gets the right to swap its own pick for this one. That
+  // branch carries most of the asset (the pick conveys in roughly 30% of
+  // outcomes), and pricing it at zero put the pick at $13.5M against $50.5M.
+  // Still simpler than the real term, which cascades: Boston's swap can also
+  // reach Philadelphia's own 2028 first when that lands top-8, and what Boston
+  // gives up is the LESS favorable of its pick and San Antonio's, because San
+  // Antonio holds a swap right against Boston. Neither is expressible yet.
+  S.B.assets.push({kind:'pk',own:'LAC',yr:2028,rd:1,plo:1,phi:16,
+      fbsw:{give:['BOS','SAS'],get:[{c:'PHI',lo:1,hi:8}]},from:'A'},
+    {kind:'pk',own:'PHI',yr:2031,rd:1,plo:0,phi:0,from:'A'});
   render();};
 // real 3-team trade (2026-07): OKC sends Dort to ATL; DAL sends Nembhard to ATL and a
 // 2027 2nd to OKC; ATL sends Risacher + a protected 2nd to DAL and two 2nds to OKC.
