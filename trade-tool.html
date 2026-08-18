@@ -1344,18 +1344,82 @@ function pickOpts(k){
 //
 // So it is derived, like the pick list: same year, same round, and the club
 // still holding its own. Constraining the choice beats validating it after.
-function swapOpts(k){
-  const v=(document.querySelector(`[data-pkopt="${k}"]`)||{}).value;
+function swapPairOpts(fromK,toK){
+  const A=(S[fromK]||{}).tm, B=(S[toK]||{}).tm;
   const out=['<option value="">—</option>'];
-  if(!v)return out.join('');
-  const [own,yr,rd]=v.split('|');
-  for(const c of Object.keys(T).sort()){
-    if(c===own)continue;                       // a pick cannot swap with itself
-    const e=LEDGER[`${c}|${yr}|${rd}`];
-    if((e?(e.h||null):c)!==c)continue;         // that club no longer holds it
-    out.push(`<option value="${c}">${c} ${yr} ${rd==='1'?'1st':'2nd'}</option>`);
+  if(!A||!B||A===B)return out.join('');
+  const held=(club,y,rd)=>{const h=pickHolder(club,y,rd);return h===null||h===club;};
+  for(const y of PICK_YEARS)for(const rd of [1,2]){
+    if(!held(A,y,rd)||!held(B,y,rd))continue;  // a swap needs BOTH picks present
+    if(TEAMS.some(j=>S[j].assets.some(a=>a.kind==='sw'&&a.yr===y&&a.rd===rd&&
+        ((a.a===A&&a.b===B)||(a.a===B&&a.b===A)))))continue;   // already staged
+    out.push(`<option value="${y}|${rd}">${y} ${rd===1?'1st':'2nd'} — ${B} takes the better of ${B}/${A}</option>`);
   }
   return out.join('');
+}
+// WHAT A SWAP RIGHT IS WORTH. Not a pick: the receiving side keeps its own
+// selection and may take the sending side's instead if that lands better, so
+// what changes hands is the DIFFERENCE between the two. The old term priced it
+// as a whole conveyed pick carrying a right, which booked the receiver a pick
+// it never got and charged the sender one it never sent -- on two mid-table
+// clubs that is tens of millions of phantom value on both sides of the ledger.
+//
+// The transfer is the SAME number for both sides, which is what lets one value
+// feed the existing symmetric scoring loop unchanged. For every pair of
+// outcomes {min,max} is a permutation of {sa,sb}, so pointwise
+//     v(min) + v(max) == v(sa) + v(sb)
+// and therefore  E[v(min)] - E[v(sb)]  ==  E[v(sa)] - E[v(max)]  exactly:
+// what the receiver gains is what the sender loses. A swap is zero-sum in
+// expectation, and this returns that one transfer, always >= 0.
+//
+// Independence across the two clubs' seasons is assumed, and the lottery is
+// left out of both legs. Both simplifications are inherited from the term this
+// replaces rather than introduced here; they understate a swap between clubs
+// whose fortunes move together, which is the honest direction to be wrong in.
+function swapValue(sender,receiver,yr,rd,dr){
+  const yo=Math.max(yr-2026,0.5);
+  const sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
+  const pcap=(D.caps[String(yr)]||D.slot_surplus_cap)/D.slot_surplus_cap;
+  const new321=yr>=2027, MTX=new321?D.lottery321:D.lottery, nl=new321?16:14;
+  const base=rd===1?(r=>D.slot_surplus[r-1]*pcap)
+                   :(r=>(D.slot_surplus_r2?D.slot_surplus_r2[Math.min(r,60)-31]:3.0)*pcap);
+  // THE MARGINAL DISTRIBUTION OVER FINAL SLOTS, lottery included, built exactly
+  // the way pickValue builds its expectation. The old swap term skipped the
+  // lottery while pickValue applied it, so the same pick was worth one thing
+  // standalone and another inside a swap: v(A->B) - v(B->A) came to -47.5
+  // against an own-pick gap of -39.4, and any trade mixing a pick with a swap
+  // silently added the difference. Sharing the distribution makes that identity
+  // exact, and collapsing ZGRID^2 to a 30x30 slot grid takes a call from ~76ms
+  // to under a millisecond -- which matters because every render reprices every
+  // staged asset.
+  const dist=club=>{
+    const t=T[club]||{ew:41,sd:8}, p=new Array(31).fill(0), w=1/ZGRID.length;
+    for(let i=0;i<ZGRID.length;i++){
+      const wins=Math.max(10,Math.min(72,t.ew+sd*ZGRID[i]));
+      const rank=Math.max(1,Math.min(30,Math.round(30*0.5*(1+erf((wins-41)/(12*1.41421))))));
+      // Round 2 has no lottery: order is strictly reverse standings.
+      if(rd===1&&rank<=nl){
+        const row=MTX[rank-1]; let acc=0;
+        for(let j=0;j<nl;j++){p[j+1]+=w*row[j];acc+=row[j];}
+        if(acc<0.999999)p[nl]+=w*(1-acc);          // residual mass -> worst lottery slot
+      }else p[rank]+=w;
+    }
+    return p;
+  };
+  const pa=dist(sender), pb=dist(receiver);
+  const v=r=>base(rd===2?30+r:r);
+  // Independence across the two clubs' seasons is assumed -- and, within the
+  // lottery, across the two draws, which no real lottery allows since two clubs
+  // cannot both land the first pick. Both understate a swap between clubs whose
+  // fortunes move together, which is the honest direction to be wrong in.
+  let gain=0;
+  for(let i=1;i<=30;i++){ if(!pa[i])continue;
+    for(let j=1;j<=30;j++){ if(!pb[j])continue;
+      // "more favorable" is the LOWER slot number.
+      gain+=pa[i]*pb[j]*(v(Math.min(i,j))-v(j));
+    }
+  }
+  return gain/Math.pow(1+dr,yo);
 }
 // The years a pick can still be traded in, taken from the ledger rather than
 // written down. The list used to start at 2026 and that draft has been held --
@@ -1674,7 +1738,7 @@ function playerSurplus(p,H){
 // nothing understates them. `depth` stops a fallback chain from recursing --
 // every one in the data today is a second rounder, which returns a constant,
 // but nothing in the format guarantees that.
-function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch,sw){
+function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch){
   const t=T[own]||{ew:41,sd:8}, yo=Math.max(yr-2026,0.5);
   const sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
   const new321=yr>=2027, MTX=new321?D.lottery321:D.lottery, nl=new321?16:14;
@@ -1702,10 +1766,10 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch,sw){
     // valuing the protected half at zero prices "will almost certainly convey,
     // just later" as "may well get nothing".
     const nx=sch[0];
-    const fv=pickValue(own,nx[0],rd,nx[1],nx[2],dr,fb,(depth||0)+1,sch.slice(1),null);
+    const fv=pickValue(own,nx[0],rd,nx[1],nx[2],dr,fb,(depth||0)+1,sch.slice(1));
     protVal=fv*Math.pow(1+dr,yo);
   }else if(fb&&(depth||0)<2){
-    const fv=pickValue(fb[0]||own,fb[1],fb[2],0,0,dr,null,(depth||0)+1,null,null);
+    const fv=pickValue(fb[0]||own,fb[1],fb[2],0,0,dr,null,(depth||0)+1,null);
     protVal=fv*Math.pow(1+dr,yo);
   }
   // PER-SLOT VALUE. Round 1 reads the fitted curve. Round 2 reads a curve built
@@ -1716,32 +1780,6 @@ function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch,sw){
   const base=rd===1?(r=>D.slot_surplus[r-1]*pcap)
                    :(r=>(D.slot_surplus_r2?D.slot_surplus_r2[Math.min(r,60)-31]:3.0)*pcap);
   const conv=r=>(plo>0&&r>=plo&&r<=(phi||plo))?protVal:base(r);
-  // A SWAP IS A JOINT OUTCOME, so it cannot be priced from one pick's marginal
-  // distribution. The holder of the right ends with the BETTER of two picks and
-  // the grantor with the worse, and E[max] is not a function of the two
-  // expectations -- it needs both distributions at once. `sw` = [club, 'get'
-  // |'give'] names the counterparty and which side of the right this pick is
-  // on; the ledger cannot supply it, because it records THAT a swap exists and
-  // never who holds it, so it is a term the user states.
-  if(sw&&sw[0]&&(depth||0)<2){
-    const o=T[sw[0]]||{ew:41,sd:8};
-    const osd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
-    let acc=0,n=0;
-    for(let i=0;i<ZGRID.length;i++){
-      const wa=Math.max(10,Math.min(72,t.ew+sd*ZGRID[i]));
-      const ra=Math.max(1,Math.min(30,Math.round(30*0.5*(1+erf((wa-41)/(12*1.41421))))));
-      for(let j=0;j<ZGRID.length;j++){
-        const wb=Math.max(10,Math.min(72,o.ew+osd*ZGRID[j]));
-        const rb=Math.max(1,Math.min(30,Math.round(30*0.5*(1+erf((wb-41)/(12*1.41421))))));
-        // "more favorable" is the LOWER slot number. Independence across the two
-        // clubs' seasons is assumed, which understates a swap between clubs whose
-        // fortunes move together and is the honest simplification here.
-        const sa=rd===2?30+ra:ra, sb=rd===2?30+rb:rb;
-        acc+=conv(sw[1]==='give'?Math.max(sa,sb):Math.min(sa,sb)); n++;
-      }
-    }
-    return (acc/n)/Math.pow(1+dr,yo);
-  }
   // Deterministic on both axes. The record was resampled every render, so a
   // pick's price drifted ~$1M between identical calls and moved whenever any
   // unrelated slider did. Win totals come off the same stratified grid as
@@ -1924,7 +1962,7 @@ function evaluate(){
   moves.forEach(m=>{if(post[m.to]){post[m.to].push(m.p);incoming[m.to].add(m.p.id);}});
 
   TEAMS.forEach(K=>{
-    let pkIn=0,pkOut=0,salIn=0,salOut=0; const inPicks=[];
+    let pkIn=0,pkOut=0,salIn=0,salOut=0,swIn=0; const inPicks=[];
     TEAMS.forEach(J=>{
       S[J].assets.forEach(a=>{
         const toK=(J===K), fromK=(a.from===K);
@@ -1933,8 +1971,14 @@ function evaluate(){
           const p=byId[a.id];
           if(toK)salIn+=(p.sal||0);
           if(fromK)salOut+=(p.sal||0);
+        } else if(a.kind==='sw'){
+          // A swap is an upgrade, not a selection, so it is NOT glutted: it adds
+          // no roster spot and cannot be the marginal pick of its draft year.
+          const v=swapValue(a.a,a.b,a.yr,a.rd,dr);
+          if(toK)swIn+=v;
+          if(fromK)pkOut+=v;                       // exactly what the receiver gains
         } else {
-          const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,dr,a.fb,0,a.sch,a.sw);
+          const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,dr,a.fb,0,a.sch);
           if(toK)inPicks.push({yr:a.yr,v});
           if(fromK)pkOut+=v;                       // what you send is gone at full value
         }
@@ -1947,6 +1991,7 @@ function evaluate(){
       perYr[p.yr]=(perYr[p.yr]||0)+1;
       pkIn+=p.v*pickGlut(perYr[p.yr]);
     });
+    pkIn+=swIn;
     // MARGINAL value: what the whole roster is worth after, minus before.
     const pre=(ROSTER[S[K].tm]||[]);
     // pre is its own reference, so an untouched roster develops exactly zero
@@ -2034,18 +2079,20 @@ function assetRow(a,side){
       <span class="fromtag">from ${fromLabel}</span>
       <span class="val ${r.sur>=0?'pos':'neg'}">${fmt(r.sur)}</span>
       <button class="x" data-side="${side}" data-i="${S[side].assets.indexOf(a)}">×</button></div>`;}
-  const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,+$('dr').value/100,a.fb,0,a.sch,a.sw);
+  if(a.kind==='sw'){
+    const sv=swapValue(a.a,a.b,a.yr,a.rd,+$('dr').value/100);
+    return `<div class="arow"><span class="nm">${a.yr} ${a.rd===1?'1st':'2nd'} swap</span>
+      <span class="picktag" title="the sending side keeps the less favorable of the two; only the difference changes hands">${a.b} takes the better of ${a.b}/${a.a}</span>
+      <span class="fromtag">from ${fromLabel}</span>
+      <span class="val ${sv>=0?'pos':'neg'}">${fmt(sv)}</span>
+      <button class="x" data-side="${side}" data-i="${S[side].assets.indexOf(a)}">×</button></div>`;}
+  const v=pickValue(a.own,a.yr,a.rd,a.plo,a.phi,+$('dr').value/100,a.fb,0,a.sch);
   return `<div class="arow"><span class="nm">${a.own} ${a.yr} ${a.rd===1?'1st':'2nd'}</span>
     ${a.plo>0
       ? `<span class="picktag"${a.rd===2?' title="round 2 carries a flat per-slot value, so this scales the pick by the chance it conveys rather than by where it lands"':''}>prot ${a.plo}${a.phi>a.plo?'–'+a.phi:''}</span>`+
         (a.sch?`<span class="picktag">rolls ${a.sch.map(x=>x[1]?x[0]+' '+x[1]+'–'+x[2]:x[0]+' unprot').join(', ')}</span>`:'')+
         (a.fb&&!a.sch?`<span class="picktag">else ${a.fb[1]} ${a.fb[2]===1?'1st':'2nd'}</span>`:'')
       : '<span class="picktag">unprot</span>'}
-    ${/* OUTSIDE the protection ternary: a swap is independent of one, and
-          nesting it here meant an unprotected pick carrying a swap right showed
-          only "unprot" while its price moved by $14M with nothing to explain
-          it. A row that changes the number must say what changed it. */''}
-    ${a.sw?`<span class="picktag">swap ${a.sw[1]==='get'?'↑ better vs':'↓ worse vs'} ${a.sw[0]}</span>`:''}
     ${a.enc?`<span class="enctag" title="from the pick ledger; the trade is still priced">${a.enc}</span>`:''}
     <span class="fromtag">from ${fromLabel}</span>
     <span class="val ${v>=0?'pos':'neg'}">${fmt(v)}</span>
@@ -2080,14 +2127,6 @@ function renderSide(k){
            <option value="2u">+2 yrs, last unprot</option>
          </select>
        </label>
-       <label title="a swap right: this pick is exchanged against another club's, and the holder of the right takes the better one">swap
-         <select data-pkswd="${k}">
-           <option value="">none</option>
-           <option value="get">we take the better</option>
-           <option value="give">they take the better</option>
-         </select>
-         <select data-pkswt="${k}">${swapOpts(others[0])}</select>
-       </label>
        <label title="what the receiving side gets if the protection bites">if not conveyed
          <select data-pkfail="${k}">
            <option value="">nothing</option>
@@ -2098,6 +2137,20 @@ function renderSide(k){
        </label>
        <button data-addpick="${k}">add pick</button>
        <span class="pkerr" data-pkerr="${k}"></span>
+     </div>
+     ${/* A SWAP GETS ITS OWN ROW AND ITS OWN BUTTON. It used to be a modifier on
+           "add pick", which forced a pick conveyance to exist before a swap
+           could be expressed and made the two read as one act. They are
+           different deals: a pick changes hands, a swap changes only which of
+           two existing picks each side ends up with. There is no direction to
+           choose -- the side sending the right keeps the less favorable, which
+           is what granting one means. */''}
+     <div class="addrow">
+       <span class="hint">swap from</span>
+       <select data-swfrom="${k}">${sideOpts(k,others[0])}</select>
+       <select data-swopt="${k}">${swapPairOpts(others[0],k)}</select>
+       <button data-addswap="${k}">add swap</button>
+       <span class="pkerr" data-swerr="${k}"></span>
      </div>
    </div>`;
 }
@@ -2119,6 +2172,15 @@ function pruneAssets(){
       // Lakers with a Miami pick staged and the trade went on pricing a pick
       // nobody in it owned. The adder checked this; a team change bypassed the
       // adder entirely.
+      // A SWAP IS PRUNED ON BOTH LEGS. It names two clubs, so a team change on
+      // EITHER side leaves it describing a deal between clubs no longer in the
+      // trade -- the pick branch below only has one club to check.
+      if(a.kind==='sw'){
+        if(!S[a.from]||a.from===k)return false;
+        if(S[a.from].tm!==a.a||S[k].tm!==a.b)return false;
+        const ha=pickHolder(a.a,a.yr,a.rd), hb=pickHolder(a.b,a.yr,a.rd);
+        return (ha===null||ha===a.a)&&(hb===null||hb===a.b);
+      }
       if(a.kind==='pk'){
         if(!S[a.from]||a.from===k)return false;
         const h=pickHolder(a.own,a.yr,a.rd);
@@ -2451,8 +2513,6 @@ function render(){
       // A stated substitute prefills; a stated `extinguish` prefills as nothing.
       // Both are editable, because the whole point of the tool is asking what a
       // trade WOULD be worth on terms nobody has agreed to.
-      const st=document.querySelector(`[data-pkswt="${k}"]`);
-      if(st)st.innerHTML=swapOpts(k);
       const rl=document.querySelector(`[data-pkroll="${k}"]`);
       if(rl){
         const sc=e&&e.sch?e.sch:null;
@@ -2468,6 +2528,12 @@ function render(){
       fillProt(k);};});
   document.querySelectorAll('[data-pkopt]').forEach(sel=>{
     sel.onchange=()=>fillProt(sel.dataset.pkopt);});
+  // The pair list depends on BOTH sides' clubs, so it is rebuilt when the
+  // sending side changes -- the same reason pickOpts is rebuilt on data-pkfrom.
+  document.querySelectorAll('[data-swfrom]').forEach(sel=>{
+    sel.onchange=()=>{const k=sel.dataset.swfrom;
+      const o=document.querySelector(`[data-swopt="${k}"]`);
+      if(o)o.innerHTML=swapPairOpts(sel.value,k);};});
   TEAMS.forEach(k=>fillProt(k));
   document.querySelectorAll('[data-addpick]').forEach(b=>{
     b.onclick=()=>{const k=b.dataset.addpick;
@@ -2525,10 +2591,23 @@ function render(){
       }else{
         pk.sch=(_lr&&_lr.sch&&_lr.p&&_lr.p[0]===pk.plo&&_lr.p[1]===pk.phi)?_lr.sch:null;
       }
-      const _sd=document.querySelector(`[data-pkswd="${k}"]`);
-      const _st=document.querySelector(`[data-pkswt="${k}"]`);
-      pk.sw=(_sd&&_sd.value&&_st&&_st.value)?[_st.value,_sd.value]:null;
       S[k].assets.push(pk);render();};});
+  // The swap adder. Both clubs are derived rather than chosen: the sender is the
+  // side granting the right and the receiver is the side being given it, which
+  // is the only pairing a swap in a trade can describe. Choosing a counterparty
+  // freely let a trade be built on a right between two clubs that were not in it.
+  document.querySelectorAll('[data-addswap]').forEach(b=>{
+    b.onclick=()=>{const k=b.dataset.addswap;
+      const err=document.querySelector(`[data-swerr="${k}"]`);
+      const fromK=document.querySelector(`[data-swfrom="${k}"]`).value;
+      const chosen=(document.querySelector(`[data-swopt="${k}"]`)||{}).value;
+      if(!chosen){if(err)err.textContent='no year where both sides still hold their own pick';return;}
+      const [yr,rd]=chosen.split('|');
+      const A=(S[fromK]||{}).tm, B=(S[k]||{}).tm;
+      if(!A||!B||A===B){if(err)err.textContent='a side cannot swap with itself';return;}
+      if(err)err.textContent='';
+      S[k].assets.push({kind:'sw',from:fromK,yr:+yr,rd:+rd,a:A,b:B});
+      render();};});
 }
 // ── trade value board ────────────────────────────────────────────────────────
 let TVN=25;
