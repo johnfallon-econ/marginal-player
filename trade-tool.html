@@ -144,6 +144,7 @@ header .sub b{color:var(--amber-soft);font-weight:600}
 .tvrow:last-child{border-bottom:0}
 .tvrow .rk{color:var(--faint);font-family:var(--mono)}
 .tvrow .nm{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm a.plink{color:inherit;text-decoration:none}.nm a.plink:hover{text-decoration:underline}
 .tvrow .tm,.tvrow .ag{color:var(--muted)}
 .tvrow .deal{color:var(--faint);font-size:11.5px;white-space:nowrap}
 .sqz{margin-top:8px;font-size:11px;line-height:1.5;color:var(--warn,#c47f17);
@@ -943,7 +944,13 @@ function loadAdj(allocPerTeamGame, p, basePerTeamGame){
 // rating points on its own, and drove an +$87M development line on a trade whose
 // player component was -$94M. Held flat beyond 33, which is roughly where the
 // data stops supporting the slope.
-const DEV_B = -0.0000654, DEV_AGE = 0, DEV_AGE_CAP = 33;
+// SWITCHED OFF 2026-09-13 (base was -0.0000654). Nothing has shown the term earns
+// its place. Realized value has no development component, so it cannot validate it;
+// it moves ratings from year 2 on, so the year-1 win test cannot see it; and the one
+// fit against realized value put its weight at -0.68 (se 0.14), the wrong sign
+// (trade_calibration.json apply.development_why_zero). IV estimates not refuting a
+// negative slope is not evidence for one. To restore, set DEV_B back.
+const DEV_B = 0, DEV_AGE = 0, DEV_AGE_CAP = 33;
 function devRate(age){
   const a = Math.min((age || 26), DEV_AGE_CAP);
   return DEV_B + DEV_AGE * (a - 26);
@@ -2462,7 +2469,7 @@ function squeezeNote(s){
 function assetRow(a,side){
   const fromS=S[a.from], fromLabel=fromS?`${a.from}·${fromS.tm}`:(a.from||'?');
   if(a.kind==='pl'){const p=byId[a.id];const r=playerSurplus(p,horizon());
-    return `<div class="arow"><span class="nm">${p.nm}</span>
+    return `<div class="arow"><span class="nm">${pname(p)}</span>
       <span class="meta">${p.tm} · ${p.age.toFixed(0)}y · ${p.rate>=0?'+':''}${p.rate.toFixed(1)} rapm · ${p.mpg.toFixed(0)}mpg · ${p.sals&&p.sals.length?'$'+p.sals[0].toFixed(1)+'M ×'+p.sals.length+'y':'$'+(p.sal??0).toFixed(1)+'M (est)'}</span>
       <span class="fromtag">from ${fromLabel}</span>
       <span class="val ${r.sur>=0?'pos':'neg'}">${fmt(r.sur)}</span>
@@ -2779,7 +2786,7 @@ window.__scoreSeason=function(y){
         dwp:r1(r[tm].dW), dw:null,
         mins:r1(r[tm].mins), eq:r1(r[tm].eq), pk:r1(r[tm].pk)};});
       return {id:t.id, d:t.d, tm:t.tm, seed:t.seed, npick:(t.picks||[]).length, st:t.st?1:0,
-              who:(t.legs||[]).map(l=>(byId[String(l.id)]||{}).nm).filter(Boolean),
+              who:(t.legs||[]).map(l=>(byId[String(l.id)]||{}).nm).filter(Boolean), wid:(t.legs||[]).filter(l=>(byId[String(l.id)]||{}).nm).map(l=>String(l.id)),
               teams, upcoming:1};
     });
   }
@@ -2808,11 +2815,17 @@ window.__scoreSeason=function(y){
                  devp:pr[tm]==null?null:r1(pr[tm].dev)};
     });
     return {id:t.id, d:t.d, tm:t.tm, seed:t.seed, npick:(t.picks||[]).length, st:t.st?1:0,
-            who:(t.legs||[]).map(l=>(byId[String(l.id)]||{}).nm).filter(Boolean),
+            who:(t.legs||[]).map(l=>(byId[String(l.id)]||{}).nm).filter(Boolean), wid:(t.legs||[]).filter(l=>(byId[String(l.id)]||{}).nm).map(l=>String(l.id)),
             teams};
   });
 };
 
+// A player's name links to his career page when he has one -- anyone in the season
+// history (HIST.names). New tab, so a staged trade survives the click.
+function pname(p){
+  return (HIST&&HIST.names&&HIST.names[p.id])
+    ?`<a class="plink" href="player.html?id=${encodeURIComponent(p.id)}" target="_blank" rel="noopener">${p.nm}</a>`:p.nm;
+}
 function render(){
   $('build').innerHTML=TEAMS.map(k=>`<div class="side" id="side${k}"></div>`).join('');
   $('datalists').innerHTML=TEAMS.map(k=>`<datalist id="plist${k}"></datalist>`).join('');
@@ -3052,7 +3065,7 @@ function renderBoard(){
   const row=(p,i)=>{
     if(mode==='war'){
       const w=Math.max(p.war,0)/maxval*100, wNeg=Math.max(-p.war,0)/maxval*100;
-      return `<div class="tvrow"><span class="rk">${i}</span><span class="nm">${p.nm}</span>
+      return `<div class="tvrow"><span class="rk">${i}</span><span class="nm">${pname(p)}</span>
         <span class="tm">${p.tm}</span><span class="ag">${p.age.toFixed(0)}</span>
         <span class="deal">${deal(p)}</span>
         <span class="tv ${p.war>=0?'pos':'neg'}">${p.war>=0?'+':''}${p.war.toFixed(1)} WAR</span>
@@ -3062,7 +3075,7 @@ function renderBoard(){
     const con=p.tv-(p.tvc||0);
     const wCon=Math.max(con,0)/maxval*100, wCont=Math.max(p.tvc||0,0)/maxval*100,
           wNeg=Math.max(-p.tv,0)/maxval*100;
-    return `<div class="tvrow"><span class="rk">${i}</span><span class="nm">${p.nm}</span>
+    return `<div class="tvrow"><span class="rk">${i}</span><span class="nm">${pname(p)}</span>
       <span class="tm">${p.tm}</span><span class="ag">${p.age.toFixed(0)}</span>
       <span class="deal">${deal(p)}</span>
       <span class="tv ${p.tv>=0?'pos':'neg'}">${fmt(p.tv)}</span>
