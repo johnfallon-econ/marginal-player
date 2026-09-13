@@ -40,20 +40,7 @@ club involved. An incoming player <em>displaces</em> minutes rather than adding 
 How they are re-allocated is the next section, and it is the part of this model that
 changed most recently and on the clearest evidence.</p>
 
-<p><strong>Who plays is right; what the reshuffle is worth is partly overstated.</strong> Checked
-against game logs, the minutes the model moves on a trade really do move &mdash; about one
-for one within a season. The value attached to moving them does not all show up in the
-standings. So a trade's roster change is split in two &mdash; the players who moved, at
-full value, and the reallocation of everyone else &mdash; and the reallocation counts at
-<strong>0.55</strong> of its computed value. That is the weight whose forecast
-best predicts clubs' actual change in wins. It is tested the way the tool is used, forward
-in time: for each of the 481 club-seasons of 2009&ndash;2025,
-the weight was chosen on earlier seasons only, landed between
-0.40 and 0.60 every time, and forecast
-better than both full weight and leaving the reallocation out &mdash; by about
-0.07 wins a club-season, a margin smaller than its
-season-to-season noise. A weight built instead from how individual players' value
-changed was tried first and dropped: it swung from era to era.</p>
+<p><strong>Who plays is right, and the reshuffle counts at full value.</strong> Checked against game logs, the minutes the model moves on a trade really do move &mdash; about one for one within a season. A trade's roster change is split in two &mdash; the players who moved, and the reallocation of everyone else &mdash; and the weight on the reallocation is tested the way the tool is used, forward in time: for each of the 481 club-seasons of 2009&ndash;2025, a weight was chosen on earlier seasons' actual win changes and used to forecast the next. The chosen weights ran 0.85 to 1.35 and forecast no better than a fixed one, so the reallocation counts at <strong>full value</strong>. An earlier version discounted it to 0.55; that discount only helped while the forecast's player ratings had seen the season the trade was forecast into.</p>
 
 <h2>2. The roster limit, and a bug it caused</h2>
 
@@ -179,7 +166,7 @@ small <em>benefit</em> instead.</p>
 rest credit that was usually larger than the minutes themselves, so the term paid
 clubs for taking on bodies and charged them for consolidating. With it off, the tool's
 own forecast of a trade's win change tracks what clubs actually did at
-0.86 wins per predicted win, against 0.46 with it
+0.76 wins per predicted win, against 0.46 with it
 on, across 729 club-seasons.</p>
 
 
