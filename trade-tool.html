@@ -565,6 +565,17 @@ const cap=y=>{
   return K.caps[String(y)]||K.caps['2033'];
 };
 const price=(w,c)=>Math.max(K.price.a+K.price.b*w+K.price.c*w*w,0)*c;
+// A DRAFT PICK IS PRICED IN THE SAME DOLLARS AS THE PLAYERS BESIDE IT. Its slot
+// surplus ships at D.slot_surplus_cap and both legs are exactly linear in cap, so
+// it is rescaled to the cap of its own draft year -- read through cap(), the path
+// players use. It used to read D.caps directly, whose earliest key is 2026: in a
+// past season every lookup missed and fell back to the 2026-27 cap, so a 2012 pick
+// was priced on $167M beside players priced on $58M (2.9x; 3.8x in 2004), and the
+// horizon was counted from 2026, so a pick three drafts out was discounted half a
+// year, exactly like next June's. Both now count from the season being priced;
+// in current mode (BASE 2025) they are unchanged.
+const pickCap=yr=>cap(yr)/D.slot_surplus_cap;
+const pickHorizon=yr=>Math.max(yr-(BASE+1),0.5);
 const WAR=p=>K.beta*(p.av*82*p.mpg/48)*(p.rate-K.repl);
 
 // ── minutes are a BUDGET, not a per-player attribute ─────────────────────────
@@ -1513,8 +1524,8 @@ function slotDist(club,yr,rd){
 function conditionalValue(own,yr,rd,plo,phi,spec,holder,dr){
   const key=['V',own,yr,rd,plo,phi,holder,JSON.stringify(spec),_rankStamp].join('|');
   const hit=_slotCache.get(key); if(hit!==undefined)return hit;
-  const yo=Math.max(yr-2026,0.5);
-  const pcap=(D.caps[String(yr)]||D.slot_surplus_cap)/D.slot_surplus_cap;
+  const yo=pickHorizon(yr);
+  const pcap=pickCap(yr);
   const v=r=>rd===1?D.slot_surplus[r-1]*pcap
                    :(D.slot_surplus_r2?D.slot_surplus_r2[Math.min(30+r,60)-31]:3.0)*pcap;
   const give=(spec.give&&spec.give.length)?spec.give:[holder];
@@ -1553,9 +1564,9 @@ function conditionalValue(own,yr,rd,plo,phi,spec,holder,dr){
   return out;
 }
 function swapValue(sender,receiver,yr,rd,dr){
-  const yo=Math.max(yr-2026,0.5);
+  const yo=pickHorizon(yr);
   const sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
-  const pcap=(D.caps[String(yr)]||D.slot_surplus_cap)/D.slot_surplus_cap;
+  const pcap=pickCap(yr);
   const new321=yr>=2027, MTX=new321?D.lottery321:D.lottery, nl=new321?16:14;
   const base=rd===1?(r=>D.slot_surplus[r-1]*pcap)
                    :(r=>(D.slot_surplus_r2?D.slot_surplus_r2[Math.min(r,60)-31]:3.0)*pcap);
@@ -1934,15 +1945,12 @@ function playerSurplus(p,H){
 // every one in the data today is a second rounder, which returns a constant,
 // but nothing in the format guarantees that.
 function pickValue(own,yr,rd,plo,phi,dr,fb,depth,sch,holder,fbsw){
-  const t=T[own]||{ew:41,sd:8}, yo=Math.max(yr-2026,0.5);
+  const t=T[own]||{ew:41,sd:8}, yo=pickHorizon(yr);
   const sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
   const new321=yr>=2027, MTX=new321?D.lottery321:D.lottery, nl=new321?16:14;
   // slot_surplus ships denominated at D.slot_surplus_cap (the 2026-27 cap).
-  // Rescale to the pick's OWN draft-year cap before discounting: both legs of
-  // the surplus are exactly linear in cap, so this is a rescale, not an
-  // approximation. Without it every future pick was quoted in 2026 dollars and
-  // then discounted on top, charging the horizon twice.
-  const pcap=(D.caps[String(yr)]||D.slot_surplus_cap)/D.slot_surplus_cap;
+  // Rescale to the pick's OWN draft-year cap before discounting (pickCap).
+  const pcap=pickCap(yr);
   // A swap fallback makes the whole asset a joint outcome -- what it is worth
   // when the pick does not convey depends on the same draws that decide whether
   // it conveys at all. Priced together rather than as a pick plus a rider.
@@ -2075,7 +2083,7 @@ const WGRID=Array.from({length:64},(_,i)=>ninv((i+0.5)/64));   // own-record gri
 function rankDist(club,yr){
   const key=club+'|'+yr+'|'+_rankStamp;
   const hit=_rankCache.get(key); if(hit)return hit;
-  const yo=Math.max(yr-2026,0.5), sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
+  const yo=pickHorizon(yr), sd=Math.sqrt(36+Math.max(yo-1,0)*12.25);
   const me=T[club]||{ew:41}, others=[];
   for(const c of Object.keys(T)) if(c!==club) others.push(T[c].ew);
   const p=new Array(31).fill(0), w=1/WGRID.length;
