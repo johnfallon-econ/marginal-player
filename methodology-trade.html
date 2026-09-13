@@ -42,15 +42,18 @@ changed most recently and on the clearest evidence.</p>
 
 <p><strong>Who plays is right; what the reshuffle is worth is partly overstated.</strong> Checked
 against game logs, the minutes the model moves on a trade really do move &mdash; about one
-for one within a season. The value attached to moving them shows up only in part: the
-players who stayed changed in realized WAR by 92% of
-what was predicted for them, and arrivals seated below their usual minutes by
-20%. So a trade's roster change is split in two &mdash;
-the players who moved, at full value, and the reallocation of everyone else &mdash; and the
-reallocation counts at <strong>0.67</strong> of its computed value. That weight
-comes from those player-level shares alone, with no team result used to choose it; tested
-afterwards on actual win change, it beat both full weight and leaving the reallocation out,
-including on 379 club-seasons that played no part in the fit.</p>
+for one within a season. The value attached to moving them does not all show up in the
+standings. So a trade's roster change is split in two &mdash; the players who moved, at
+full value, and the reallocation of everyone else &mdash; and the reallocation counts at
+<strong>0.55</strong> of its computed value. That is the weight whose forecast
+best predicts clubs' actual change in wins. It is tested the way the tool is used, forward
+in time: for each of the 481 club-seasons of 2009&ndash;2025,
+the weight was chosen on earlier seasons only, landed between
+0.40 and 0.60 every time, and forecast
+better than both full weight and leaving the reallocation out &mdash; by about
+0.07 wins a club-season, a margin smaller than its
+season-to-season noise. A weight built instead from how individual players' value
+changed was tried first and dropped: it swung from era to era.</p>
 
 <h2>2. The roster limit, and a bug it caused</h2>
 
