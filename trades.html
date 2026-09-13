@@ -23,18 +23,25 @@ on what was <b>knowable beforehand</b> and on how it <b>turned out</b>. A trade 
 sound decision that lost, or a poor one that won, and the two columns separate them.
 Click any row to open it in the Trade Lab.</p>
 
-<div class="ctl">
+<div class="controls">
   <label>Season <select id="tsea"><option value="">all</option><option value="current">2026 offseason</option><option value="2025">2025-26</option><option value="2024">2024-25</option><option value="2023">2023-24</option><option value="2022">2022-23</option><option value="2021">2021-22</option><option value="2020">2020-21</option><option value="2019">2019-20</option><option value="2018">2018-19</option><option value="2017">2017-18</option><option value="2016">2016-17</option><option value="2015">2015-16</option><option value="2014">2014-15</option><option value="2013">2013-14</option><option value="2012">2012-13</option><option value="2011">2011-12</option><option value="2010">2010-11</option><option value="2009">2009-10</option><option value="2008">2008-09</option><option value="2007">2007-08</option><option value="2006">2006-07</option><option value="2005">2005-06</option><option value="2004">2004-05</option><option value="2003">2003-04</option><option value="2002">2002-03</option><option value="2001">2001-02</option><option value="2000">2000-01</option><option value="1999">1999-00</option></select></label>
   <label><input type="checkbox" id="tst"> exclude sign-and-trades</label>
   <label><input type="checkbox" id="tera"> era-adjusted (share of that season's cap)</label>
 </div>
-<p class="cs" id="tcnt"></p>
+<p class="cs" id="tcnt" style="margin:-10px 0 12px"></p>
 <style>#tbody tr.c td{border-top:0} #tbody tr.g td{border-top:2px solid var(--rule)}</style>
 
-<table class="brd" id="ttab"><thead><tr>
+<div class="tablewrap"><table class="brd" id="ttab"><thead><tr>
   <th>#</th><th>Trade</th><th data-k="tm">Teams</th><th data-k="date">Date</th>
   <th class="r" data-k="proc">Process</th><th class="r" data-k="real">Outcome</th>
-</tr></thead><tbody id="tbody"></tbody></table>
+</tr></thead><tbody id="tbody"></tbody></table></div>
+<style>/* text columns read left; the shared table style right-aligns all but the first */
+#ttab th:nth-child(2),#ttab td:nth-child(2),#ttab th:nth-child(3),#ttab td:nth-child(3),
+#ttab th:nth-child(4),#ttab td:nth-child(4){text-align:left}
+/* long player lists and the no-outcome note wrap, so the value columns stay in view */
+#ttab td:nth-child(2){white-space:normal;min-width:200px}
+#ttab td:nth-child(4){white-space:normal}
+#ttab td:nth-child(4) .mut{display:block;font-size:12px;white-space:nowrap}</style>
 
 <div class="note"><p><strong>Reading these.</strong> Sorted by Process or Outcome, each trade shows the
 side that column is about, named in the Teams column: descending for the winner, ascending for

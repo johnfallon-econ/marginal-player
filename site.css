@@ -35,6 +35,14 @@ p{max-width:72ch}
 select,input{font-family:var(--body);font-size:14px;padding:9px 12px;border:1px solid var(--rule);
              border-radius:6px;background:#fff;color:var(--ink)}
 input{min-width:220px}
+/* a text box gets a readable width; a checkbox is a checkbox -- the rule above gave
+   each one a 220px padded box with the tick centred in it */
+input[type=checkbox],input[type=radio]{min-width:0;padding:0;margin:0;width:16px;height:16px;
+  accent-color:var(--orange-text);cursor:pointer}
+.controls label{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:14px}
+.controls .cnt{flex-basis:100%;color:var(--muted);font-size:13px}
+@media(max-width:560px){.controls{flex-direction:column;align-items:flex-start;gap:10px}
+  .controls label{white-space:normal}}
 .meta{color:var(--muted);font-size:13px;margin-left:auto}
 .tablewrap{overflow-x:auto;background:#fff;border:1px solid var(--rule);border-radius:10px}
 table{border-collapse:collapse;width:100%;min-width:820px;font-size:14px}
