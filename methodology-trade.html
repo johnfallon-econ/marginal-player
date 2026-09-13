@@ -19,9 +19,8 @@
 <nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><a href="methodology-draft.html">Draft model</a><span class="on">Trade pricing</span></nav>
 <h1>Pricing a trade</h1>
 <p class="lede">A trade is not an exchange of players. It is a change in what entire
-rosters are worth, under constraints that make talent stubbornly non-additive. Six
-mechanisms do the work. Five are estimated; one is a stated modelling choice, and it
-is the one most capable of changing a trade's sign.</p>
+rosters are worth, under constraints that make talent stubbornly non-additive.
+Five mechanisms do the work, and all five are estimated. A sixth, a rest penalty, was a stated modelling choice until it was switched off; section 4 says why.</p>
 
 <h2>1. Minutes are a budget</h2>
 
@@ -145,32 +144,29 @@ ran a greedy rate waterfall, pinning the top few men at their caps. Making it ge
 proportional halved a spurious
 finding that subtracting rotation players paid.</p>
 
-<h2>4. The rest penalty &mdash; a choice, not a finding</h2>
+<h2>4. The rest penalty &mdash; switched off</h2>
 
-<p>Playing a man above his norm should cost something per minute. The tool prices that
-as a log-rest term, rest being the complement of minutes played:</p>
+<p>The tool used to adjust a player's per-minute rating for rest: fewer minutes than
+his norm made him better per minute, more made him worse, as a log-rest term with
+coefficient b = 0.04211. Since 2026-09-11 b is zero, and minutes are neutral for
+per-minute quality. The minute budget and who plays are unaffected; the term never
+entered the allocator that ships.</p>
 
-<div class="eqn">&Delta;rate = 48 &middot; b &middot; [ log(48 &minus; m<sub>played</sub>) &minus; log(48 &minus; m<sub>base</sub>) ],   b = 0.0421</div>
+<p><strong>It was never identified.</strong> Instrumenting minutes with teammates'
+injury absences across eight seasons &mdash; 110,106 player-games, 735 players, 7,593
+games &mdash; returns a well-estimated <em>zero</em>: +0.0016, 95% interval
+[&minus;0.0032, +0.0064], first-stage F of 1189. The value that shipped came from a
+log-rest specification at a 10-minute floor, with t = 0.73 and an interval of
+[&minus;0.071, +0.156], and at a 1- or 5-minute floor the same regression returned a
+small <em>benefit</em> instead.</p>
 
-<p>It is strong. For a man whose norm is 28 minutes, playing 20 is worth
-+0.68 rating points and playing 38 is worth -1.40.</p>
+<p><strong>And it was not harmless.</strong> A cut in a player's minutes bought him a
+rest credit that was usually larger than the minutes themselves, so the term paid
+clubs for taking on bodies and charged them for consolidating. With it off, the tool's
+own forecast of a trade's win change tracks what clubs actually did at
+0.77 wins per predicted win, against 0.46 with it
+on, across 729 club-seasons.</p>
 
-<p><strong>The coefficient is not identified, and this page should say so.</strong>
-Instrumenting minutes with teammates' injury absences across eight seasons &mdash;
-110,106 player-games, 735 players, 7,593 games &mdash; returns a well-estimated
-<em>zero</em>: +0.0016, 95% interval [&minus;0.0032, +0.0064], first-stage F of 1189.
-OLS on the same rows gives +0.0120 (t = 33.9), so the instrument is stripping real
-bias rather than failing to find anything.</p>
-
-<p>The shipped value comes from a log-rest specification at a 10-minute floor, where
-the coefficient carries t = 0.73 and a 95% interval of [&minus;0.071, +0.156]. At a 1-
-or 5-minute floor the same regression returns a small <em>benefit</em> instead. It is
-retained because a prediction model is better served by a point estimate than by
-assuming zero, and because ~10 minutes is where per-minute production stops being
-noise. But the evidence supports zero about as well as it supports 0.042, and the term
-has consequences: it makes shedding rotation players alongside a star acquisition
-costly rather than free, which <em>reverses</em> a known bias rather than removing it.
-Two large errors pointing opposite ways is not the same as either being fixed.</p>
 
 <h2>5. Championship equity</h2>
 
@@ -268,12 +264,9 @@ cannot diversify across many rosters.</p>
 <h2>Limitations</h2>
 
 <ul>
-<li><strong>The rest penalty is a choice, not a measurement.</strong> Stated in full
-above and repeated here because it is the single assumption most capable of flipping a
-trade's sign.</li>
+
 <li><strong>Concentration is over-rewarded.</strong> The convex top-1 term prices
-star-heavy rosters above market-implied levels, and the rest penalty currently masks
-that from the opposite direction rather than correcting it.</li>
+star-heavy rosters above market-implied levels. The rest penalty used to mask that from the opposite direction; with it switched off, nothing does.</li>
 <li><strong>Roster consequences only.</strong> No view on locker rooms, coaching fit, or
 whether a player wants to be there.</li>
 <li><strong>Trade legality is not evaluated.</strong> Salary matching, aprons and the
