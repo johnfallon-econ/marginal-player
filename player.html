@@ -50,7 +50,7 @@ paid, and the gap between them.</p>
   </div>
   <div class="tablewrap" style="margin-top:22px"><table>
   <thead><tr><th>Season</th><th>Team</th><th>Age</th><th>G</th><th>MPG</th>
-  <th>Marginal Value</th><th>Market Value ($M)</th><th>Salary ($M)</th>
+  <th>Wins Above Replacement</th><th>Market Value ($M)</th><th>Salary ($M)</th>
   <th>Value Over Salary ($M)</th></tr></thead>
   <tbody id="crows"></tbody>
   </table></div>
@@ -236,7 +236,7 @@ function drawPlayer(id) {
   const surAvg = c.suravg;
 
   const tiles = [
-    ["Career marginal value", c.tot.toFixed(1), "", `${n} season${n > 1 ? "s" : ""}`],
+    ["Career wins above replacement", c.tot.toFixed(1), "", `${n} season${n > 1 ? "s" : ""}`],
     ["Value per season", c.avg.toFixed(1), "", "mean"],
     ["Peak season", peak[5].toFixed(1), "", peak[0]],
   ];
