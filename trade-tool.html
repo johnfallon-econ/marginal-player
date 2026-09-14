@@ -627,13 +627,16 @@ const noContractYears=H=>YEAR==='current'?H:1;
 // 44% of past trades were made after opening night, the median with 38% of the season
 // left; each was valued as if the acquirer had the player all year.
 let TRADE_FR=1, TRADE_POST=null;
-// REALIZED VALUE STOPS WHEN THE ACQUIRER STOPS HOLDING HIM. TRADE_HOLD[id] is the
-// franchise that received each moved player. A realized stream used to run to the
-// end of his contract wherever he played it, so a club that flipped a player a year
-// later was credited with what he did for the next one -- the 2018 draft-night
-// trade gave the Clippers $445M of re-signing surplus Shai Gilgeous-Alexander
-// produced for Oklahoma City. The same truncated stream prices both sides, so a
-// trade still nets to zero: what the acquirer got is what the sender gave up.
+// RE-SIGNING RIGHTS BELONG TO WHOEVER HOLDS HIM WHEN THE CONTRACT ENDS. TRADE_HOLD[id]
+// is the franchise that received each moved player. His realized CONTRACT value runs
+// to the end of the deal wherever he played it: a club that trades him on is credited
+// with the value of the remaining contract, standing in for what it got for him (30%
+// of moved players were flipped before their deal ended, and stopping the stream at
+// the flip treated them as given away for nothing). Re-signing value is not part of
+// that contract, so it counts only if the acquirer still held him at the end -- the
+// 2018 draft-night trade had credited the Clippers with $445M of re-signing surplus
+// Shai Gilgeous-Alexander produced for Oklahoma City. Both sides read the same
+// stream, so a trade still nets to zero.
 let TRADE_HOLD=null;
 const heldYears=p=>{
   const hold=TRADE_HOLD&&TRADE_HOLD[p.id];
@@ -2010,7 +2013,7 @@ function playerSurplus(p,H){
     // the ratings say -- which is the comparison being asked for. Falls back to
     // the precomputed surplus when a contract has no per-season WAR to reprice.
     if(p.wars&&p.wars.length){
-      const yrs=Math.min(H,heldYears(p));
+      const yrs=Math.min(H,p.wars.length);
       const fr=TRADE_FR, sp=postShare(p);
       let tot=0;
       for(let h=0;h<yrs;h++){
