@@ -48,7 +48,7 @@ input[type=checkbox],input[type=radio]{min-width:0;padding:0;margin:0;width:16px
 table{border-collapse:collapse;width:100%;min-width:820px;font-size:14px}
 th{position:sticky;top:0;background:#fff;text-align:right;padding:13px 14px;font-size:11px;
    letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--rule);
-   cursor:pointer;white-space:nowrap}
+   cursor:pointer;vertical-align:bottom}
 th:first-child,td:first-child{text-align:left}
 th.on{color:var(--orange-text)}
 th[data-k]:focus-visible,th[data-ck]:focus-visible{outline:2px solid var(--orange-text);outline-offset:-2px}
