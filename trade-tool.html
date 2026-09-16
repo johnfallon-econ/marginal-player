@@ -2513,11 +2513,20 @@ function evaluate(){
     // already, so only `pre` changes, and an untouched roster -- nobody sent -- is
     // unchanged. Checked: no moved man ends up on both sides' `pre`. Eleven are
     // the reverse case, already on the RECEIVER's ledger list before the trade;
-    // that is a separate defect and is not addressed here.
+    // those are handled just below.
     const sentK=moves.filter(m=>m.from===K).map(m=>m.p);
     const rosK=(ROSTER[S[K].tm]||[]);
     const tset=TRADE_TRANSIT&&TRADE_TRANSIT[fran(S[K].tm)];
-    const pre=rosK.concat(sentK.filter(q=>!rosK.some(z=>z.id===q.id))).filter(q=>!(tset&&tset.has(q.id)));
+    // ...and take off anyone this side RECEIVES. A club cannot acquire a man it
+    // already has, so if he is on its list the list is post-trade: the current
+    // roster once a real trade has gone through (Brown on PHI and George on BOS,
+    // staged by hand in current mode), or the eleven ledger cases above. Left in,
+    // he sat in `pre` AND arrived: the roster barely changed, direct still charged
+    // his solo value, and the residual booked that value as "minutes reallocated"
+    // (+$55M PHI, +$101M BOS on Brown-for-George).
+    const recvK=new Set(moves.filter(m=>m.to===K).map(m=>m.p.id));
+    const pre=rosK.concat(sentK.filter(q=>!rosK.some(z=>z.id===q.id)))
+      .filter(q=>!(tset&&tset.has(q.id))&&!recvK.has(q.id));
     if(tset)post[K]=post[K].filter(q=>!tset.has(q.id));
     // pre is its own reference, so an untouched roster develops exactly zero
     const accPre={}, accPost={};
@@ -3500,6 +3509,19 @@ DEMO_FN[2]=()=>{TEAMS=['A','B','C'];
                   {kind:'pk',own:'ATL',yr:2031,rd:2,plo:0,phi:0,from:'A'},
                   {kind:'pk',own:'ATL',yr:2032,rd:2,plo:0,phi:0,from:'A'});
   render();};
+// THE DEMOS ARE REAL TRADES, SO THEY LOAD AS REAL TRADES. Built by hand they were
+// staged on the CURRENT rosters, which already reflect the trade and every signing
+// since -- not what either club had when it agreed to it. Each button now stages the
+// ledger's trade exactly as the trades page does (trade-date rosters, picks, cash);
+// the hand-built version is kept only as a fallback if the trade is not in history.
+const DEMO_TRADE=['20260706:MIA-MIL','20260706:BOS-PHI','20260719:ATL-DAL-OKC'];
+DEMO_TRADE.forEach((id,i)=>{
+  const byHand=DEMO_FN[i];
+  DEMO_FN[i]=()=>{
+    const t=HIST&&HIST.trades&&(HIST.trades.current||[]).find(x=>x.id===id);
+    if(t)stageTrade(t); else byHand();
+  };
+});
 ['demo1','demo2','demo3'].forEach((b,i)=>{$(b).onclick=DEMO_FN[i];});
 
 // ── deep link: trades.html sends people here with a trade already chosen ─────
