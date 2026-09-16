@@ -656,18 +656,23 @@ let TRADE_FR=1, TRADE_POST=null;
 //   a year already decided, and since the man is still under contract it was
 //   exercised: that year is guaranteed. Dort's 2026-27 team option was still flagged
 //   on July 19 and was floored at $0, so sending him cost OKC nothing.
-//   UNDECIDED: floored, as before. A team option year is worth max(surplus, 0) and a
-//   player option year min(surplus, 0), while he keeps his minutes.
-//   NOT SHIPPED: "declined means gone" (optExit, on with window.__OPT_EXITS=true). An
-//   option declined on his own-minutes value ends the contract and takes him off the
-//   roster from that year, which removes the floor-but-still-plays inconsistency. On
-//   the 2026 offseason it moved 32 team-sides' minutes lines by up to $40M, nearly all
-//   upward and on both sides of the same trade (DET and OKC each +$30-40M), because
-//   tradeAlloc's filler signing takes a vacancy only when nobody arrives: without the
-//   trade his minutes go to a replacement signing, with it to incumbents. Past trades
-//   carry no option flags, so nothing can test it. It waits on that asymmetry.
+//   UNDECIDED: decided on his value at his own minutes that year. A TEAM option the
+//   club would decline (he is worth less than the salary) ends the contract and takes
+//   him off the roster from that year, in the traded and untouched worlds alike: his
+//   minutes are a vacancy filled the way the fitted rule fills any departure nobody
+//   came back for (tradeAlloc `exits`). A PLAYER option he would decline (worth more)
+//   ends the contract like an expiry: he re-signs at market, keeps his place, and the
+//   holder's re-signing rights start there. Before, both were floored at $0 while he
+//   kept his minutes, so Dort's floored team option cost OKC nothing to send.
+//   First built with every declined option off the roster and his vacancy folded into
+//   the trade's: 32 current minutes lines moved, nearly all upward, because a club with
+//   no trade gave his minutes to a signing and a club with one gave them to incumbents;
+//   and player opt-outs (Gobert, Randle) left rosters the re-signing model says they
+//   usually stay on (MIN -$64M). As shipped: 25 of 58 current team-sides move, 13 up
+//   and 12 down, mean -$1.4M. History carries no option flags, so none of it is tested
+//   on past trades. window.__OPT_EXITS=false restores the floors.
 let TRADE_DATE=null;
-const optExitsOn=()=>typeof window!=='undefined'&&window.__OPT_EXITS===true;
+const optExitsOn=()=>!(typeof window!=='undefined'&&window.__OPT_EXITS===false);
 // the floor on an undecided option year, when declined options do not end the contract
 function optFloor(p,h,sur){
   if(optExitsOn())return sur;
@@ -682,19 +687,26 @@ function optAt(p,h){
   const o=(p.opts&&p.opts[h-1])||'g';
   return (h===1&&o!=='g'&&optDecided())?'g':o;
 }
-// first contract year he is NOT under contract because an option was declined, or Infinity
-function optExit(p){
-  if(!optExitsOn())return Infinity;
+// The first year an undecided option is declined on his own-minutes value, or Infinity.
+// kind 'roster': only a TEAM option the club declines -- he is let go, so he is off
+//   the roster from that year (optExit).
+// kind 'contract': either kind -- a player who opts out is worth more than his deal and
+//   re-signs at market or leaves, exactly like an expiring contract, so he keeps his
+//   place on the roster (the model's convention at expiry) and his re-signing rights
+//   start there (optEnd).
+function optDeclinedAt(p,kind){
   if(!p.opts||!p.sals)return Infinity;
   const m=Math.max(0,(p.av||0)*Math.min(p.mpg||0,HARD_CAP));
   for(let h=1;h<=Math.min(p.opts.length,p.sals.length);h++){
-    const o=optAt(p,h); if(o==='g')continue;
+    const o=optAt(p,h); if(o==='g'||(kind==='roster'&&o!=='t'))continue;
     const w=K.beta*(82*m/48)*(projRate(p,h,false)-K.repl);
     const sur=price(w,cap(yearSeason(h)))-p.sals[h-1];
     if((o==='t'&&sur<0)||(o==='p'&&sur>0))return h;
   }
   return Infinity;
 }
+function optExit(p){ return optExitsOn()?optDeclinedAt(p,'roster'):Infinity; }
+function optEnd(p){ return optExitsOn()?optDeclinedAt(p,'contract'):Infinity; }
 // RE-SIGNING RIGHTS BELONG TO WHOEVER HOLDS HIM WHEN THE CONTRACT ENDS. TRADE_HOLD[id]
 // is the franchise that received each moved player. His realized CONTRACT value runs
 // to the end of the deal wherever he played it: a club that trades him on is credited
@@ -1812,7 +1824,7 @@ const NEWR=_TR?{b:_TR.arrival.coef,
              :null;
 const _shr=p=>Math.max(0,(p&&p.av||0)*(p&&p.mpg||0)/TEAM_MIN);
 const SHORT_RULE='A';
-function tradeAlloc(roster,newSet,gone,projW){
+function tradeAlloc(roster,newSet,gone,projW,exits){
   const stay=roster.filter(p=>!(newSet&&newSet.has(p.id))),
         ins =roster.filter(p=>  newSet&&newSet.has(p.id));
   let s=stay.map(_shr);
@@ -1825,6 +1837,17 @@ function tradeAlloc(roster,newSet,gone,projW){
     const f=NEWR.fillC+NEWR.fillHole*hole+NEWR.fillPW*pw;
     resid-=Math.max(f,0)/240;
   }
+  // NOT-TRADE DEPARTURES (`exits`: a declined option, off the roster that year) are a
+  // vacancy of their own, filled the way the fitted rule fills a departure nobody came
+  // back for -- a signing -- whether or not the trade brought anyone in. They stay out
+  // of `hole`, which is what the arrival equation was fitted on. Folded into `gone`
+  // instead, the club with no trade gave his minutes to a signing and the club with
+  // one gave them to its incumbents, and every such minutes line moved up.
+  const vacE=(exits||[]).reduce((a,g)=>a+_shr(g),0);
+  if(vacE>0){
+    resid+=vacE;
+    resid-=Math.max(NEWR.fillC+NEWR.fillHole*240*vacE+NEWR.fillPW*pw,0)/240;
+  }
   // SHORT ROSTERS. The rule above was fitted on in-season trades, where a roster
   // covers its 240 minutes and whatever the arrivals do not take the incumbents
   // must, and vice versa. An offseason roster can be well short of 240, and then
@@ -1836,7 +1859,7 @@ function tradeAlloc(roster,newSet,gone,projW){
   //   D  B, and incumbents take only the vacancy beyond the unfilled minutes
   const SR=(typeof window!=='undefined'&&window.__SHORT)||SHORT_RULE;
   if(SR!=='A'){
-    const slack=Math.max(0,1-(s.reduce((a,x)=>a+x,0)+vac));
+    const slack=Math.max(0,1-(s.reduce((a,x)=>a+x,0)+vac+vacE));
     if(resid<0)resid=Math.min(0,resid+slack);
     else if(resid>0&&SR==='C')resid*=(1-slack);
     else if(resid>0&&SR==='D')resid=Math.max(0,resid-slack);
@@ -1907,7 +1930,7 @@ function tradeAlloc(roster,newSet,gone,projW){
 //                  asks the other question.
 //   __USE_MODEL=false  allocPass -- the legacy kernel path every published
 //                  number to date came from; the old tests still guard it.
-function allocate(roster,h,newSet,dev,gone){
+function allocate(roster,h,newSet,dev,gone,exits){
   if(typeof window!=='undefined'&&window.__USE_MODEL===false)
     return allocPass(roster,h,newSet,dev||null,gone||null);
   if(typeof window!=='undefined'&&window.__USE_MODEL===true&&MM)
@@ -1917,7 +1940,7 @@ function allocate(roster,h,newSet,dev,gone){
   let pw=null;
   try{ const tm=(roster.find(p=>p&&p.tm)||{}).tm;
        if(tm&&T&&T[tm]) pw=T[tm].ew; }catch(e){}
-  return tradeAlloc(roster,newSet||new Set(),gone||[],pw);
+  return tradeAlloc(roster,newSet||new Set(),gone||[],pw,exits||[]);
 }
 // whole-team surplus over the horizon under the minute budget
 // noDev=true freezes the development channel, so the caller can price a roster
@@ -1970,6 +1993,7 @@ function teamSurplus(roster,H,newSet,noDev,ref,acc){
   // so the effect compounds rather than being re-applied from scratch.
   const dev={};
   const exits=new Map(), exitOf=q=>{if(!exits.has(q.id))exits.set(q.id,optExit(q)); return exits.get(q.id);};
+  const ends=new Map(), endOf=q=>{if(!ends.has(q.id))ends.set(q.id,optEnd(q)); return ends.get(q.id);};
   // The untouched roster's own allocation, which is the counterfactual BOTH the
   // load charge and development are measured against. Computed once per year and
   // shared, with a clean dev slate -- the no-trade world develops nobody.
@@ -1992,10 +2016,10 @@ function teamSurplus(roster,H,newSet,noDev,ref,acc){
     // while the traded one had no vacancy for its arrivals, and they came entirely out
     // of the incumbents (ATL in the Dort trade: -$72M -> -$118M from years 2-3 alone).
     const onH=q=>h<exitOf(q);
-    const gone=ref?ref.filter(p=>!(onH(p)&&roster.some(q=>q.id===p.id))):null;
-    const al=allocate(roster.filter(onH),h,newSet,dev,gone);
-    const refGone=ref?ref.filter(p=>!onH(p)):[];
-    const refAl=ref?allocate(ref.filter(onH),h,new Set(),null,refGone.length?refGone:null):null;
+    const gone=ref?ref.filter(p=>onH(p)&&!roster.some(q=>q.id===p.id)):null;
+    const exitsH=ref?ref.filter(p=>!onH(p)):[];
+    const al=allocate(roster.filter(onH),h,newSet,dev,gone,exitsH);
+    const refAl=ref?allocate(ref.filter(onH),h,new Set(),null,null,exitsH):null;
     for(const p of roster){
       if(!onH(p)){if(acc&&!acc[p.id])acc[p.id]={m1:0,w1:0,sur:0}; continue;}
       const m=al[p.id]||0;
@@ -2011,7 +2035,8 @@ function teamSurplus(roster,H,newSet,noDev,ref,acc){
         demand+=p.av*Math.min(p.mpg,HARD_CAP);
         if(m<=0.01)zeroed++;
       }
-      const yrs=p.sals&&p.sals.length?p.sals.length:noContractYears(H);
+      // a declined option ends the contract: past it he re-signs at market (optEnd)
+      const yrs=p.sals&&p.sals.length?Math.min(p.sals.length,endOf(p)-1):noContractYears(H);
       if(h>yrs)continue;                       // post-contract: re-signs at market
       const sal=(p.sals&&p.sals[h-1]!=null)?p.sals[h-1]:(p.sal||0);
       // A man who never takes the floor is worth NOTHING to the team and is
@@ -2136,7 +2161,7 @@ function playerSurplus(p,H){
     return {sur:tot,y1war:(p.war||0)*postShare(p)};
   }
   let tot=0,y1war=0;
-  const yrs=p.sals&&p.sals.length?Math.min(H,p.sals.length,optExit(p)-1):noContractYears(H);  // surplus only over CONTRACT years
+  const yrs=p.sals&&p.sals.length?Math.min(H,p.sals.length,optEnd(p)-1):noContractYears(H);  // surplus only over CONTRACT years
   for(let h=1;h<=H;h++){
     const r=projRate(p,h,true);                               // treated as a mover
     const w=K.beta*(p.av*82*p.mpg/48)*(r-K.repl);
@@ -2445,7 +2470,7 @@ function soloSurplus(p,H,isNew){
   if(RETRO)return playerSurplus(p,H).sur;
   let tot=0;
   const m=Math.max(0,(p.av||0)*Math.min(p.mpg||0,HARD_CAP));
-  const exit=optExit(p);
+  const exit=optEnd(p);
   for(let h=1;h<=H;h++){
     const yrs=p.sals&&p.sals.length?Math.min(p.sals.length,exit-1):noContractYears(H);
     if(h>yrs)break;                            // post-contract (or declined option): re-signs at market
@@ -2497,7 +2522,7 @@ function resignValue(p,H,isNew){
   }
   if(!(p.sals&&p.sals.length)||p.fs==null||!D.resign)return 0;
   // a declined option ends the contract early; the holder's rights start there
-  const yrs=Math.min(p.sals.length,optExit(p)-1);
+  const yrs=Math.min(p.sals.length,optEnd(p)-1);
   const m=Math.max(0,(p.av||0)*Math.min(p.mpg||0,HARD_CAP));
   const wEnd=K.beta*(82*m/48)*(projRate(p,Math.max(yrs,1),isNew)-K.repl);
   const P=pResign(wEnd,(p.age||26)+(yrs-1+YR0));
