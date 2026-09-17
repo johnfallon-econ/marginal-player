@@ -3739,7 +3739,13 @@ if(HIST&&HIST.years&&HIST.years.length){
     });
     modeNote(); renderBoard(); render();
   };
-  sel.onchange=reseason;
+  // A new season is a new board: the players, picks and clubs staged for the old one
+  // do not carry over, so the trade clears. A mode change keeps it.
+  sel.onchange=()=>{
+    TEAMS=['A','B']; S={A:{tm:'BOS',assets:[]},B:{tm:'MIA',assets:[]}};
+    ACCT_K=null; if($('pkov'))$('pkov').hidden=true;
+    reseason();
+  };
   $('vmode').onchange=reseason;
 }
 function modeNote(){
