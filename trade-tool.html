@@ -3189,7 +3189,9 @@ window.__scoreSeason=function(y){
       const r=one[t.id]||{}, teams={};
       Object.keys(r).forEach(tm=>{teams[tm]={proc:r1(r[tm].net), real:null,
         dwp:r1(r[tm].dW), dw:null,
-        mins:r1(r[tm].mins), eq:r1(r[tm].eq), pk:r1(r[tm].pk), rsp:r1(r[tm].rs), rsop:r1(r[tm].rsOut)};});
+        mins:r1(r[tm].mins), eq:r1(r[tm].eq), pk:r1(r[tm].pk), rsp:r1(r[tm].rs), rsop:r1(r[tm].rsOut),
+        // the process ledger under the same names past seasons use, for the outcome band's size
+        dirp:r1(r[tm].dir), minsp:r1(r[tm].mins), pkp:r1(r[tm].pk), eqp:r1(r[tm].eq), devp:r1(r[tm].dev)};});
       return {id:t.id, d:t.d, tm:t.tm, seed:t.seed, npick:(t.picks||[]).length+(t.swaps||[]).length, st:t.st?1:0, cash:(t.cash&&t.cash.length)?1:0,
               who:(t.legs||[]).map(l=>(byId[String(l.id)]||{}).nm).filter(Boolean), wid:(t.legs||[]).filter(l=>(byId[String(l.id)]||{}).nm).map(l=>String(l.id)),
               teams, upcoming:1};
