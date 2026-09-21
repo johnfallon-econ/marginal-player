@@ -94,21 +94,34 @@ the arc smooth. Out of fold, the realized season falls inside its 10th&ndash;90t
 80&ndash;89% of the time over seasons 8&ndash;16, and each late season ranks players at
 least as well as the season-4 projection does.</p>
 
-<h3>Priced, then recalibrated</h3>
+<h3>Widened, priced, then recalibrated</h3>
 
-<p>Each season's outcome distribution is priced at the open-market rate above. Priced
-that way the projections were too flat: over every prospect-season, with never-played
+<p>Two corrections, both on the model's own projected level and both fitted per class on
+the classes before it, as the projections are. <strong>Neither uses draft
+position</strong>: the pick is not a model input, and calibrating on it would hand the
+board the draft's own judgement and empty the comparison with draft order of meaning.</p>
+
+<p><strong>Spread first.</strong> The season projections were too narrow. Where a realized
+season falls within its own projected distribution should be uniform; instead too few
+landed in the middle and too many in the tails, busts above all &mdash; for lottery
+picks in seasons 3&ndash;6, 10.3% fell below the projection's 5th
+percentile and 17.9% in its 50th&ndash;75th band, against 5% and 25%.
+Each distribution's levels are remapped (quantile recalibration): an outcome at level
+<em>u</em> is read at the level where realized seasons of prospects projected alike
+actually fell, by projected level and season group. Out of sample, on classes the
+remap never saw, those shares become 8.6% and 23.8%.
+The bust tail is only partly closed: projected level separates mid-lottery picks from
+the rest less cleanly than the pick would.</p>
+
+<p><strong>Then level, in dollars.</strong> Priced at the open-market rate, the widened
+projections were still too flat: over every prospect-season, with never-played
 prospects at $0, top-five picks returned more than projected and second-rounders less (the
 table below shows the result after the fix, by pick range). An isotonic map from a
 prospect-season's projected price to what prospect-seasons projected at that price
 actually returned corrects it. Each outcome's price that season is scaled to match, so
-the outcomes keep their order. The map is fitted per class on the classes before it, as
-the projections are. It is fitted on the model's own projected level, <strong>not on draft
-position</strong>: the pick is not a model input, and calibrating on it would hand the
-board the draft's own judgement and empty the comparison with draft order of meaning. The
-map is convex &mdash; a season projected at 33% of the cap maps to 46%, one
-at 10% to 7%, one at 1% to 0.1% &mdash; and it applies to dollars; the career-trajectory chart shows the model's
-wins before it.</p>
+the outcomes keep their order. The map is convex &mdash; a season projected at 33% of the cap maps to 47%, one
+at 10% to 13%, one at 1% to 0.6% &mdash; and it applies to dollars; the career-trajectory chart shows the model's
+wins before either correction.</p>
 
 <h3>Held, re-signed, paid the max</h3>
 
@@ -161,24 +174,22 @@ season as each class's record (season 10 to 19).</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Picks</th><th>Value to club, predicted</th><th>Realized</th>
 <th>After the rookie deal, predicted</th><th>Realized</th><th>Kept into season 5, predicted</th><th>Realized</th></tr></thead>
-<tbody><tr><td>1-5</td><td>$64.4M</td><td>$67.8M</td><td>$23.7M</td><td>$20.6M</td><td>58%</td><td>56%</td></tr><tr><td>6-14</td><td>$37.1M</td><td>$41.8M</td><td>$11.1M</td><td>$10.4M</td><td>45%</td><td>37%</td></tr><tr><td>15-30</td><td>$16.9M</td><td>$19.2M</td><td>$2.5M</td><td>$3.0M</td><td>30%</td><td>26%</td></tr><tr><td>31-60</td><td>$5.8M</td><td>$5.7M</td><td>$0.7M</td><td>$0.3M</td><td>8%</td><td>8%</td></tr></tbody></table></div>
+<tbody><tr><td>1-5</td><td>$65.0M</td><td>$67.8M</td><td>$22.5M</td><td>$20.6M</td><td>54%</td><td>56%</td></tr><tr><td>6-14</td><td>$39.5M</td><td>$41.8M</td><td>$11.9M</td><td>$10.4M</td><td>42%</td><td>37%</td></tr><tr><td>15-30</td><td>$20.2M</td><td>$19.2M</td><td>$4.0M</td><td>$3.0M</td><td>28%</td><td>26%</td></tr><tr><td>31-60</td><td>$7.7M</td><td>$5.7M</td><td>$1.1M</td><td>$0.3M</td><td>8%</td><td>8%</td></tr></tbody></table></div>
 
 <p><strong>Ranking the lottery</strong>, where the decision is and where re-signing value
-sits: within-class Spearman with realized value to the club is 0.422, against
-0.410 for the same valuation stopped after four seasons and 0.159 for
+sits: within-class Spearman with realized value to the club is 0.417, against
+0.423 for the same valuation stopped after four seasons and 0.159 for
 draft order (139 lottery picks). The whole career beats four seasons by
-+0.011 a class, a 90% class-bootstrap interval of -0.023 to
-+0.042 &mdash; not distinguishable from a tie &mdash; and draft order by
-+0.262 (+0.137 to +0.385), better in 8 of
-10 classes. Over every drafted player (595) the figures are 0.517,
-0.528 and 0.507. Mostly, the longer horizon gets the <em>level</em>
+-0.006 a class, a 90% class-bootstrap interval of -0.046 to
++0.028 &mdash; not distinguishable from a tie &mdash; and draft order by
++0.258 (+0.139 to +0.377), better in 9 of
+10 classes. Over every drafted player (595) the figures are 0.516,
+0.529 and 0.507. Mostly, the longer horizon gets the <em>level</em>
 right and does not yet rank better: whether a given star re-signs is close to a coin flip,
 and that noise dilutes a ranking as much as the extra value informs it.</p>
 
-<p>What is still off: mid-lottery picks are kept into season 5 a little too often, most
-likely because their season-4 projections are too narrow &mdash; they miss some of the
-busts &mdash; which the recalibration, fixing level and not spread, does not touch. The
-realized side is measured in this site's own units (its wins, its price curve), so this is
+<p>What is still off: mid-lottery picks are still kept into season 5 a little too often,
+because the widened projections still miss some of their busts (above). The realized side is measured in this site's own units (its wins, its price curve), so this is
 a test of the board's internal consistency with its own record, not against an outside
 measure of value.</p>
 
