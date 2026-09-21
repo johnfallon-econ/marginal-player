@@ -46,7 +46,7 @@ shows the range of realized value that trades graded like it produced. It is fit
 1999&ndash;2019 trades, whose contracts have played out: for each percentile, a line in the process value and the
 size of the side's ledger (quantile regression), so the range widens with the size of a trade as fast as outcomes
 actually did. Checked forward in time &mdash; fitted on earlier seasons and tested on each later one &mdash; the 80%
-range held 83% of outcomes and the 50% range 51%, and the 80% range held 82%, 83%, 83%, 85% of trades
+range held 81% of outcomes and the 50% range 51%, and the 80% range held 79%, 84%, 86%, 85% of trades
 from the smallest size band to the largest. The middle outcome sits well inside the process value: realized value
 moves only about 20 to 40 cents per dollar of process, and a range centred on the process value itself held 73%.</p>
 
@@ -209,28 +209,41 @@ the strongest rosters price above what market-implied probabilities suggest.</p>
 it is valuable because rookie contracts are cheap relative to production &mdash; not
 because rookies are good.</p>
 
-<div class="eqn">surplus(s) = 4-year priced value(s) &minus; rookie cost(s)<br>E[value] = &Sigma;<sub>s</sub> P(slot = s) &middot; surplus(s)</div>
+<div class="eqn">surplus(s) = E[value to the drafting club | slot s] &minus; rookie cost(s)<br>E[value] = &Sigma;<sub>s</sub> P(slot = s) &middot; surplus(s)</div>
 
-<p>The slot curve comes from the draft model's own out-of-fold prediction fans for every
-drafted player, integrated to a mean so star upside is included. Those are then smoothed
-<em>across</em> slots by local-linear kernel regression, with a bandwidth that widens as
-the curve flattens:</p>
+<p><strong>A pick is priced as the draft board prices the player it becomes.</strong> For
+every drafted prospect the board computes his expected value <em>to the club that drafts
+him</em>: the rookie deal while it holds him, then &mdash; if it keeps him and he is good
+enough to be paid the maximum &mdash; his value above the max, a max deal that sinks
+included (the draft methodology has the construction and its checks). The slot curve is
+the mean of that value by slot, read out of the built board so the two cannot disagree,
+smoothed <em>across</em> slots by local-linear kernel regression with a bandwidth that
+widens as the curve flattens:</p>
 
 <div class="eqn">v&#770;(s) = &alpha;&#770;<sub>s</sub>  where  (&alpha;&#770;<sub>s</sub>, &beta;&#770;<sub>s</sub>) = argmin &Sigma;<sub>i</sub> K( (p<sub>i</sub> &minus; s) / h(s) ) &middot; [ v<sub>i</sub> &minus; &alpha; &minus; &beta;(p<sub>i</sub> &minus; s) ]&sup2;<br>h(s) = 2.0 &middot; (1 + 0.06 &middot; (s &minus; 1))</div>
 
-<p><strong>The level is then recalibrated to realized outcomes.</strong> The smoothed
-predicted curve has the right <em>shape</em> and the wrong <em>level</em>. The draft model
-ranks prospects well but cannot call superstar magnitude &mdash; its slot-1 prediction
-averages about +1.4 against a realized +4.2 &mdash; so the raw predicted curve prices the
-first pick roughly like the twentieth. A count-weighted linear map, realized &asymp;
-a + b &middot; predicted, is fitted across slots and applied to the smooth predicted curve.
-That is the curve the tool ships: predicted shape, realized level, isotonic last. Reading
-this section as "predicted fans, smoothed" and reproducing it would give materially
-different numbers at exactly the picks that decide trades.</p>
+<p><strong>Over the whole career, like the players.</strong> The Trade Lab values a player
+over his whole career &mdash; his contract, then a chain of deals with the club holding him
+to age 40 &mdash; so the rookie a pick becomes is worth the same span, and the pick is priced
+over it. Priced over a shorter one than its player, a pick would be worth less than the man
+it turns into the day after the draft, and the ledger would book the difference as a gain
+to whoever received it. At the 2026&ndash;27 cap that is $210M of surplus for
+the first pick, $150M for the fifth, $63M for the fourteenth,
+$19M for the thirtieth and $8M for the forty-fifth.</p>
 
-<p>The alternative &mdash; using realized value by slot directly &mdash; has an honest level
-and an unusable shape: about eighteen observations per slot, one draw each, which is the
-noise the smoothing exists to remove.</p>
+<p><strong>The level is recalibrated to realized outcomes, by slot.</strong> The board
+cannot be calibrated on the pick &mdash; it is not a model input there &mdash; but a slot
+curve is a function of the slot, so here it can. Each slot is scaled by the ratio of the
+value drafted players actually returned their clubs to the value the board gave them, over
+the same seasons, both smoothed (classes 2007&ndash;2016). The ratio is about
+1.15 at the fifth pick and 1.04 at the fourteenth, and falls through
+the second round &mdash; 0.74 at the forty-fifth &mdash; where the board still
+overstates what second-rounders return. Isotonic last, so the curve never rises.</p>
+
+<p><strong>What it replaced.</strong> Four seasons of market value at the mean projected
+wins for the slot, minus the rookie scale: no re-signing, no max, and the price of the mean
+rather than the mean of the price. It priced the first pick at $101M and every
+pick from the 35th on at nothing.</p>
 
 <p><strong>Why smooth at all.</strong> Each slot has one observation per draft class
 &mdash; about nineteen &mdash; so a single star or bust moves that slot bodily. Averaging
