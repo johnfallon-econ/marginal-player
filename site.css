@@ -292,6 +292,8 @@ li strong{color:var(--ink)}
 .ins-wsn{margin:0 0 6px;font-size:14px}
 .ins-wsn b:first-child{color:var(--orange-text)}
 .ins-ben b:first-child{color:var(--navy-700)}
+.ins-econ{display:block;border-left:3px solid var(--navy-700);padding:4px 0 4px 16px;margin:0 0 24px;font-size:15px;color:var(--muted)}
+.ins-econ b{color:var(--ink)}
 @media(max-width:860px){
   .ins-hero,.ins-hero.has-img{grid-template-columns:1fr;padding:26px 22px}
   .ins-hero h1{font-size:36px}
