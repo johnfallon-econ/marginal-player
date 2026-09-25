@@ -289,6 +289,9 @@ li strong{color:var(--ink)}
 .ins-trade-h{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;margin-bottom:6px}
 .ins-trade-h span{color:var(--muted);font-size:12px}
 .ins-trade .ins-tab{margin-bottom:8px}
+.ins-wsn{margin:0 0 6px;font-size:14px}
+.ins-wsn b:first-child{color:var(--orange-text)}
+.ins-ben b:first-child{color:var(--navy-700)}
 @media(max-width:860px){
   .ins-hero,.ins-hero.has-img{grid-template-columns:1fr;padding:26px 22px}
   .ins-hero h1{font-size:36px}
