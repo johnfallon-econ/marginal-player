@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>What Does 20.1 WAR Actually Mean? — The Marginal Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<link rel="icon" href="assets/favicon.png">
+</head>
+<body>
+<header><div class="wrap"><nav>
+<a class="brand" href="index.html"><img src="assets/mark-light.png" alt="The Marginal Player" width="34" height="34" style="display:block;flex:none;width:34px;height:auto"><span>The<br>Marginal<br>Player</span></a>
+<a href="index.html">Home</a><a href="players.html">Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trades.html">Trades</a><a href="trade-tool.html">Trade Lab</a><a href="insights.html" class='on'>Insights</a><a href="methodology-value.html">Method</a>
+</nav></div></header>
+<div class="wrap">
+
+<article class="ins">
+<header class="ins-hero has-img">
+  <div>
+    <a class="ins-back" href="insights.html">&larr; All insights</a>
+    <div class="h-eyebrow">Insights</div>
+    <h1>What Does 20.1 WAR Actually Mean?</h1>
+    <p class="ins-deck">A closer look at how to read player value in this model — and why its numbers run bigger than the ones you’re used to.</p>
+    <div class="ins-by"><span class="ins-av" aria-hidden="true">BS</span><span>By <b>Ben Stupendous</b></span><span>Sep 16, 2026</span><span>3 min read</span></div>
+  </div>
+  <img class="ins-hero-img" src="art/p/203999.webp" alt="Illustrated portrait of Nikola Jokić" width="480" height="570" title="Illustration adapted from photos by Erik Drost (CC BY 2.0)">
+</header>
+<div class="ins-body">
+
+<p><a class="plink" href="player.html?id=203999">Nikola Jokić</a> was worth 20.1 wins above replacement in 2025-26. If you follow the
+public win metrics, that number may have made you spit out your coffee. On the familiar public
+scales, a great season reads somewhere around 10. Is the model broken? Is Nikola Jokić
+secretly two people?<sup class="fn"><a href="#fn1" id="fr1">1</a></sup></p>
+
+<p>Neither. It’s a different ruler. Here’s how to read it.</p>
+
+<h2>Replacement of what?</h2>
+
+<p>“Wins above replacement” is only as meaningful as the replacement. Here it’s the kind of
+player any team can sign in an afternoon: the end of the bench, the two-way contract, the veteran
+on a minimum deal who is always, somehow, available. The model puts that player at
+−1.77 points per 100 possessions against an average player, and it estimates the level
+rather than assuming it: across 37,895 games, every point of a lineup’s expected
+margin moves its win probability by 0.045.</p>
+
+<p>Put five of those replacement players on the floor for a whole season and they win about
+8 games. That’s the zero on the ruler. An average team wins 41, so an average roster
+has to supply about 33 wins above replacement between all of its players.</p>
+
+<p>Now reread the headline. Nikola Jokić, by himself, supplied 20.1 of them.
+That is 61% of what an entire average roster produces above the
+waterline.<sup class="fn"><a href="#fn2" id="fr2">2</a></sup></p>
+
+<h2>How a season becomes a number</h2>
+
+<p>The recipe has three ingredients: how good you are per possession, how much you play, and where
+replacement sits.</p>
+
+<div class="eqn">WAR = β × (share of the game played) × (rating − replacement)</div>
+
+<p>Nikola Jokić rated +7.57 per 100 in 35.1 minutes a night over
+65 games. That’s 9.3 points per 100 better than replacement, sustained
+across about 2,282 minutes. Nobody who played regular minutes rated higher.</p>
+
+<p>The same arithmetic explains why a brilliant player who misses half a season can
+finish behind a solid starter who never sits. <a class="plink" href="player.html?id=203507">Giannis Antetokounmpo</a> posted the 4th-best rating
+among regulars, +5.13 per 100, and finished with 6.8 WAR, because he played
+36 games. WAR is a quantity, not a quality. It’s how much, not how good.</p>
+
+<h2>What a normal number looks like</h2>
+
+<p>For calibration: the typical rotation player, meaning 20 or more minutes a night, produced
+2.5 WAR. 13 players cleared 10. Only two cleared 15:
+<a class="plink" href="player.html?id=203999">Nikola Jokić</a> and <a class="plink" href="player.html?id=1628983">Shai Gilgeous-Alexander</a>. And 53 players finished below zero, which is the model’s
+polite way of saying their teams would have done better with whoever was available that
+afternoon.</p>
+
+<figure class="ins-fig"><svg viewBox="0 0 640 250" role="img" aria-label="Every player on the 2025-26 board, by wins above replacement."><line x1="40" x2="630" y1="208.0" y2="208.0" class="c-grid"/><text x="32" y="212.0" class="c-tick" text-anchor="end">0</text><line x1="40" x2="630" y1="144.0" y2="144.0" class="c-grid"/><text x="32" y="148.0" class="c-tick" text-anchor="end">100</text><line x1="40" x2="630" y1="80.0" y2="80.0" class="c-grid"/><text x="32" y="84.0" class="c-tick" text-anchor="end">200</text><line x1="40" x2="630" y1="16.0" y2="16.0" class="c-grid"/><text x="32" y="20.0" class="c-tick" text-anchor="end">300</text><rect x="41.0" y="207.4" width="20.7" height="0.6" rx="2" class="c-bar"><title>1 player between -4 and -3 WAR</title></rect><rect x="63.7" y="207.4" width="20.7" height="0.6" rx="2" class="c-bar"><title>1 player between -3 and -2 WAR</title></rect><rect x="86.4" y="205.4" width="20.7" height="2.6" rx="2" class="c-bar"><title>4 players between -2 and -1 WAR</title></rect><rect x="109.1" y="177.9" width="20.7" height="30.1" rx="2" class="c-bar"><title>47 players between -1 and 0 WAR</title></rect><rect x="131.8" y="73.0" width="20.7" height="135.0" rx="2" class="c-bar"><title>211 players between 0 and 1 WAR</title></rect><rect x="154.5" y="151.7" width="20.7" height="56.3" rx="2" class="c-bar"><title>88 players between 1 and 2 WAR</title></rect><rect x="177.2" y="169.0" width="20.7" height="39.0" rx="2" class="c-bar"><title>61 players between 2 and 3 WAR</title></rect><rect x="199.8" y="188.2" width="20.7" height="19.8" rx="2" class="c-bar"><title>31 players between 3 and 4 WAR</title></rect><rect x="222.5" y="190.1" width="20.7" height="17.9" rx="2" class="c-bar"><title>28 players between 4 and 5 WAR</title></rect><rect x="245.2" y="196.5" width="20.7" height="11.5" rx="2" class="c-bar"><title>18 players between 5 and 6 WAR</title></rect><rect x="267.9" y="198.4" width="20.7" height="9.6" rx="2" class="c-bar"><title>15 players between 6 and 7 WAR</title></rect><rect x="290.6" y="202.9" width="20.7" height="5.1" rx="2" class="c-bar"><title>8 players between 7 and 8 WAR</title></rect><rect x="313.3" y="204.8" width="20.7" height="3.2" rx="2" class="c-bar"><title>5 players between 8 and 9 WAR</title></rect><rect x="336.0" y="203.5" width="20.7" height="4.5" rx="2" class="c-bar"><title>7 players between 9 and 10 WAR</title></rect><rect x="358.7" y="205.4" width="20.7" height="2.6" rx="2" class="c-bar"><title>4 players between 10 and 11 WAR</title></rect><rect x="381.4" y="206.1" width="20.7" height="1.9" rx="2" class="c-bar"><title>3 players between 11 and 12 WAR</title></rect><rect x="404.1" y="206.1" width="20.7" height="1.9" rx="2" class="c-bar"><title>3 players between 12 and 13 WAR</title></rect><rect x="426.8" y="207.4" width="20.7" height="0.6" rx="2" class="c-bar"><title>1 player between 13 and 14 WAR</title></rect><rect x="517.5" y="207.4" width="20.7" height="0.6" rx="2" class="c-bar"><title>1 player between 17 and 18 WAR</title></rect><rect x="585.6" y="207.4" width="20.7" height="0.6" rx="2" class="c-bar"><title>1 player between 20 and 21 WAR</title></rect><text x="130.8" y="226" class="c-tick" text-anchor="middle">0</text><text x="244.2" y="226" class="c-tick" text-anchor="middle">5</text><text x="357.7" y="226" class="c-tick" text-anchor="middle">10</text><text x="471.2" y="226" class="c-tick" text-anchor="middle">15</text><text x="584.6" y="226" class="c-tick" text-anchor="middle">20</text><line x1="588.0" x2="588.0" y1="30" y2="208.0" class="c-mark"/><text x="582.0" y="24" class="c-lab" text-anchor="end">Nikola Jokić, 20.1</text><text x="340" y="248" class="c-tick" text-anchor="middle">Wins above replacement</text></svg><figcaption>Every player on the 2025-26 board, by wins above replacement.</figcaption></figure>
+
+<h2>What it’s worth</h2>
+
+<p>The last step is money. Estimated from 2,542 contracts, the open-market price of a
+win above replacement was about $10M last season.<sup class="fn"><a href="#fn3" id="fr3">3</a></sup>
+By that price, Nikola Jokić’s season was worth $192M. The entire salary
+cap was $155M. He was paid $55M.</p>
+
+<p>Read that again, because it isn’t a typo: the model thinks one player was worth more than a
+whole team’s cap. That is not the model going feral. It’s the maximum contract doing precisely
+what it was built to do, which is make sure the very best players are never paid what they’re
+worth. DEN kept the difference: +$137M of surplus.</p>
+
+<p>So when you see 20.1 WAR, read it like this: 61% of an average
+team’s wins, from one person, at about 29% of his price. Pretty good
+player.</p>
+
+<p class="ins-src">Figures: the 2025-26 season on the retrospective
+<a href="players.html">players board</a>, as of this build. Wins are on this model’s own scale and
+dollars at the open-market price of a win; <a href="methodology-value.html">the method</a> explains
+both.</p>
+<ol class="ins-notes"><li id="fn1">Unproven. <a href="#fr1" aria-label="Back to text">&#8617;</a></li><li id="fn2">Public metrics tend to set replacement higher, closer to a real if marginal NBA player, so there are fewer wins to hand out and every number comes out smaller. Neither choice is wrong. A ruler marked in centimetres is not lying to you about your height. <a href="#fr2" aria-label="Back to text">&#8617;</a></li><li id="fn3">“Open market” is doing real work in that sentence. Salaries are capped, so what teams actually pay understates what they would pay. The model reads the true price off teams that pay the luxury tax, where signing a player costs the salary plus the tax, and a team only does that if the player is worth at least as much. The <a href='methodology-value.html'>method page</a> has the estimator, and the honest caveat that a reader who rejects the argument should shrink every dollar figure on this site. <a href="#fr3" aria-label="Back to text">&#8617;</a></li></ol>
+</div>
+</article>
+<section class="h-sec"><div class="h-head"><div><div class="h-eyebrow">More insights</div></div>
+<a class="h-more" href="insights.html">All insights &rarr;</a></div>
+<div class="ins-grid"><a class="ins-card col has-img" href="insight-best-careers.html"><img class="ins-thumb" src="art/p/203999.webp" alt="Illustrated portrait of Nikola Jokić" width="480" height="570" title="Illustration adapted from photos by Erik Drost (CC BY 2.0)"><div><span class="ins-tag">Insights</span><b>The Best Careers on the Board</b><span class="ins-dek">Twenty-seven seasons, one ruler. LeBron James is so far ahead it’s rude, and one active player is on pace to make it a conversation.</span><span class="ins-meta">Ben Stupendous &middot; Oct 7, 2026 &middot; 2 min read</span></div></a><a class="ins-card col has-img" href="insight-most-valuable-contracts.html"><img class="ins-thumb" src="art/p/201939.webp" alt="Illustrated portrait of Stephen Curry" width="480" height="570" title="Illustration adapted from photos by Erik Drost, The White House, El Viejas God (CC BY 2.0, CC0, Public domain)"><div><span class="ins-tag">Insights</span><b>The Most Valuable Contracts of the Century</b><span class="ins-dek">Every negotiated NBA deal since 1999, valued over its whole life, in today’s money — and why the best ones are worth so much more than the worst ones cost.</span><span class="ins-meta">Ben Stupendous &middot; Sep 30, 2026 &middot; 3 min read</span></div></a><a class="ins-card col has-img" href="insight-most-mispriced-contracts.html"><img class="ins-thumb" src="art/p/1628973.webp" alt="Illustrated portrait of Jalen Brunson" width="480" height="570" title="Illustration adapted from photos by Erik Drost (CC BY 2.0, CC BY 2.5)"><div><span class="ins-tag">Insights</span><b>The NBA’s Most Mispriced Contracts</b><span class="ins-dek">Which players generate the most value relative to their salaries — and why the worst contracts in the league mostly aren’t bad bets.</span><span class="ins-meta">Ben Stupendous &middot; Sep 23, 2026 &middot; 4 min read</span></div></a></div></section>
+
+<footer>
+<p><strong>The Marginal Player</strong> — the numbers behind better rosters.
+Figures are model output, not official NBA statistics. Player value is measured on this
+model's own scale; see <a href="methodology-value.html">the method</a>. Player portraits
+are illustrations adapted from Creative Commons photographs &mdash;
+<a href="credits.html">credits</a>.</p>
+</footer>
+</div>
+</body>
+</html>

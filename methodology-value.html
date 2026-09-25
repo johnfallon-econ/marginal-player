@@ -13,7 +13,7 @@
 <body>
 <header><div class="wrap"><nav>
 <a class="brand" href="index.html"><img src="assets/mark-light.png" alt="The Marginal Player" width="34" height="34" style="display:block;flex:none;width:34px;height:auto"><span>The<br>Marginal<br>Player</span></a>
-<a href="index.html">Home</a><a href="players.html">Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trades.html">Trades</a><a href="trade-tool.html">Trade Lab</a><a href="methodology-value.html" class='on'>Method</a>
+<a href="index.html">Home</a><a href="players.html">Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trades.html">Trades</a><a href="trade-tool.html">Trade Lab</a><a href="insights.html">Insights</a><a href="methodology-value.html" class='on'>Method</a>
 </nav></div></header>
 <div class="wrap">
 <nav class="methrail" aria-label="Methodology sections"><span class="on">Player value</span><a href="methodology-draft.html">Draft model</a><a href="methodology-trade.html">Trade pricing</a></nav>
@@ -178,7 +178,7 @@ times too large.</p>
 <div class="stats">
   <div><span class="sv">0.0108</span><span class="sl">â — intercept, the replacement floor</span></div>
   <div><span class="sv">0.0673</span><span class="sl">b̂ — cap share per win</span></div>
-  <div><span class="sv">-0.00030</span><span class="sl">ĉ — convexity, the star premium</span></div>
+  <div><span class="sv">-0.00030</span><span class="sl">ĉ — curvature (concave at this estimate)</span></div>
   <div><span class="sv">0.347</span><span class="sl">σ̂ — residual dispersion</span></div>
   <div><span class="sv">2,542</span><span class="sl">contracts</span></div>
 </div>
@@ -187,18 +187,18 @@ times too large.</p>
 because a team cannot be paid to hold a roster spot. Negative <em>surplus</em> is perfectly
 possible and is where the interesting players are.</p>
 
-<p><strong>The convex term is not statistically significant, and the page should say so.</strong>
+<p><strong>The curvature term is not statistically significant, and the page should say so.</strong>
 Its 95% interval is [-0.00189, 0.00272], straddling zero, with
-P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.36. It is retained because three independent
-lines of evidence lean the same way — roster-slot scarcity, stars outperforming their total
-win contribution in the playoffs, and the curve's own mild convex tilt — but a reader who
-prefers the linear curve is not arguing against the data.</p>
+P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.36. The point estimate is mildly concave: each additional win is priced a little below the one before, so at twenty wins the curve sits 12.1% of the cap below a straight line with the same slope. The term was introduced as a star premium, on two lines of outside evidence that still lean convex — roster-slot scarcity, and stars outperforming their total win contribution in the playoffs — but the fit itself no longer does — and a reader who prefers the linear curve is not
+arguing against the data.</p>
 
 <h2>Why the best players' value exceeds any contract</h2>
 
 <p>Put the three steps together and a result falls out that looks like an error and is not.
-The price of a win rises faster than linearly while individual salaries are capped. A
-superstar's estimated market value can therefore exceed his team's entire payroll ceiling.</p>
+On the open market a win costs 0.0673 of the cap, so a twenty-win season is worth about
+124% of it, while no individual salary may exceed 35%. A
+superstar's estimated market value can therefore exceed his team's entire payroll ceiling. The
+curvature term does not produce this; the slope does.</p>
 
 <p>This is the central economic fact about NBA labour, not an artifact: the collective
 bargaining agreement transfers enormous surplus from the very best players to the teams
@@ -258,9 +258,11 @@ linear in this framework; championships are not.</li>
 </ul>
 
 <footer>
-<p><strong>The Marginal Player</strong> — basketball analytics through the lens of economics.
+<p><strong>The Marginal Player</strong> — the numbers behind better rosters.
 Figures are model output, not official NBA statistics. Player value is measured on this
-model's own scale; see <a href="methodology-value.html">the method</a>.</p>
+model's own scale; see <a href="methodology-value.html">the method</a>. Player portraits
+are illustrations adapted from Creative Commons photographs &mdash;
+<a href="credits.html">credits</a>.</p>
 </footer>
 </div>
 </body>
