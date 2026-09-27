@@ -102,6 +102,8 @@ th[data-k]:focus-visible,th[data-ck]:focus-visible{outline:2px solid var(--orang
 .methrail a{color:var(--muted);text-decoration:none;border-bottom:2px solid transparent;padding-bottom:3px}
 .methrail a:hover{color:var(--orange-text);border-bottom-color:var(--orange-text)}
 .methrail .on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--orange);padding-bottom:3px}
+/* a section's tabs (sec_rail): the same rail, sitting above the page heading */
+.methrail.secrail{margin:26px 0 -10px}
 td{padding:11px 14px;text-align:right;border-bottom:1px solid #eef1f5;white-space:nowrap}
 tr:last-child td{border-bottom:none}
 tbody tr:hover{background:var(--grey-100)}
