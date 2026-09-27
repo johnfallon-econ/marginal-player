@@ -6,6 +6,8 @@
    Inter's 500/600. */
 @font-face{font-family:"Playfair Fallback";src:local("Times New Roman Bold"),local("TimesNewRomanPS-BoldMT"),local("Times New Roman");font-weight:700;
   size-adjust:104.7%;ascent-override:103.2%;descent-override:23.9%;line-gap-override:0%}
+@font-face{font-family:"Playfair Caps Fallback";src:local("Times New Roman Bold"),local("TimesNewRomanPS-BoldMT"),local("Times New Roman");font-weight:700;
+  size-adjust:97.2%;ascent-override:111.2%;descent-override:25.7%;line-gap-override:0%}
 @font-face{font-family:"Inter Fallback";src:local("Arial");font-weight:400;
   size-adjust:105.5%;ascent-override:91.9%;descent-override:22.7%;line-gap-override:0%}
 @font-face{font-family:"Inter Fallback";src:local("Arial Bold"),local("Arial-BoldMT");font-weight:500 700;
@@ -67,6 +69,10 @@ input[type=checkbox],input[type=radio]{min-width:0;padding:0;margin:0;width:16px
 @media(max-width:560px){.controls{flex-direction:column;align-items:flex-start;gap:10px}
   .controls label{white-space:normal}}
 .meta{color:var(--muted);font-size:13px;margin-left:auto}
+/* the season line is written by script after the page is drawn: hold its space, or the
+   table jumps down under it (Lighthouse CLS 0.34 on Players); two lines on a phone */
+#meta,#pmeta{min-height:1.6em}
+@media(max-width:560px){#meta,#pmeta{min-height:3.2em}}
 .tablewrap{overflow-x:auto;background:#fff;border:1px solid var(--rule);border-radius:10px}
 table{border-collapse:collapse;width:100%;min-width:820px;font-size:14px}
 th{position:sticky;top:0;background:#fff;text-align:right;padding:13px 14px;font-size:11px;

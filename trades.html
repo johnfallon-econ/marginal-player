@@ -12,7 +12,7 @@
 <!-- seo --><meta name="description" content="Every real NBA trade since 1999, graded twice: on what was knowable at the time, and on how it turned out."><link rel="canonical" href="https://themarginalplayer.com/trades.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Trades — The Marginal Player"><meta property="og:description" content="Every real NBA trade since 1999, graded twice: on what was knowable at the time, and on how it turned out."><meta property="og:url" content="https://themarginalplayer.com/trades.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Trades — The Marginal Player"><meta name="twitter:description" content="Every real NBA trade since 1999, graded twice: on what was knowable at the time, and on how it turned out."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
 <body>
 <header><div class="wrap"><nav>
-<a class="brand" href="index.html"><img src="assets/mark-light.png" alt="The Marginal Player" width="34" height="35" style="display:block;flex:none;width:34px;height:35px"><span>The <br>Marginal <br>Player</span></a>
+<a class="brand" href="index.html"><img src="assets/mark-light-sm.png" alt="The Marginal Player" width="34" height="35" style="display:block;flex:none;width:34px;height:35px"><span>The <br>Marginal <br>Player</span></a>
 <div class="nl"><a href="index.html">Home</a><a href="players.html">Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trades.html" class='on'>Trades</a><a href="trade-tool.html">Trade Lab</a><a href="insights.html">Insights</a><a href="methodology-value.html">Method</a></div>
 </nav></div></header>
 <div class="wrap"><main>
@@ -245,6 +245,7 @@ function side(x,key,dir){
 // the charge (rso/rsop) is added back, and the acquirer keeps its credit.
 // ROWS keeps the as-built values in p0/r0 so the box can be ticked back.
 ROWS.forEach(x=>x.s.forEach(z=>{z.p0=z.p; z.r0=z.r;}));
+let GEN=0;
 function draw(){
   const sea=$("tsea").value, nost=$("tst").checked, rs=$("trs").checked;
   ROWS.forEach(x=>x.s.forEach(z=>{
@@ -284,7 +285,7 @@ function draw(){
     th.dataset.arrow=on?(DIR<0?"▾":"▴"):"";
   });
   const grouped=KEY==="date";
-  $("tbody").innerHTML=lines.map(o=>{
+  const rowHTML=o=>{
     const x=o.x, v=o.v, head=!grouped||o.first;
     const nm=(w,i)=>(window.MPAV&&x.aid&&x.aid[i]!=null?window.MPAV(x.aid[i]):"")+(x.wid&&x.wid[i]?`<a class="plink" href="player.html?id=${encodeURIComponent(x.wid[i])}">${w}</a>`:w);
     // a picks-only trade has no names, so the parts are joined rather than prefixed
@@ -300,14 +301,28 @@ function draw(){
       <td class="tvc" ${(()=>{const b=band(v.p,v.gr);return b?`title="80% of trades graded like this landed between ${show(b[0],x.cap)} and ${show(b[2],x.cap)}; the middle one ${show(b[1],x.cap)}${v.r!=null?"; this one "+show(v.r,x.cap):""}"`:"";})()}>${violin(bandQ(v.p,v.gr),v.r,x.cap)}</td>
       <td class="r ${v.r>=0?"pos":"neg"}" ${(()=>{const b=band(v.p,v.gr);
         return b&&v.r!=null&&(v.r<b[0]||v.r>b[2])?'title="outside the 10–90% range of trades graded like this"':'';})()}>${show(v.r,x.cap)}${(()=>{const b=band(v.p,v.gr);
-        return b&&v.r!=null&&(v.r<b[0]||v.r>b[2])?'<sup class="mut"> ◆</sup>':'';})()}</td></tr>`;}).join("");
-  document.querySelectorAll("#tbody tr").forEach(tr=>{
+        return b&&v.r!=null&&(v.r<b[0]||v.r>b[2])?'<sup class="mut"> ◆</sup>':'';})()}</td></tr>`;};
+  const wire=tr=>{
     tr.tabIndex=0; tr.style.cursor="pointer";
     const go=()=>{location.href=tr.dataset.h;};
     // a player's name goes to his page; anywhere else on the row opens the trade
     tr.onclick=e=>{if(e.target.closest("a"))return; go();};
     tr.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}};
-  });
+  };
+  // IN STAGES: the first screenful at once, the rest a batch at a time between frames.
+  // Building all 1,311 rows (each with its outcome chart and avatars) in one go froze a
+  // phone for two seconds after the page appeared (Lighthouse TBT, 2026-09-27). A new
+  // sort or filter abandons whatever is still being drawn (GEN).
+  const tb=$("tbody"), gen=++GEN, FIRST=40, STEP=120;
+  const put=(a,b)=>{
+    const n0=tb.rows.length;
+    tb.insertAdjacentHTML("beforeend",lines.slice(a,b).map(rowHTML).join(""));
+    for(let i=n0;i<tb.rows.length;i++)wire(tb.rows[i]);
+  };
+  tb.innerHTML=""; put(0,FIRST);
+  const more=a=>{ if(gen!==GEN||a>=lines.length)return; put(a,a+STEP);
+    (window.requestIdleCallback||(f=>setTimeout(f,16)))(()=>more(a+STEP)); };
+  (window.requestIdleCallback||(f=>setTimeout(f,16)))(()=>more(FIRST));
 }
 document.querySelectorAll("#ttab th[data-k]").forEach(th=>{
   th.tabIndex=0; th.setAttribute("role","columnheader");
