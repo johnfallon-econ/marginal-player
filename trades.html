@@ -32,7 +32,7 @@ Click any row to open it in the Trade Lab.</p>
 <p class="cs" id="tcnt" style="margin:-10px 0 12px"></p>
 <style>#tbody tr.c td{border-top:0} #tbody tr.g td{border-top:2px solid var(--rule)}</style>
 
-<div class="tablewrap"><table class="brd" id="ttab"><thead><tr>
+<div class="tablewrap" style="min-height:100vh"><table class="brd" id="ttab"><thead><tr>
   <th>#</th><th>Trade</th><th data-k="tm">Teams</th><th data-k="date">Date</th>
   <th class="r" data-k="proc">Process</th><th class="tvh" title="Realized value of graded trades with this process value and size. The shape is where they landed, the amber tick the middle one, the dashed line break-even, the diamond this trade's outcome. Each row has its own scale.">Likely outcome</th><th class="r" data-k="real">Outcome</th>
 </tr></thead><tbody id="tbody"></tbody></table></div>
@@ -319,7 +319,8 @@ function draw(){
     tb.insertAdjacentHTML("beforeend",lines.slice(a,b).map(rowHTML).join(""));
     for(let i=n0;i<tb.rows.length;i++)wire(tb.rows[i]);
   };
-  tb.innerHTML=""; put(0,FIRST);
+  // the table holds a screen's height until the first rows land (see the tablewrap)
+  tb.innerHTML=""; put(0,FIRST); tb.closest(".tablewrap").style.minHeight="";
   const more=a=>{ if(gen!==GEN||a>=lines.length)return; put(a,a+STEP);
     (window.requestIdleCallback||(f=>setTimeout(f,16)))(()=>more(a+STEP)); };
   (window.requestIdleCallback||(f=>setTimeout(f,16)))(()=>more(FIRST));

@@ -206,6 +206,10 @@ header .sub b{color:var(--amber-soft);font-weight:600}
   padding:10px 8px 4px}
 @media(max-width:860px){.tvrow{grid-template-columns:28px 1.4fr 40px 60px 1.6fr}
   .tvrow .ag,.tvrow .deal{display:none}}
+/* the verdict and the two sides are drawn by script; hold their height until then so
+   the value board below doesn't paint in their place first */
+#vgrid:empty{min-height:300px} #build:empty{min-height:360px}
+@media(max-width:640px){#vgrid:empty{min-height:600px} #build:empty{min-height:900px}}
 @media(max-width:640px){.build,.vgrid{grid-template-columns:minmax(0,1fr)}
   .addrow input[type=text]{min-width:0}
   .ctrl .demo{margin-left:0;flex-wrap:wrap}}
@@ -4008,14 +4012,18 @@ render();
    Players table down (Lighthouse CLS 0.39). The overrides were measured in Chromium
    (canvas measureText, 2026-09-27): width ratio for size-adjust, then ascent and
    descent at that size. Times is Playfair's nearer width; Arial Bold stands in for
-   Inter's 500/600. */
+   Inter's 500/600. Re-measured on the Value Board's dek prose (live, 2026-09-27): Arial
+   400 ran 1.5% narrow and Arial Bold 0.9% wide for Inter 500, which moved one line of
+   the dek and the Trade Lab controls when Inter arrived, so 400 and 500 were refit. */
 @font-face{font-family:"Playfair Fallback";src:local("Times New Roman Bold"),local("TimesNewRomanPS-BoldMT"),local("Times New Roman");font-weight:700;
   size-adjust:104.7%;ascent-override:103.2%;descent-override:23.9%;line-gap-override:0%}
 @font-face{font-family:"Playfair Caps Fallback";src:local("Times New Roman Bold"),local("TimesNewRomanPS-BoldMT"),local("Times New Roman");font-weight:700;
   size-adjust:97.2%;ascent-override:111.2%;descent-override:25.7%;line-gap-override:0%}
 @font-face{font-family:"Inter Fallback";src:local("Arial");font-weight:400;
-  size-adjust:105.5%;ascent-override:91.9%;descent-override:22.7%;line-gap-override:0%}
-@font-face{font-family:"Inter Fallback";src:local("Arial Bold"),local("Arial-BoldMT");font-weight:500 700;
+  size-adjust:107.1%;ascent-override:90.5%;descent-override:22.4%;line-gap-override:0%}
+@font-face{font-family:"Inter Fallback";src:local("Arial Bold"),local("Arial-BoldMT");font-weight:500;
+  size-adjust:101.0%;ascent-override:96.0%;descent-override:23.8%;line-gap-override:0%}
+@font-face{font-family:"Inter Fallback";src:local("Arial Bold"),local("Arial-BoldMT");font-weight:600 700;
   size-adjust:101.9%;ascent-override:95.2%;descent-override:23.6%;line-gap-override:0%}
 
 /* All three tools share ONE dark design system -- --ground #0e1420, --panel
