@@ -25,6 +25,17 @@ nav{display:flex;align-items:center;gap:28px;height:68px}
 .brand svg{flex:none}
 .brand span{display:block}
 nav a{color:var(--navy-700);text-decoration:none;font-size:14px;font-weight:500}
+.nl{display:flex;gap:28px}
+/* PHONES: the brand on its own line and the links in ONE row that scrolls sideways, not
+   three wrapped rows filling a third of the first screen (Lighthouse/phone check, 2026-09-27) */
+@media(max-width:720px){
+  nav{flex-wrap:wrap;height:auto;gap:6px 0;padding:10px 0 4px}
+  .brand{width:100%;margin:0}
+  .brand span br{display:none}
+  .nl{width:100%;gap:20px;overflow-x:auto;white-space:nowrap;padding:4px 0 8px;scrollbar-width:none}
+  .nl::-webkit-scrollbar{display:none}
+  .nl a{padding:4px 0}
+}
 nav a:hover,nav a.on{color:var(--orange-text)}
 h1{font-family:var(--head);font-size:44px;line-height:1.1;margin:36px 0 8px;font-weight:700}
 h2{font-family:var(--head);font-size:26px;margin:36px 0 10px;font-weight:700}
@@ -111,8 +122,9 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
 .hs-tm{font-family:var(--body);font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.05em}
 .hs-sub{font-size:14px;color:var(--muted)}
 .hs-nav{display:flex;align-items:center;gap:8px;margin-top:16px}
-.hs-dot{width:9px;height:9px;border-radius:50%;border:0;padding:0;background:var(--rule);cursor:pointer}
-.hs-dot.on{background:var(--navy-700)}
+.hs-dot{width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer;position:relative}
+.hs-dot::before{content:"";position:absolute;left:7.5px;top:7.5px;width:9px;height:9px;border-radius:50%;background:var(--rule)}
+.hs-dot.on::before{background:var(--navy-700)}
 .hs-pause{margin-left:auto;border:1px solid var(--rule);background:#fff;border-radius:6px;font-size:10px;
           color:var(--muted);width:28px;height:24px;cursor:pointer}
 .hs-dot:focus-visible,.hs-pause:focus-visible{outline:2px solid var(--orange-text);outline-offset:2px}
@@ -159,7 +171,7 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
 .h-more-tools a:hover{border-color:var(--orange)}
 .h-more-tools b{font-family:var(--head);font-size:18px}
 .h-more-tools span{display:block;font-size:13px;color:var(--muted);margin-top:4px;line-height:1.45}
-.h-tool-img{display:block;width:100%;aspect-ratio:6/5;object-fit:cover;border-radius:7px;margin-bottom:12px}
+.h-tool-img{display:block;width:100%;height:auto;aspect-ratio:6/5;object-fit:cover;border-radius:7px;margin-bottom:12px}
 .h-why{margin:56px 0 20px;padding-top:28px;border-top:1px solid var(--rule)}
 .h-why-g{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:32px;margin-top:14px}
 .h-why-k{font-size:13px;color:var(--muted)}
@@ -174,7 +186,7 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
 @media(max-width:520px){ .h-board .h-tm{display:none} .h-ex-g{grid-template-columns:1fr} }
 
 /* ---- long-form methodology ---- */
-.meth-fig{float:right;width:240px;max-width:42%;border-radius:10px;margin:22px 0 14px 28px}
+.meth-fig{float:right;width:240px;height:auto;max-width:42%;border-radius:10px;margin:22px 0 14px 28px}
 .eqn{background:#fff;border:1px solid var(--rule);border-left:3px solid var(--navy-700);
      border-radius:0 8px 8px 0;padding:16px 20px;margin:20px 0;overflow-x:auto;
      font-family:ui-serif,Georgia,serif;font-size:16px;line-height:2.1;color:var(--ink)}

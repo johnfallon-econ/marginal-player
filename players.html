@@ -12,19 +12,19 @@
 <!-- seo --><meta name="description" content="Every NBA player&#x27;s season since 1999-00, valued: wins above replacement, market value, salary and surplus. Sort by value over salary to find the bargains."><link rel="canonical" href="https://themarginalplayer.com/players.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Players — The Marginal Player"><meta property="og:description" content="Every NBA player&#x27;s season since 1999-00, valued: wins above replacement, market value, salary and surplus. Sort by value over salary to find the bargains."><meta property="og:url" content="https://themarginalplayer.com/players.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Players — The Marginal Player"><meta name="twitter:description" content="Every NBA player&#x27;s season since 1999-00, valued: wins above replacement, market value, salary and surplus. Sort by value over salary to find the bargains."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
 <body>
 <header><div class="wrap"><nav>
-<a class="brand" href="index.html"><img src="assets/mark-light.png" alt="The Marginal Player" width="34" height="34" style="display:block;flex:none;width:34px;height:auto"><span>The<br>Marginal<br>Player</span></a>
-<a href="index.html">Home</a><a href="players.html" class='on'>Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trades.html">Trades</a><a href="trade-tool.html">Trade Lab</a><a href="insights.html">Insights</a><a href="methodology-value.html">Method</a>
+<a class="brand" href="index.html"><img src="assets/mark-light.png" alt="The Marginal Player" width="34" height="35" style="display:block;flex:none;width:34px;height:35px"><span>The <br>Marginal <br>Player</span></a>
+<div class="nl"><a href="index.html">Home</a><a href="players.html" class='on'>Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trades.html">Trades</a><a href="trade-tool.html">Trade Lab</a><a href="insights.html">Insights</a><a href="methodology-value.html">Method</a></div>
 </nav></div></header>
-<div class="wrap">
+<div class="wrap"><main>
 
 <h1>Players</h1>
 <p class="lede">What each player was actually worth in a given season, against what he was
 actually paid. Sort by value over salary to find the bargains.</p>
 
 <div class="controls">
-  <select id="season"><option value="0">2025-26</option><option value="1">2024-25</option><option value="2">2023-24</option><option value="3">2022-23</option><option value="4">2021-22</option><option value="5">2020-21</option><option value="6">2019-20</option><option value="7">2018-19</option><option value="8">2017-18</option><option value="9">2016-17</option><option value="10">2015-16</option><option value="11">2014-15</option><option value="12">2013-14</option><option value="13">2012-13</option><option value="14">2011-12</option><option value="15">2010-11</option><option value="16">2009-10</option><option value="17">2008-09</option><option value="18">2007-08</option><option value="19">2006-07</option><option value="20">2005-06</option><option value="21">2004-05</option><option value="22">2003-04</option><option value="23">2002-03</option><option value="24">2001-02</option><option value="25">2000-01</option><option value="26">1999-00</option></select>
+  <select id="season" aria-label="Season"><option value="0">2025-26</option><option value="1">2024-25</option><option value="2">2023-24</option><option value="3">2022-23</option><option value="4">2021-22</option><option value="5">2020-21</option><option value="6">2019-20</option><option value="7">2018-19</option><option value="8">2017-18</option><option value="9">2016-17</option><option value="10">2015-16</option><option value="11">2014-15</option><option value="12">2013-14</option><option value="13">2012-13</option><option value="14">2011-12</option><option value="15">2010-11</option><option value="16">2009-10</option><option value="17">2008-09</option><option value="18">2007-08</option><option value="19">2006-07</option><option value="20">2005-06</option><option value="21">2004-05</option><option value="22">2003-04</option><option value="23">2002-03</option><option value="24">2001-02</option><option value="25">2000-01</option><option value="26">1999-00</option></select>
   <input id="q" type="search" placeholder="Search players…" autocomplete="off">
-  <select id="lim"><option value="50">Top 50</option><option value="150">Top 150</option>
+  <select id="lim" aria-label="How many players"><option value="50">Top 50</option><option value="150">Top 150</option>
   <option value="0">All</option></select>
   <span class="meta" id="meta"></span>
 </div>
@@ -150,6 +150,7 @@ sortMark();
 render();
 </script>
 
+</main>
 <footer>
 <p><strong>The Marginal Player</strong> — the numbers behind better rosters.
 Figures are model output, not official NBA statistics. Player value is measured on this
