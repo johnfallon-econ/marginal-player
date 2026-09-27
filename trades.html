@@ -328,11 +328,12 @@ function draw(){
   tb.innerHTML=""; put(0,FIRST); tb.closest(".tablewrap").style.minHeight="";
   if(NEAR)removeEventListener("scroll",NEAR);
   let at=FIRST, queued=false;
+  // one batch a frame, so a jump to the bottom fills over several frames, not one freeze
   const fill=()=>{ queued=false; if(gen!==GEN)return;
-    while(at<lines.length&&tb.getBoundingClientRect().bottom<innerHeight+2000){ put(at,at+STEP); at+=STEP; }
+    if(at<lines.length&&tb.getBoundingClientRect().bottom<innerHeight+2000){ put(at,at+STEP); at+=STEP; NEAR(); }
     if(at>=lines.length){ removeEventListener("scroll",NEAR); NEAR=null; } };
   NEAR=()=>{ if(!queued){ queued=true; requestAnimationFrame(fill); } };
-  addEventListener("scroll",NEAR,{passive:true}); fill();
+  addEventListener("scroll",NEAR,{passive:true}); NEAR();
 }
 document.querySelectorAll("#ttab th[data-k]").forEach(th=>{
   th.tabIndex=0; th.setAttribute("role","columnheader");
