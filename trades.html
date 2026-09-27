@@ -318,7 +318,7 @@ function draw(){
   // appeared; drawing them in idle-time batches still ran a long task per batch (1.1 s of
   // Lighthouse TBT, 2026-09-27). A new sort or filter drops the old watcher (GEN, NEAR). It tests where the table ends,
   // not whether a row is in view, so a jump to the bottom (End, the scrollbar) fills too.
-  const tb=$("tbody"), gen=++GEN, FIRST=40, STEP=80;
+  const tb=$("tbody"), gen=++GEN, FIRST=24, STEP=40;
   const put=(a,b)=>{
     const n0=tb.rows.length;
     tb.insertAdjacentHTML("beforeend",lines.slice(a,b).map(rowHTML).join(""));
@@ -330,7 +330,7 @@ function draw(){
   let at=FIRST, queued=false;
   // one batch a frame, so a jump to the bottom fills over several frames, not one freeze
   const fill=()=>{ queued=false; if(gen!==GEN)return;
-    if(at<lines.length&&tb.getBoundingClientRect().bottom<innerHeight+2000){ put(at,at+STEP); at+=STEP; NEAR(); }
+    if(at<lines.length&&tb.getBoundingClientRect().bottom<innerHeight+1500){ put(at,at+STEP); at+=STEP; NEAR(); }
     if(at>=lines.length){ removeEventListener("scroll",NEAR); NEAR=null; } };
   NEAR=()=>{ if(!queued){ queued=true; requestAnimationFrame(fill); } };
   addEventListener("scroll",NEAR,{passive:true}); NEAR();
