@@ -177,7 +177,7 @@ function violin(q,actual,cap){
   // SCALE MARKS: round values across this row's own range, a short dash under the track
   // and a small label, in the unit on show ($M, or % of that season's cap)
   const step=niceStep(hi-lo), era=ERA()&&cap;
-  const lab=v=>v===0?"0":(v>0?"+":"−")+(era?Math.abs(v)+"%":"$"+Math.abs(v).toLocaleString("en-US")+"M");
+  const lab=v=>v===0?"0":(v>0?"+":"−")+(era?Math.abs(v)+"%":"$"+NF.format(Math.abs(v))+"M");
   let ticks="";
   // a dash at every step; a label on every other one, counted from break-even (always
   // labelled), and none where the text would run off the edge
@@ -245,7 +245,10 @@ function side(x,key,dir){
 // the charge (rso/rsop) is added back, and the acquirer keeps its credit.
 // ROWS keeps the as-built values in p0/r0 so the box can be ticked back.
 ROWS.forEach(x=>x.s.forEach(z=>{z.p0=z.p; z.r0=z.r;}));
-let GEN=0;
+let GEN=0, IO=null;
+// ONE formatter: toLocaleString builds a new one per call, a quarter of a second of the
+// first paint on a throttled phone across every row's scale labels (2026-09-27)
+const NF=new Intl.NumberFormat("en-US");
 function draw(){
   const sea=$("tsea").value, nost=$("tst").checked, rs=$("trs").checked;
   ROWS.forEach(x=>x.s.forEach(z=>{
@@ -309,11 +312,12 @@ function draw(){
     tr.onclick=e=>{if(e.target.closest("a"))return; go();};
     tr.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}};
   };
-  // IN STAGES: the first screenful at once, the rest a batch at a time between frames.
-  // Building all 1,311 rows (each with its outcome chart and avatars) in one go froze a
-  // phone for two seconds after the page appeared (Lighthouse TBT, 2026-09-27). A new
-  // sort or filter abandons whatever is still being drawn (GEN).
-  const tb=$("tbody"), gen=++GEN, FIRST=40, STEP=120;
+  // AS THE READER SCROLLS: the first screenful at once, then a batch whenever the last
+  // row drawn comes within a few screens of view. Building all 1,311 rows (each with its
+  // outcome chart and avatars) in one go froze a phone for two seconds after the page
+  // appeared; drawing them in idle-time batches still ran a long task per batch (1.1 s of
+  // Lighthouse TBT, 2026-09-27). A new sort or filter drops the old watcher (GEN, IO).
+  const tb=$("tbody"), gen=++GEN, FIRST=40, STEP=80;
   const put=(a,b)=>{
     const n0=tb.rows.length;
     tb.insertAdjacentHTML("beforeend",lines.slice(a,b).map(rowHTML).join(""));
@@ -321,9 +325,14 @@ function draw(){
   };
   // the table holds a screen's height until the first rows land (see the tablewrap)
   tb.innerHTML=""; put(0,FIRST); tb.closest(".tablewrap").style.minHeight="";
-  const more=a=>{ if(gen!==GEN||a>=lines.length)return; put(a,a+STEP);
-    (window.requestIdleCallback||(f=>setTimeout(f,16)))(()=>more(a+STEP)); };
-  (window.requestIdleCallback||(f=>setTimeout(f,16)))(()=>more(FIRST));
+  if(IO)IO.disconnect();
+  let at=FIRST;
+  const watch=()=>{ if(at<lines.length&&tb.rows.length)IO.observe(tb.rows[tb.rows.length-1]); };
+  IO=new IntersectionObserver(es=>{
+    if(gen!==GEN||!es.some(e=>e.isIntersecting))return;
+    IO.disconnect(); put(at,at+STEP); at+=STEP; watch();
+  },{rootMargin:"0px 0px 2000px 0px"});
+  watch();
 }
 document.querySelectorAll("#ttab th[data-k]").forEach(th=>{
   th.tabIndex=0; th.setAttribute("role","columnheader");
