@@ -222,7 +222,7 @@ li strong{color:var(--ink)}
 .ins-card.has-img{display:grid;grid-template-columns:140px 1fr;gap:20px;align-items:start}
 .ins-card b{display:block;font-family:var(--head);font-size:22px;line-height:1.2;margin:6px 0 6px}
 .ins-card:hover b{color:var(--orange-text)}
-.ins-thumb{width:140px;height:110px;object-fit:cover;object-position:50% 18%;border-radius:8px;display:block;
+.ins-thumb{width:140px;height:110px;object-fit:cover;object-position:50% 50%;border-radius:8px;display:block;
            background:var(--grey-100)}
 .ins-tag{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
          color:var(--navy-700);border:1px solid var(--rule);background:#fff;border-radius:4px;padding:1px 6px}
