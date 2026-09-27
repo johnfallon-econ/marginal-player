@@ -143,7 +143,7 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
 /* ---- landing page ---- */
 .h-eyebrow{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
 .h-tag{color:var(--orange-text)}
-.h-hero{display:grid;grid-template-columns:1fr 1.15fr;gap:44px;align-items:center;margin:56px 0 20px}
+.h-hero{display:grid;grid-template-columns:1fr 1.15fr;gap:44px;align-items:center;margin:44px 0 20px}
 .h-hero h1{font-size:60px;line-height:1.02;margin:10px 0 18px;letter-spacing:-.01em}
 .h-sees{background:#fff;border:1px solid var(--rule);border-top:3px solid var(--orange);border-radius:12px;padding:22px 24px 16px}
 .hs-stage{display:grid;margin-top:10px}
@@ -161,28 +161,38 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
        font-variant-numeric:tabular-nums}
 .hs-mg i{font-style:normal;color:var(--orange-text);margin:0 3px}
 .hs-mg b{font-weight:700}
-/* ---- the column carousel ---- */
-.h-col .h-head{align-items:center}
-.hc-ctl{display:flex;align-items:center;gap:8px}
-.hc-arr{width:40px;height:40px;border-radius:50%;border:1px solid var(--rule);background:#fff;color:var(--navy-900);
-        font-size:18px;cursor:pointer}
-.hc-arr:hover{border-color:var(--orange)}
-.hc-ctl .h-more{margin-left:8px}
+/* ---- the column, at the top: the lead story and the list beside it ---- */
+.h-top{display:grid;grid-template-columns:1.75fr 1fr;gap:28px;margin:32px 0 8px;align-items:start}
+.ht-main{min-width:0}
 .hc-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;border-radius:14px;
           background:var(--navy-900)}
 .hc-track::-webkit-scrollbar{display:none}
 .hc-track:focus-visible{outline:2px solid var(--orange-text);outline-offset:3px}
 .hc-slide{flex:0 0 100%;scroll-snap-align:start;min-width:0}
-.hc-a{display:grid;grid-template-columns:1.05fr 1fr;align-items:stretch;color:#fff;text-decoration:none;height:100%}
-.hc-img{width:100%;height:100%;min-height:300px;aspect-ratio:4/3;object-fit:cover;display:block}
-.hc-t{padding:34px 36px;display:flex;flex-direction:column;justify-content:center}
-.hc-t .ins-tag{align-self:flex-start;color:#ffb07a;background:rgba(255,176,122,.14)}
-.hc-t b{font-family:var(--head);font-size:34px;line-height:1.1;margin:10px 0 12px}
-.hc-dek{font-size:16px;line-height:1.5;color:#d3dae3}
-.hc-t .ins-meta{color:#b9c3d0;margin-top:14px}
-.hc-go{margin-top:18px;font-size:14px;font-weight:600;color:#ffb07a}
+.hc-a{display:block;position:relative;color:#fff;text-decoration:none}
+.hc-img{width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;display:block}
+/* the headline over the picture, on a scrim so it reads whatever the tile's colours */
+.hc-t{position:absolute;left:0;right:0;bottom:0;padding:90px 32px 28px;display:flex;flex-direction:column;
+      background:linear-gradient(180deg,rgba(13,27,42,0) 0%,rgba(13,27,42,.82) 42%,rgba(13,27,42,.96) 100%)}
+.hc-t .ins-tag{align-self:flex-start;color:#ffb07a;background:rgba(13,27,42,.6)}
+.hc-t b{font-family:var(--head);font-size:40px;line-height:1.05;margin:10px 0 10px;max-width:18em}
+.hc-dek{font-size:16px;line-height:1.5;color:#e2e8ef;max-width:40em}
+.hc-t .ins-meta{color:#c3ccd7;margin-top:12px}
 .hc-a:hover b{color:#ffd3b3}
-.hc-dots{display:flex;justify-content:center;gap:4px;margin-top:10px}
+.hc-bar{display:flex;align-items:center;gap:8px;margin-top:10px}
+.hc-arr{width:36px;height:36px;border-radius:50%;border:1px solid var(--rule);background:#fff;color:var(--navy-900);
+        font-size:17px;cursor:pointer}
+.hc-arr:hover{border-color:var(--orange)}
+.hc-bar .hc-arr:first-of-type{margin-left:auto}
+.ht-list ol{list-style:none;margin:10px 0 14px;padding:0}
+.hc-li a{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:14px 0;border-top:1px solid var(--rule);
+         color:var(--ink);text-decoration:none}
+.hc-li:first-child a{border-top:0}
+.hc-n{font-family:var(--head);font-size:20px;font-weight:700;color:var(--muted);line-height:1.2}
+.hc-li b{display:block;font-family:var(--head);font-size:18px;line-height:1.2;margin-bottom:4px}
+.hc-li.on .hc-n{color:var(--orange-text)}
+.hc-li.on b,.hc-li a:hover b{color:var(--orange-text)}
+.hc-dots{display:flex;gap:4px}
 .hc-dot{width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer;position:relative}
 .hc-dot::before{content:"";position:absolute;left:7.5px;top:7.5px;width:9px;height:9px;border-radius:50%;background:var(--rule)}
 .hc-dot.on::before{background:var(--navy-700)}
@@ -253,9 +263,10 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
 .h-why-q .h-more{font-family:var(--body);font-size:14px;margin-left:6px;white-space:nowrap}
 @media(max-width:860px){
   .h-hero,.h-lab{grid-template-columns:1fr;gap:26px}
-  .hc-a{grid-template-columns:1fr} .hc-img{min-height:0;aspect-ratio:16/9;height:auto}
-  .hc-t{padding:22px 22px 26px} .hc-t b{font-size:26px}
-  .hc-ctl .hc-arr{display:none}
+  .h-top{grid-template-columns:1fr;gap:18px;margin-top:20px}
+  /* on a phone the headline sits under the picture, not on it */
+  .hc-t{position:static;padding:18px 20px 22px;background:none} .hc-t b{font-size:26px}
+  .hc-bar .hc-arr{display:none}
   .h-hero{margin-top:34px} .h-hero h1{font-size:42px}
   .h-mk,.h-more-tools{grid-template-columns:1fr}
   .h-lab{padding:26px 22px} .hs-v{font-size:46px}
