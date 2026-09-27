@@ -9,14 +9,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="site.css">
 <link rel="icon" href="assets/favicon.png">
-<!-- seo --><meta name="description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><link rel="canonical" href="https://themarginalplayer.com/methodology-draft.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Projecting a prospect — The Marginal Player"><meta property="og:description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><meta property="og:url" content="https://themarginalplayer.com/methodology-draft.html"><meta property="og:image" content="https://themarginalplayer.com/assets/wordmark.png"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="Projecting a prospect — The Marginal Player"><meta name="twitter:description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><meta name="twitter:image" content="https://themarginalplayer.com/assets/wordmark.png"><!-- /seo --></head>
+<!-- seo --><meta name="description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><link rel="canonical" href="https://themarginalplayer.com/methodology-draft.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Projecting a prospect — The Marginal Player"><meta property="og:description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><meta property="og:url" content="https://themarginalplayer.com/methodology-draft.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Projecting a prospect — The Marginal Player"><meta name="twitter:description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
 <body>
 <header><div class="wrap"><nav>
 <a class="brand" href="index.html"><img src="assets/mark-light.png" alt="The Marginal Player" width="34" height="34" style="display:block;flex:none;width:34px;height:auto"><span>The<br>Marginal<br>Player</span></a>
 <a href="index.html">Home</a><a href="players.html">Players</a><a href="player.html">Careers</a><a href="value-board.html">Value Board</a><a href="draft-board.html">Draft</a><a href="trades.html">Trades</a><a href="trade-tool.html">Trade Lab</a><a href="insights.html">Insights</a><a href="methodology-value.html">Method</a>
 </nav></div></header>
 <div class="wrap">
-<nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><span class="on">Draft model</span><a href="methodology-trade.html">Trade pricing</a></nav>
+<nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><span class="on">Draft model</span><a href="methodology-trade.html">Trade pricing</a></nav><img class="meth-fig" src="art/f/scouting.webp" alt="A magnifying glass over prospect files" loading="lazy">
 <h1>Projecting a prospect</h1>
 <p class="lede">The useful question about a draft pick is rarely how good a player will be.
 It is how wide the range is, and how bad the bottom of it gets. The model therefore
@@ -126,20 +126,27 @@ wins before either correction.</p>
 <h3>Held, re-signed, paid the max</h3>
 
 <ul>
-<li><strong>The rookie deal.</strong> The club keeps everything he produces in seasons
-1&ndash;4 while it holds him. From season 2 it holds him with a probability fitted on every
-drafted player since 1999 (logit on the previous season's wins, round, slot and season,
-with second-rounders on their own clock): 80% of lottery picks
-are still held in season 4, 56% of second-rounders in season 3,
-predicted within two points in every cell. Log loss out of sample
-0.444 against a base rate's 0.532.</li>
-<li><strong>Re-signing.</strong> At each deal's end (after seasons 4, 8, 12 and 16) the club
+<li><strong>The rookie deal.</strong> The club keeps everything he produces through his
+rookie deal while it holds him. The deal starts in his first paid season, which for a
+player stashed abroad is a season or more after the draft, and runs four seasons in the
+first round (the rookie scale) and whatever he signs in the second. The board cannot know a
+prospect's own term, so it averages over the terms as knowable at his draft, fitted on
+earlier classes: the chance he signs late, by round and whether he was drafted from abroad
+(only 31% of second-rounders drafted from abroad sign in their
+draft year, against 99% of first-rounders from American schools),
+and a second-rounder's deal length (59% sign for one or two
+seasons). From the deal's second season the club holds him with a probability fitted on
+every drafted player since 1999 (logit on the previous season's wins, round, slot and
+contract season): 81% of lottery picks are still held in the
+deal's fourth season, 75% of second-rounders in its third. Log
+loss out of sample 0.413 against a base rate's 0.455.</li>
+<li><strong>Re-signing.</strong> At each deal's end (the rookie deal's, then every four seasons) the club
 keeps him with a probability fitted on what happened at real contract ends: after the
 rookie deal on the player's own panel (restricted free agency keeps
-91% of 5&ndash;10 WAR players; log loss
-0.486 against a base rate's 0.694), later deals on the ledger's contract ends, with an
+89% of 5&ndash;10 WAR players; log loss
+0.549 against a base rate's 0.693), later deals on the ledger's contract ends, with an
 extension counted as the deal ending in a re-signing (log loss
-0.571 against a base rate's 0.633).</li>
+0.588 against a base rate's 0.645).</li>
 <li><strong>A trade keeps the value.</strong> A club that trades him was paid for him, so
 only walking, being waived or leaving the league loses it. Leaving the league counts as
 not kept: the season projections cannot tell a player gone from one playing at
@@ -174,23 +181,26 @@ season as each class's record (season 10 to 19).</p>
 
 <div class="tablewrap"><table>
 <thead><tr><th>Picks</th><th>Value to club, predicted</th><th>Realized</th>
-<th>After the rookie deal, predicted</th><th>Realized</th><th>Kept into season 5, predicted</th><th>Realized</th></tr></thead>
-<tbody><tr><td>1-5</td><td>$66.5M</td><td>$67.8M</td><td>$24.1M</td><td>$20.6M</td><td>54%</td><td>56%</td></tr><tr><td>6-14</td><td>$40.0M</td><td>$41.8M</td><td>$12.4M</td><td>$10.4M</td><td>42%</td><td>37%</td></tr><tr><td>15-30</td><td>$20.4M</td><td>$19.2M</td><td>$4.1M</td><td>$3.0M</td><td>28%</td><td>26%</td></tr><tr><td>31-60</td><td>$7.7M</td><td>$5.7M</td><td>$1.1M</td><td>$0.3M</td><td>8%</td><td>8%</td></tr></tbody></table></div>
+<th>After the rookie deal, predicted</th><th>Realized</th><th>Kept past the rookie deal, predicted</th><th>Realized</th></tr></thead>
+<tbody><tr><td>1-5</td><td>$71.1M</td><td>$76.0M</td><td>$27.3M</td><td>$22.5M</td><td>50%</td><td>68%</td></tr><tr><td>6-14</td><td>$41.4M</td><td>$41.5M</td><td>$12.8M</td><td>$10.1M</td><td>38%</td><td>38%</td></tr><tr><td>15-30</td><td>$21.2M</td><td>$20.6M</td><td>$3.9M</td><td>$3.0M</td><td>25%</td><td>30%</td></tr><tr><td>31-60</td><td>$6.7M</td><td>$6.9M</td><td>$1.8M</td><td>$1.9M</td><td>24%</td><td>32%</td></tr></tbody></table></div>
 
 <p><strong>Ranking the lottery</strong>, where the decision is and where re-signing value
-sits: within-class Spearman with realized value to the club is 0.420, against
-0.423 for the same valuation stopped after four seasons and 0.159 for
-draft order (139 lottery picks). The whole career beats four seasons by
--0.003 a class, a 90% class-bootstrap interval of -0.051 to
-+0.034 &mdash; not distinguishable from a tie &mdash; and draft order by
-+0.261 (+0.146 to +0.376), better in 9 of
-10 classes. Over every drafted player (595) the figures are 0.516,
-0.529 and 0.507. Mostly, the longer horizon gets the <em>level</em>
+sits: within-class Spearman with realized value to the club is 0.467, against
+0.452 for the same valuation stopped at the rookie deal and 0.253 for
+draft order (139 lottery picks). The whole career beats the rookie deal alone by
++0.015 a class, a 90% class-bootstrap interval of -0.028 to
++0.052 &mdash; not distinguishable from a tie &mdash; and draft order by
++0.214 (+0.107 to +0.327), better in 9 of
+10 classes. Over every drafted player (595) the figures are 0.537,
+0.546 and 0.544. Mostly, the longer horizon gets the <em>level</em>
 right and does not yet rank better: whether a given star re-signs is close to a coin flip,
 and that noise dilutes a ranking as much as the extra value informs it.</p>
 
-<p>What is still off: mid-lottery picks are still kept into season 5 a little too often,
-because the widened projections still miss some of their busts (above). The realized side is measured in this site's own units (its wins, its price curve), so this is
+<p>What is still off: the very top of the draft. Top-five picks are kept past their rookie
+deal less often than they really are (50% predicted, 68%
+realized) but are valued higher once kept ($27.3M against
+$22.5M); the two partly offset, and the rest of the lottery is kept
+about as often as it really is (38% and 38%). The realized side is measured in this site's own units (its wins, its price curve), so this is
 a test of the board's internal consistency with its own record, not against an outside
 measure of value.</p>
 

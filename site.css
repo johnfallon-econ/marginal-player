@@ -159,6 +159,7 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
 .h-more-tools a:hover{border-color:var(--orange)}
 .h-more-tools b{font-family:var(--head);font-size:18px}
 .h-more-tools span{display:block;font-size:13px;color:var(--muted);margin-top:4px;line-height:1.45}
+.h-tool-img{display:block;width:100%;aspect-ratio:6/5;object-fit:cover;border-radius:7px;margin-bottom:12px}
 .h-why{margin:56px 0 20px;padding-top:28px;border-top:1px solid var(--rule)}
 .h-why-g{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:32px;margin-top:14px}
 .h-why-k{font-size:13px;color:var(--muted)}
@@ -173,6 +174,7 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
 @media(max-width:520px){ .h-board .h-tm{display:none} .h-ex-g{grid-template-columns:1fr} }
 
 /* ---- long-form methodology ---- */
+.meth-fig{float:right;width:240px;max-width:42%;border-radius:10px;margin:22px 0 14px 28px}
 .eqn{background:#fff;border:1px solid var(--rule);border-left:3px solid var(--navy-700);
      border-radius:0 8px 8px 0;padding:16px 20px;margin:20px 0;overflow-x:auto;
      font-family:ui-serif,Georgia,serif;font-size:16px;line-height:2.1;color:var(--ink)}
@@ -214,8 +216,7 @@ li strong{color:var(--ink)}
 .ins-head h1{margin:6px 0 8px}
 .ins-by{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:13px;color:var(--muted)}
 .ins-by b{color:var(--ink);font-weight:600}
-.ins-av{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;
-        background:var(--navy-900);color:#fff;font-size:11px;font-weight:600;letter-spacing:.03em}
+.ins-av{display:inline-block;width:30px;height:30px;border-radius:50%;object-fit:cover;flex:none}
 .ins-list{display:grid;gap:0;border-top:1px solid var(--rule);margin-bottom:30px}
 .ins-card{display:block;color:var(--ink);text-decoration:none;padding:20px 0;border-bottom:1px solid var(--rule)}
 .ins-card.has-img{display:grid;grid-template-columns:140px 1fr;gap:20px;align-items:start}
@@ -240,7 +241,7 @@ li strong{color:var(--ink)}
 .ins-deck{color:#d3dae3;font-size:18px;max-width:60ch;margin:0 0 18px}
 .ins-hero .ins-by{color:#b9c3d0}
 .ins-hero .ins-by b{color:#fff}
-.ins-hero .ins-av{background:#fff;color:var(--navy-900)}
+.ins-hero .ins-av{box-shadow:0 0 0 2px #fff}
 .ins-back{display:inline-block;color:#b9c3d0;text-decoration:none;font-size:13px;margin-bottom:14px}
 .ins-back:hover{color:#fff}
 .ins-hero-img{width:220px;height:auto;border-radius:10px;display:block}
