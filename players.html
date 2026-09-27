@@ -29,7 +29,7 @@ actually paid. Sort by value over salary to find the bargains.</p>
   <span class="meta" id="meta"></span>
 </div>
 
-<div class="tablewrap"><table id="t">
+<div class="tablewrap" style="min-height:100vh"><table id="t">
 <thead><tr>
 <th class="rank"></th>
 <th data-k="0">Player</th><th data-k="1">Team</th><th data-k="2">Age</th>
@@ -108,6 +108,9 @@ function render() {
       + `<td>${fmt(r[6], 1)}</td><td>${fmt(r[7], 1)}</td>`
       + `<td>${fmt(sur, 1)}${bar}</td></tr>`;
   }).join("");
+  // the table held a screen's height until now, so the note below it didn't paint in
+  // its place first and get pushed away (CLS 0.2 on a phone, 2026-09-27)
+  $("#tb").closest(".tablewrap").style.minHeight = "";
   $("#meta").textContent =
     `${s.season} · cap $${s.cap.toFixed(2)}M · ${s.sched}-game schedule · `
     + `${s.n} players, ${s.n_salary} with salary`;
