@@ -58,8 +58,11 @@ nav a:hover,nav a.on{color:var(--orange-text)}
 h1{font-family:var(--head);font-size:44px;line-height:1.1;margin:36px 0 8px;font-weight:700}
 h2{font-family:var(--head);font-size:26px;margin:36px 0 10px;font-weight:700}
 h3{font-size:15px;margin:26px 0 6px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
-.lede{font-size:18px;color:var(--muted);max-width:70ch;margin:0 0 26px}
-p{max-width:72ch}
+/* measures are in em, not ch: a ch is the width of the font's "0", which is 6% narrower
+   in the Arial fallback than in Inter, so every paragraph widened and rewrapped when Inter
+   arrived. Each em value is the old ch count x 0.6309, Inter's "0" (2026-09-27). */
+.lede{font-size:18px;color:var(--muted);max-width:44.16em;margin:0 0 26px}
+p{max-width:45.42em}
 .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:22px 0}
 select,input{font-family:var(--body);font-size:14px;padding:9px 12px;border:1px solid var(--rule);
              border-radius:6px;background:#fff;color:var(--ink)}
@@ -115,7 +118,7 @@ tbody tr:hover{background:var(--grey-100)}
 .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:6px;border-radius:2px}
 .legend i.fill{height:10px;border-radius:2px}
 .note{background:#fff;border-left:3px solid var(--orange);padding:16px 20px;margin:26px 0;border-radius:0 8px 8px 0}
-.note p{margin:0;max-width:70ch}
+.note p{margin:0;max-width:44.16em}
 footer{margin:60px 0 40px;padding-top:22px;border-top:1px solid var(--rule);color:var(--muted);font-size:13px}
 footer a{color:var(--navy-700)}
 code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px}
@@ -218,7 +221,7 @@ code{background:var(--grey-100);padding:2px 6px;border-radius:4px;font-size:13px
 .sv{display:block;font-family:var(--head);font-size:23px;font-weight:700;line-height:1.15}
 .sl{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
 .methods table{min-width:0}
-ul{max-width:72ch;padding-left:22px}
+ul{max-width:45.42em;padding-left:22px}
 li{margin:7px 0}
 li strong{color:var(--ink)}
 /* ---- portraits (code/site_art.py) ---- */
@@ -260,7 +263,7 @@ li strong{color:var(--ink)}
            background:var(--grey-100)}
 .ins-tag{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
          color:var(--navy-700);border:1px solid var(--rule);background:#fff;border-radius:4px;padding:1px 6px}
-.ins-dek{display:block;font-size:14px;color:var(--muted);max-width:68ch}
+.ins-dek{display:block;font-size:14px;color:var(--muted);max-width:42.90em}
 .ins-meta{display:block;font-size:12px;color:var(--muted);margin-top:8px}
 .ins-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .ins-card.col{display:block;background:#fff;border:1px solid var(--rule);border-radius:12px;padding:0;overflow:hidden}
@@ -272,7 +275,7 @@ li strong{color:var(--ink)}
 .ins-hero.has-img{grid-template-columns:1fr 220px}
 .ins-hero .h-eyebrow{color:#b9c3d0}
 .ins-hero h1{color:#fff;font-size:48px;line-height:1.05;margin:8px 0 12px}
-.ins-deck{color:#d3dae3;font-size:18px;max-width:60ch;margin:0 0 18px}
+.ins-deck{color:#d3dae3;font-size:18px;max-width:37.85em;margin:0 0 18px}
 .ins-hero .ins-by{color:#b9c3d0}
 .ins-hero .ins-by b{color:#fff}
 .ins-hero .ins-av{box-shadow:0 0 0 2px #fff}
