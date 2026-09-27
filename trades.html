@@ -177,7 +177,7 @@ function violin(q,actual,cap){
   // SCALE MARKS: round values across this row's own range, a short dash under the track
   // and a small label, in the unit on show ($M, or % of that season's cap)
   const step=niceStep(hi-lo), era=ERA()&&cap;
-  const lab=v=>v===0?"0":(v>0?"+":"−")+(era?Math.abs(v)+"%":"$"+NF.format(Math.abs(v))+"M");
+  const lab=v=>v===0?"0":(v>0?"+":"−")+(era?Math.abs(v)+"%":"$"+LABNF.format(Math.abs(v))+"M");
   let ticks="";
   // a dash at every step; a label on every other one, counted from break-even (always
   // labelled), and none where the text would run off the edge
@@ -248,7 +248,7 @@ ROWS.forEach(x=>x.s.forEach(z=>{z.p0=z.p; z.r0=z.r;}));
 let GEN=0, IO=null;
 // ONE formatter: toLocaleString builds a new one per call, a quarter of a second of the
 // first paint on a throttled phone across every row's scale labels (2026-09-27)
-const NF=new Intl.NumberFormat("en-US");
+const LABNF=new Intl.NumberFormat("en-US");
 function draw(){
   const sea=$("tsea").value, nost=$("tst").checked, rs=$("trs").checked;
   ROWS.forEach(x=>x.s.forEach(z=>{
