@@ -24,8 +24,8 @@ estimates a distribution, not a number.</p>
 
 <h2>What is predicted</h2>
 
-<p>Three fixed horizons, each anchored to the draft year and each measured in the same
-impact units the value board uses:</p>
+<p>Three fixed horizons, each anchored to the draft year and each measured in Marginal Plus
+Minus (mPM), the same per-100-possession rating the value board uses:</p>
 
 <ul>
 <li><strong>Rookie year</strong> — impact in season 1.</li>
@@ -143,7 +143,7 @@ loss out of sample 0.413 against a base rate's 0.455.</li>
 <li><strong>Re-signing.</strong> At each deal's end (the rookie deal's, then every four seasons) the club
 keeps him with a probability fitted on what happened at real contract ends: after the
 rookie deal on the player's own panel (restricted free agency keeps
-89% of 5&ndash;10 WAR players; log loss
+89% of players worth 5&ndash;10 Marginal WAR (mWAR); log loss
 0.549 against a base rate's 0.693), later deals on the ledger's contract ends, with an
 extension counted as the deal ending in a re-signing (log loss
 0.588 against a base rate's 0.645).</li>
@@ -155,9 +155,9 @@ replacement, both worth about nothing, so the probability has to carry the exit.
 &mdash; no surplus, the same convention the Trade Lab uses. On a max deal the club keeps
 his value minus the max: 25% of the cap on the second deal, 30% from seven seasons of
 service, 35% from ten. Whether a deal is a max deal is its own probability, fitted on
-re-signings on his WAR and age at signing and whether it ends a rookie deal, because a max
+re-signings on his mWAR and age at signing and whether it ends a rookie deal, because a max
 is a lump at the top of the pay distribution, not the top of a salary curve; at the same
-WAR a club pays it far more often to a 23-year-old than to a 32-year-old. A max deal binds for its length, so a season he is worth less than the max
+mWAR a club pays it far more often to a 23-year-old than to a 32-year-old. A max deal binds for its length, so a season he is worth less than the max
 is a loss: <strong>a max deal can go underwater</strong>, and the board counts it.</li>
 <li><strong>As knowable at the draft.</strong> The retention, rookie-hold and max-deal
 models for a past class are refitted on contract outcomes before its draft, so a 2010

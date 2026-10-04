@@ -52,7 +52,7 @@ Click any row to open it in the Trade Lab.</p>
 side that column is about, named in the Teams column: descending for the winner, ascending for
 the loser. Sorted by Date, every side is listed together under its trade; sorted by Teams, every
 side is its own line, so a club's deals sit together. <b>Process</b> prices the trade on
-ratings that existed before the season; <b>Outcome</b> prices it on what actually happened against what would have
+each player's Marginal Plus Minus (mPM) as it stood before the season; <b>Outcome</b> prices it on what actually happened against what would have
 without the trade: what the players a club got actually returned, less what the ones it sent were projected, on the day, to return it.
 The rest of each roster is reallocated as the forecast had it. <b>Likely outcome</b> draws where trades graded like this one landed, by process value and size,
 the way the draft board draws a prospect: the shape is the spread from the 5th to the 95th percentile, the amber
@@ -73,7 +73,7 @@ calibrated. Draft picks are priced by the forward model at their original slot
 year; protections are recorded but not their thresholds, so a protected pick is priced as
 unprotected and flatters whoever received it.</p>
 <p><strong>†</strong> Before 2003 the process figure uses the published aging curve and win
-calibration: the seasons before are too few to refit them. Ratings are still as-of, so what
+calibration: the seasons before are too few to refit them. mPM is still as-of, so what
 those rows know with hindsight is how aging and wins convert -- not who was good, which is the
 hindsight a forecast has to be denied.</p></div>
 
@@ -88,8 +88,9 @@ hindsight a forecast has to be denied.</p></div>
 // THE NORM. Three significant figures is the ceiling for anything this model
 // produces. Printing more claims a precision the standard errors do not support.
 //
-//     money      $233M, $4.2M     0dp at >= 10, else 1dp, sign always shown
+//     money      $2.0B, $233M, $4.2M  billions to 1dp past $999.5M, else 0dp at >= 10, else 1dp
 //     rate       +2.41            2dp -- RAPM per 100, the model's own grain
+//     pm         +2.4             1dp, signed -- mPM (Marginal Plus Minus) in tables
 //     minutes    36.1             1dp
 //     wins       41.0             1dp
 //     share      33.6%            1dp
@@ -113,13 +114,20 @@ const NF = (() => {
     if (v == null || !isFinite(v)) return dash;
     const s = sign && v > 0 ? '+' : (v < 0 ? '−' : '');
     const a = Math.abs(v);
+    if (a >= 999.5) return s + '$' + (a / 1000).toFixed(1) + 'B';   // billions, never a four-digit $M
     return s + '$' + (a >= 10 ? a.toFixed(0) : a.toFixed(1)) + 'M';
   };
   const rate = (v, sign = true) => v == null || !isFinite(v) ? dash
     : (sign && v > 0 ? '+' : (v < 0 ? '−' : '')) + Math.abs(v).toFixed(2);
+  // mPM in tables: rounded before the sign is chosen, so -0.04 prints 0.0
+  const pm = v => {
+    if (v == null || !isFinite(v)) return dash;
+    const r = Math.round(v * 10) / 10;
+    return (r > 0 ? '+' : (r < 0 ? '−' : '')) + Math.abs(r).toFixed(1);
+  };
   const num = (v, d) => v == null || !isFinite(v) ? dash : v.toFixed(d);
   return {
-    sig, money, rate,
+    sig, money, rate, pm,
     minutes: v => num(v, 1),
     wins: v => num(v, 1),
     share: (v, alreadyPct) => v == null || !isFinite(v) ? dash

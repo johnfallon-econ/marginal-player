@@ -20,7 +20,8 @@
 <h1>Pricing a trade</h1>
 <p class="lede">A trade is not an exchange of players. It is a change in what entire
 rosters are worth, under constraints that make talent stubbornly non-additive.
-Five mechanisms do the work, and all five are estimated. A sixth, a rest penalty, was a stated modelling choice until it was switched off; section 4 says why.</p>
+Players enter as Marginal Plus Minus (mPM), the site's per-100-possession rating, and leave
+as wins and dollars. Five mechanisms do the work, and all five are estimated. A sixth, a rest penalty, was a stated modelling choice until it was switched off; section 4 says why.</p>
 
 <h2>1. Minutes are a budget</h2>
 
@@ -40,7 +41,7 @@ club involved. An incoming player <em>displaces</em> minutes rather than adding 
 How they are re-allocated is the next section, and it is the part of this model that
 changed most recently and on the clearest evidence.</p>
 
-<p><strong>Who plays is right, and the reshuffle counts at full value.</strong> Checked against game logs, the minutes the model moves on a trade really do move &mdash; about one for one within a season. A trade's roster change is split in two &mdash; the players who moved, and the reallocation of everyone else &mdash; and the weight on the reallocation is tested the way the tool is used, forward in time: for each of the 495 club-seasons of 2009&ndash;2025, a weight was chosen on earlier seasons' actual win changes and used to forecast the next. The chosen weights ran 0.55 to 0.90 and did not forecast clearly better than a fixed one (a weight must win in 90% of season resamples to ship), so the reallocation counts at <strong>full value</strong>. An earlier version discounted it to 0.55; that discount only helped while the forecast's player ratings had seen the season the trade was forecast into.</p>
+<p><strong>Who plays is right, and the reshuffle counts at full value.</strong> Checked against game logs, the minutes the model moves on a trade really do move &mdash; about one for one within a season. A trade's roster change is split in two &mdash; the players who moved, and the reallocation of everyone else &mdash; and the weight on the reallocation is tested the way the tool is used, forward in time: for each of the 495 club-seasons of 2009&ndash;2025, a weight was chosen on earlier seasons' actual win changes and used to forecast the next. The chosen weights ran 0.55 to 0.90 and did not forecast clearly better than a fixed one (a weight must win in 90% of season resamples to ship), so the reallocation counts at <strong>full value</strong>. An earlier version discounted it to 0.55; that discount only helped while the forecast's mPM had seen the season the trade was forecast into.</p>
 <p><strong>What a process grade says about the outcome.</strong> Every card in the Trade Lab
 shows the range of realized value that trades graded like it produced. It is fitted on the 2,763 team-sides of
 1999&ndash;2025 trades, whose contracts have played out: for each percentile, a line in the process value and the
@@ -54,15 +55,15 @@ from the smallest size band to the largest. The middle outcome moves about 83 ce
 <p>The fifteen-man cap is a real constraint rather than decoration, and it bites in a
 way worth naming. A one-body roster change can flip the man on the bubble between
 waived and playing. Charging a full season of workload to that flip once cost a
-32-year-old <strong>1.40 rating points</strong> for a move nobody made.</p>
+32-year-old <strong>1.40 points of mPM</strong> for a move nobody made.</p>
 
 <p>Worse, the load charge was measured against a player's <em>listed</em> minutes per
 game rather than against the pre-trade allocation. Every roster therefore carried a
 penalty for merely existing &mdash; a league mean of <strong>&minus;0.425</strong>
-rating points with no trade at all, and &minus;1.46 for the worst team. No invariant
+points of mPM with no trade at all, and &minus;1.46 for the worst team. No invariant
 caught it, because with no trade the charge appears on both sides and cancels exactly;
 it only distorts real trades. Both the load charge and a development term &mdash;
-extra minutes this season shifting next season's rating &mdash; were then measured
+extra minutes this season shifting next season's mPM &mdash; were then measured
 against the untouched roster's own allocation, and both have since been switched off:
 neither improved a forecast, and the one fit of development against realized value
 had the wrong sign.</p>
@@ -157,7 +158,7 @@ finding that subtracting rotation players paid.</p>
 
 <h2>4. The rest penalty &mdash; switched off</h2>
 
-<p>The tool used to adjust a player's per-minute rating for rest: fewer minutes than
+<p>The tool used to adjust a player's mPM for rest: fewer minutes than
 his norm made him better per minute, more made him worse, as a log-rest term with
 coefficient b = 0.04211. Since 2026-09-11 b is zero, and minutes are neutral for
 per-minute quality. The minute budget and who plays are unaffected; the term never
@@ -276,7 +277,7 @@ an option, not a debt, and options are not negative.</p>
 <h2>7. Risk</h2>
 
 <p>Uncertainty is carried rather than averaged away. Each player's projection is a fan
-over rate, availability and minutes, propagated by simulation and collapsed to a
+over mPM, availability and minutes, propagated by simulation and collapsed to a
 certainty equivalent under constant relative risk aversion:</p>
 
 <div class="eqn">CE = u<sup>&minus;1</sup>( E[u(W)] ),   u(W) = W<sup>1&minus;&gamma;</sup> / (1 &minus; &gamma;)</div>
