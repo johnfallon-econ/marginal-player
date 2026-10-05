@@ -85,10 +85,14 @@
     text-transform:uppercase;letter-spacing:.01em;line-height:.92;
     font-size:clamp(38px,7vw,64px);margin:0;text-wrap:balance;}
   h1 .thin{color:var(--muted);font-weight:600;}
-  .dek{max-width:64ch;color:var(--muted);margin:14px 0 0;font-size:15.5px;}
+  .dek{max-width:40.38em;color:var(--muted);margin:14px 0 0;font-size:15.5px;}
   .dek b{color:var(--ink);font-weight:600;}
 
-  .strip{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;}
+  .strip{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;min-height:88px;}
+  /* the cards are filled in by script after the page is drawn: hold their space, or the
+     board jumps down (Lighthouse CLS 0.25). Heights measured at each width. */
+  @media (max-width:1100px){ .strip{min-height:197px;} }
+  @media (max-width:640px){ .strip{min-height:295px;} }
   .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;
     padding:11px 15px;box-shadow:var(--shadow);min-width:132px;flex:1;}
   .stat .k{font-family:var(--mono);font-size:10px;letter-spacing:.12em;
@@ -317,6 +321,7 @@
   @media (max-width:760px){
     .rowhead,.row{grid-template-columns:32px 1fr 150px;}
     .rowhead .h-q,.rowhead .h-a,.rowhead .h-p,.row .qcell,.row .acell,.row .pcell{display:none;}
+    .vcell svg{width:100%;height:auto;}   /* 260px wide in a 150px cell: scale it (viewBox) */
     .row.open .detail{grid-template-columns:1fr;}
   }
 </style>
@@ -327,7 +332,7 @@
          UUIDs, sending a public visitor off the site to an auth wall. -->
     <p class="eyebrow">Distributional draft model · 2007–2026 · out-of-fold</p>
     <h1>NBA Draft Board <span class="thin">/ career projections</span></h1>
-    <p class="dek">Every prospect gets a <b>predicted distribution of realized value</b>, not a single rank — a two-part model: a <b>propensity</b> that he ever becomes an NBA player, and, if he does, his <b>availability × on-court quality</b> over four seasons (a Gaussian copula over the two). Never sticking is a floor below the worst player who plays, so a likely-bust sinks beneath a mediocre-but-real rotation piece. Each row shows the outcome curve, the quality and availability pieces, and — for closed classes — where he <b>actually</b> landed. <b>Open any prospect</b> for his scouting rubric and a <b>career trajectory</b> — rookie, four-year, and peak quality drawn as a banded arc. Out-of-fold, leakage-free.</p>
+    <p class="dek">Every prospect gets a <b>predicted distribution of realized value</b>, not a single rank — a two-part model: a <b>propensity</b> that he ever becomes an NBA player, and, if he does, his <b>availability × on-court quality</b>, measured in Marginal Plus Minus (mPM), over four seasons (a Gaussian copula over the two). Never sticking is a floor below the worst player who plays, so a likely-bust sinks beneath a mediocre-but-real rotation piece. Each row shows the outcome curve, the quality and availability pieces, and — for closed classes — where he <b>actually</b> landed. <b>Open any prospect</b> for his scouting rubric and a <b>career trajectory</b> — rookie, four-year, and peak mPM drawn as a banded arc. Out-of-fold, leakage-free.</p>
     <div class="strip" id="strip"></div>
   </header>
 
@@ -341,7 +346,7 @@
     <span><i class="sw iqr"></i> middle 50% (p25–p75)</span>
     <span><i style="width:2.5px;height:14px;background:var(--amber);display:inline-block;border-radius:2px"></i> median</span>
     <span><i class="swd"></i> actual outcome</span>
-    <span><i style="width:2.5px;height:14px;background:var(--amber);display:inline-block;border-radius:2px"></i>/<i style="width:2.5px;height:14px;background:var(--jade);display:inline-block;border-radius:2px"></i> offensive / defensive impact (4yr)</span>
+    <span><i style="width:2.5px;height:14px;background:var(--amber);display:inline-block;border-radius:2px"></i>/<i style="width:2.5px;height:14px;background:var(--jade);display:inline-block;border-radius:2px"></i> offensive / defensive mPM (4yr)</span>
   </div>
 
   <div class="riskbar">
@@ -356,7 +361,7 @@
   <div class="rowhead">
     <div class="r">Rk</div><div>Prospect</div>
     <div>Realized value — outcome curve</div>
-    <div class="h-q">Quality · R/4/P · <span style="color:var(--amber)">Off</span>/<span style="color:var(--jade)">Def</span></div><div class="h-a">Availability</div>
+    <div class="h-q">mPM · R/4/P · <span style="color:var(--amber)">Off</span>/<span style="color:var(--jade)">Def</span></div><div class="h-a">Availability</div>
     <div class="h-p r">vs pick</div>
   </div>
   <div class="board" id="board"></div>
@@ -471,7 +476,8 @@ document.getElementById('gen').textContent='Generated '+DATA.generated;
 /* ---- domains ---- */
 const VD = DATA.value_domain;                       // realized-value violin
 let aMax=0, qLo=0, qHi=0;                            // availability + quality (all horizons)
-for(const y of DATA.years) for(const p of DATA.classes[y].players){
+if(DATA.dom){ aMax=DATA.dom.aMax; qLo=DATA.dom.qLo; qHi=DATA.dom.qHi; }
+else for(const y of DATA.years) for(const p of DATA.classes[y].players){
   if(p.a && p.a[Q90]!=null) aMax=Math.max(aMax,p.a[Q90]);
   for(const key of ['r','q','k','o','d']){ const f=p[key];
     if(f){ if(f[Q10]!=null) qLo=Math.min(qLo,f[Q10]); if(f[Q90]!=null) qHi=Math.max(qHi,f[Q90]); } }
@@ -495,6 +501,11 @@ function wireRow(row, label){
   row.setAttribute('aria-expanded','false');
   if(label) row.setAttribute('aria-label', label);
   const toggle = () => {
+    // the detail panel (career arc, market, rubric) is built on first open, not with the
+    // row: building all 210 up front froze a phone for 2.3s (Lighthouse, 2026-09-27)
+    if(!row.classList.contains('open') && row._lazy){
+      const d=row.querySelector(':scope > .detail'); if(d) d.outerHTML=row._lazy(); row._lazy=null;
+    }
     row.classList.toggle('open');
     row.setAttribute('aria-expanded', row.classList.contains('open') ? 'true' : 'false');
   };
@@ -676,7 +687,7 @@ function arc(p, showActual){
   }
 
   return `<div class="arc-wrap">
-    <div class="arc-hd"><span class="arc-t">Career trajectory<small>projected realized value · wins per season</small></span>
+    <div class="arc-hd"><span class="arc-t">Career trajectory<small>projected realized value · Marginal WAR (mWAR) per season</small></span>
       <span class="arc-lg"><i class="sw out"></i>p${_QL[QLO]}–${_QL[QHI]}<i class="sw span"></i>p10–90<i class="sw iqr"></i>p25–75<i class="dsh"></i>median${showActual?'<i class="dia"></i>actual':''}${hasSE?'<i class="setk"></i>±1 SE (model)':''}</span></div>
     <svg width="100%" viewBox="0 0 ${W} ${H}" class="arc" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Projected realized value per season">
       ${grid}
@@ -1088,11 +1099,11 @@ function detail(p, showActual, year){
   if(p.comp!=null) bio.push(['Competition strength', p.comp]);
   if(p.pp!=null) bio.push(['P(becomes NBA player)', `${Math.round(p.pp*100)}%`]);
   bio.push(['Realized value · p10/p50/p90', fan3(p.v,p.xv)]);
-  bio.push(['Rookie-year quality', fan3(p.r,p.xr)]);
-  bio.push(['4-year quality', fan3(p.q,p.xq)]);
-  bio.push(['Offensive impact · 4yr', fan3(p.o,p.xo)]);
-  bio.push(['Defensive impact · 4yr', fan3(p.d,p.xd)]);
-  bio.push(['Peak quality', fan3(p.k,p.xk)]);
+  bio.push(['Rookie-year mPM', fan3(p.r,p.xr)]);
+  bio.push(['4-year mPM', fan3(p.q,p.xq)]);
+  bio.push(['Offensive mPM · 4yr', fan3(p.o,p.xo)]);
+  bio.push(['Defensive mPM · 4yr', fan3(p.d,p.xd)]);
+  bio.push(['Peak mPM', fan3(p.k,p.xk)]);
   bio.push(['Availability (if he plays)', fan3(p.a,p.xa)]);
   const facts='<dl class="facts">'+bio.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')+'</dl>';
   return `<div class="detail">${arc(p, showActual)}${market(p, year, showActual)}${rub}${facts}</div>`;
@@ -1174,7 +1185,7 @@ function render(year){
     }
     row.innerHTML=
       `<div class="rk">${p._rr}</div>`+
-      `<div class="who"><div class="nm">${p.nm}</div><div class="meta">${LEAGUE[p.lg]||p.lg||''}`+
+      `<div class="who"><div class="nm">${window.MPAV?window.MPAV(p.id):''}${p.nm}</div><div class="meta">${LEAGUE[p.lg]||p.lg||''}`+
         (p.age!=null?`<span class="dot">·</span>${p.age}y`:'')+
         (p.pp!=null?`<span class="dot">·</span>P(NBA) ${Math.round(p.pp*100)}%`:'')+
         (p.pk!=null&&!fwd?`<span class="dot">·</span>pick ${p.pk}`:'')+`</div></div>`+
@@ -1182,7 +1193,7 @@ function render(year){
       `<div class="qcell">${qhz(p, !fwd)}${odsplit(p, !fwd)}</div>`+
       `<div class="acell">${fan(p.a, fwd?null:p.xa, AD, 88,'a')}</div>`+
       `<div class="pcell cell-cap">${cap}</div>`+
-      detail(p, !fwd, year);
+      '<div class="detail"></div>'; row._lazy=()=>detail(p, !fwd, year);
     wireRow(row, `${p.nm} — open prospect detail`);
     board.appendChild(row);
   });
@@ -1233,7 +1244,7 @@ function renderAll(){
       : (p.ar!=null?`<b>#${p.ar}</b><span class="sm">${yy} actual</span>`:`<span class="sm">${yy}${p.pk!=null?' · pk '+p.pk:''}</span>`);
     row.innerHTML=
       `<div class="rk">${p._rr}</div>`+
-      `<div class="who"><div class="nm">${p.nm}</div><div class="meta">${LEAGUE[p.lg]||p.lg||''}`+
+      `<div class="who"><div class="nm">${window.MPAV?window.MPAV(p.id):''}${p.nm}</div><div class="meta">${LEAGUE[p.lg]||p.lg||''}`+
         (p.age!=null?`<span class="dot">·</span>${p.age}y`:'')+
         `<span class="dot">·</span>class ${yr}`+
         (p.pk!=null?`<span class="dot">·</span>pick ${p.pk}`:'')+`</div></div>`+
@@ -1241,7 +1252,7 @@ function renderAll(){
       `<div class="qcell">${qhz(p,showA)}${odsplit(p,showA)}</div>`+
       `<div class="acell">${fan(p.a, fwd?null:p.xa, AD, 88,'a')}</div>`+
       `<div class="pcell cell-cap">${pcell}</div>`+
-      detail(p, showA, yr);
+      '<div class="detail"></div>'; row._lazy=()=>detail(p, showA, yr);
     wireRow(row, `${p.nm} — open prospect detail`);
     board.appendChild(row);
   });
@@ -1251,13 +1262,13 @@ function renderAll(){
 const ybox=document.getElementById('years');
 const allBtn=document.createElement('button');
 allBtn.className='yr all'; allBtn.dataset.y='ALL'; allBtn.textContent='ALL-TIME';
-allBtn.setAttribute('aria-pressed','false'); allBtn.onclick=()=>renderAll();
+allBtn.setAttribute('aria-pressed','false'); allBtn.onclick=()=>need(DATA.years).then(()=>renderAll());
 ybox.appendChild(allBtn);
 DATA.years.slice().reverse().forEach(y=>{
   const b=document.createElement('button');
   b.className='yr'+(DATA.forward_years.includes(y)?' fwd':'');
   b.dataset.y=y; b.textContent=y; b.setAttribute('aria-pressed','false');
-  b.onclick=()=>render(y);
+  b.onclick=()=>need([y]).then(()=>render(y));
   ybox.appendChild(b);
 });
 
@@ -1276,9 +1287,22 @@ document.body.appendChild(defs);
    computed on first use, not at load: averaging over contract terms made the whole
    board several seconds of work, and a reader opens one class at a time. */
 REF_YEAR = Math.max.apply(null, DATA.years.map(Number));
-const ALL_PLAYERS = [];
-(function(){ const NU=40, M=DATA.market, REF=M.cap[String(REF_YEAR)]||0;
-  DATA.years.forEach(y=>{ const yr=+y, capE=M.cap[String(yr)]||0;
+const ALL_PLAYERS = [], _PREP = new Set();
+// PAST CLASSES ON DEMAND. The published board carries only the classes it opens on; each
+// other year is fetched when its button is pressed (DATA.class_src, written by
+// site_build.py), because 6.4 MB of data inline kept a phone waiting nine seconds for the
+// first class. A standalone build carries every class inline and need() returns at once.
+const _LOAD = {};
+function need(ys){
+  return Promise.all(ys.map(y=>{ y=String(y);
+    if(DATA.classes[y] && DATA.classes[y].players){ prep(y); return null; }
+    return _LOAD[y] || (_LOAD[y]=fetch(DATA.class_src.replace('{y}',y)).then(r=>r.json())
+      .then(j=>{ DATA.classes[y]=j; prep(y); }));
+  }));
+}
+function prep(y){ if(_PREP.has(String(y))) return; _PREP.add(String(y));
+  const NU=40, M=DATA.market, REF=M.cap[String(REF_YEAR)]||0;
+  [y].forEach(y=>{ const yr=+y, capE=M.cap[String(yr)]||0;
     DATA.classes[String(y)].players.forEach(p=>{
       p._year=yr; let c=null;
       const get=()=>{ if(!c){ p._m=seasonMult(p); c={path:[], vu:[], vua:[]};
@@ -1289,7 +1313,8 @@ const ALL_PLAYERS = [];
       Object.defineProperty(p,'_VuA',{get:()=>get().vua});
       ALL_PLAYERS.push(p);
     }); });
-})();
+}
+DATA.years.forEach(y=>{ if(DATA.classes[String(y)] && DATA.classes[String(y)].players) prep(y); });
 
 /* ---- risk-stance sliders: CRRA γ (aversion) and B (regularizing floor) ---- */
 (function(){
