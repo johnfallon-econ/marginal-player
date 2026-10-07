@@ -86,8 +86,8 @@ is therefore not perfectly era-consistent at the margin. The forecast mPM, which
 the value board and the trade tool actually price, uses the lean prior throughout and is not
 affected.</p>
 
-<p>The resulting panel is <strong>13,988 player-seasons</strong> covering
-2,390 players from 1996-97 to 2025-26.</p>
+<p>The resulting panel is <strong>13,991 player-seasons</strong> covering
+2,391 players from 1996-97 to 2025-26.</p>
 
 <h2>2. Wins: a linear probability model</h2>
 
@@ -99,16 +99,16 @@ minutes-weighted mPM differential of the players who actually appeared:</p>
 
 <p>Each of the five floor slots covers 2,880 seconds of a 48-minute game, so
 <em>X<sub>g</sub></em> is the expected home margin implied by who played. Estimated on
-<strong>37,895 games</strong>:</p>
+<strong>37,975 games</strong>:</p>
 
 <div class="stats">
-  <div><span class="sv">0.0453</span><span class="sl">β̂ — win probability per point of expected margin (se 0.00044)</span></div>
+  <div><span class="sv">0.0454</span><span class="sl">β̂ — win probability per point of expected margin (se 0.00044)</span></div>
   <div><span class="sv">0.586</span><span class="sl">α̂ — home win probability at zero differential</span></div>
   <div><span class="sv">0.178</span><span class="sl">R² — single games are mostly noise, as expected</span></div>
 </div>
 
 <p>The R² of 0.18 is not a weakness. A single NBA game is close to a coin flip;
-what is being estimated is the slope, and with 37,895 games it is pinned tightly
+what is being estimated is the slope, and with 37,975 games it is pinned tightly
 — β̂ is roughly 102 standard errors from zero. Value accrues over
 a season, where the noise averages out.</p>
 
@@ -127,7 +127,7 @@ they are <strong>censored on both sides</strong>: the collective bargaining agre
 individual pay, so a fifteen-win superstar earns the maximum rather than his worth, and the
 minimum props up the bottom. Ordinary least squares on observed pay therefore underprices
 exactly the players the question is about — the naïve slope is 0.0151 cap
-share per win, against 0.0673 here.</p>
+share per win, against 0.0668 here.</p>
 
 <p>Treat both bounds as censoring and estimate the latent curve by full-information maximum
 likelihood:</p>
@@ -169,17 +169,17 @@ does not require teams to be right about the player, only to be willing.</p>
 
 <p>This is what produces the headline result. The cap-constrained rate — what teams actually
 pay, censoring and all — is 0.0228 of the cap per win. The free-market rate is
-0.0673, a <strong>2.96× premium</strong>. Every market value,
+0.0668, a <strong>2.93× premium</strong>. Every market value,
 every surplus figure and every trade verdict on this site is denominated at the free-market
 rate, and the section below on superstar value follows directly from it. A reader who rejects
-the tax-censoring argument should read all of those numbers as roughly 3.0
+the tax-censoring argument should read all of those numbers as roughly 2.9
 times too large.</p>
 
 <p>Sample: 1999-2025, new deals, svc>=4.</p>
 
 <div class="stats">
-  <div><span class="sv">0.0108</span><span class="sl">â — intercept, the replacement floor</span></div>
-  <div><span class="sv">0.0673</span><span class="sl">b̂ — cap share per win</span></div>
+  <div><span class="sv">0.0109</span><span class="sl">â — intercept, the replacement floor</span></div>
+  <div><span class="sv">0.0668</span><span class="sl">b̂ — cap share per win</span></div>
   <div><span class="sv">-0.00030</span><span class="sl">ĉ — curvature (concave at this estimate)</span></div>
   <div><span class="sv">0.347</span><span class="sl">σ̂ — residual dispersion</span></div>
   <div><span class="sv">2,542</span><span class="sl">contracts</span></div>
@@ -190,15 +190,15 @@ because a team cannot be paid to hold a roster spot. Negative <em>surplus</em> i
 possible and is where the interesting players are.</p>
 
 <p><strong>The curvature term is not statistically significant, and the page should say so.</strong>
-Its 95% interval is [-0.00189, 0.00272], straddling zero, with
-P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.36. The point estimate is mildly concave: each additional win is priced a little below the one before, so at twenty wins the curve sits 12.1% of the cap below a straight line with the same slope. The term was introduced as a star premium, on two lines of outside evidence that still lean convex — roster-slot scarcity, and stars outperforming their total win contribution in the playoffs — but the fit itself no longer does — and a reader who prefers the linear curve is not
+Its 95% interval is [-0.00187, 0.00290], straddling zero, with
+P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.39. The point estimate is mildly concave: each additional win is priced a little below the one before, so at twenty wins the curve sits 11.8% of the cap below a straight line with the same slope. The term was introduced as a star premium, on two lines of outside evidence that still lean convex — roster-slot scarcity, and stars outperforming their total win contribution in the playoffs — but the fit itself no longer does — and a reader who prefers the linear curve is not
 arguing against the data.</p>
 
 <h2>Why the best players' value exceeds any contract</h2>
 
 <p>Put the three steps together and a result falls out that looks like an error and is not.
-On the open market a win costs 0.0673 of the cap, so a twenty-win season is worth about
-124% of it, while no individual salary may exceed 35%. A
+On the open market a win costs 0.0668 of the cap, so a twenty-win season is worth about
+123% of it, while no individual salary may exceed 35%. A
 superstar's estimated market value can therefore exceed his team's entire payroll ceiling. The
 curvature term does not produce this; the slope does.</p>
 
@@ -235,7 +235,7 @@ is silently one-sided — it is the backward window wearing the label estimator'
 playing time is fully realized; its mPM simply has less evidence behind it. Measured on
 players at 10+ minutes per game, the most recent season carries about 16% more
 standard error than an interior season and shrinks about 18% harder toward the
-box-score prior (0.47 against 0.40).</p>
+box-score prior (0.46 against 0.39).</p>
 
 <p>Read the newest season's mPM as provisional. They firm up as the seasons after them
 arrive and the window fills in on both sides — which also means a player's value for a given

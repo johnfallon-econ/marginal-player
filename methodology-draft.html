@@ -119,7 +119,7 @@ prospects at $0, top-five picks returned more than projected and second-rounders
 table below shows the result after the fix, by pick range). An isotonic map from a
 prospect-season's projected price to what prospect-seasons projected at that price
 actually returned corrects it. Each outcome's price that season is scaled to match, so
-the outcomes keep their order. The map is convex &mdash; a season projected at 33% of the cap maps to 47%, one
+the outcomes keep their order. The map is convex &mdash; a season projected at 33% of the cap maps to 48%, one
 at 10% to 13%, one at 1% to 0.6% &mdash; and it applies to dollars; the career-trajectory chart shows the model's
 wins before either correction.</p>
 
@@ -139,12 +139,12 @@ seasons). From the deal's second season the club holds him with a probability fi
 every drafted player since 1999 (logit on the previous season's wins, round, slot and
 contract season): 89% of lottery picks are still held in the
 deal's fourth season, 91% of second-rounders in its third. Log
-loss out of sample 0.189 against a base rate's 0.267.</li>
+loss out of sample 0.190 against a base rate's 0.267.</li>
 <li><strong>Re-signing.</strong> At each deal's end (the rookie deal's, then every four seasons) the club
 keeps him with a probability fitted on what happened at real contract ends: after the
 rookie deal on the player's own panel (restricted free agency keeps
-94% of players worth 5&ndash;10 Marginal WAR (mWAR); log loss
-0.543 against a base rate's 0.693), later deals on the ledger's contract ends, with an
+92% of players worth 5&ndash;10 Marginal WAR (mWAR); log loss
+0.542 against a base rate's 0.693), later deals on the ledger's contract ends, with an
 extension counted as the deal ending in a re-signing (log loss
 0.595 against a base rate's 0.655).</li>
 <li><strong>A trade keeps the value.</strong> A club that trades him was paid for him, so
@@ -183,24 +183,24 @@ season as each class's record (season 10 to 19).</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Picks</th><th>Value to club, predicted</th><th>Realized</th>
 <th>After the rookie deal, predicted</th><th>Realized</th><th>Kept past the rookie deal, predicted</th><th>Realized</th></tr></thead>
-<tbody><tr><td>1-5</td><td>$94.7M</td><td>$93.4M</td><td>$50.8M</td><td>$39.4M</td><td>56%</td><td>74%</td></tr><tr><td>6-14</td><td>$61.1M</td><td>$58.4M</td><td>$31.7M</td><td>$25.2M</td><td>46%</td><td>51%</td></tr><tr><td>15-30</td><td>$32.0M</td><td>$32.6M</td><td>$13.9M</td><td>$13.0M</td><td>31%</td><td>41%</td></tr><tr><td>31-60</td><td>$10.5M</td><td>$9.9M</td><td>$5.5M</td><td>$4.6M</td><td>26%</td><td>36%</td></tr></tbody></table></div>
+<tbody><tr><td>1-5</td><td>$94.4M</td><td>$92.3M</td><td>$50.3M</td><td>$38.4M</td><td>56%</td><td>74%</td></tr><tr><td>6-14</td><td>$60.8M</td><td>$57.8M</td><td>$31.6M</td><td>$24.7M</td><td>46%</td><td>51%</td></tr><tr><td>15-30</td><td>$31.7M</td><td>$32.2M</td><td>$13.8M</td><td>$12.8M</td><td>31%</td><td>41%</td></tr><tr><td>31-60</td><td>$10.4M</td><td>$9.8M</td><td>$5.4M</td><td>$4.6M</td><td>26%</td><td>36%</td></tr></tbody></table></div>
 
 <p><strong>Ranking the lottery</strong>, where the decision is and where re-signing value
-sits: within-class Spearman with realized value to the club is 0.430, against
-0.403 for the same valuation stopped at the rookie deal and 0.218 for
+sits: within-class Spearman with realized value to the club is 0.431, against
+0.426 for the same valuation stopped at the rookie deal and 0.221 for
 draft order (139 lottery picks). The whole career beats the rookie deal alone by
-+0.027 a class, a 90% class-bootstrap interval of -0.020 to
-+0.076 &mdash; not distinguishable from a tie &mdash; and draft order by
-+0.212 (+0.115 to +0.314), better in 9 of
-10 classes. Over every drafted player (595) the figures are 0.466,
-0.492 and 0.451. Mostly, the longer horizon gets the <em>level</em>
++0.006 a class, a 90% class-bootstrap interval of -0.050 to
++0.064 &mdash; not distinguishable from a tie &mdash; and draft order by
++0.211 (+0.121 to +0.302), better in 9 of
+10 classes. Over every drafted player (595) the figures are 0.465,
+0.492 and 0.449. Mostly, the longer horizon gets the <em>level</em>
 right and does not yet rank better: whether a given star re-signs is close to a coin flip,
 and that noise dilutes a ranking as much as the extra value informs it.</p>
 
 <p>What is still off: the very top of the draft. Top-five picks are kept past their rookie
 deal less often than they really are (56% predicted, 74%
-realized) but are valued higher once kept ($50.8M against
-$39.4M); the two partly offset, and the rest of the lottery is kept
+realized) but are valued higher once kept ($50.3M against
+$38.4M); the two partly offset, and the rest of the lottery is kept
 about as often as it really is (46% and 51%). The realized side is measured in this site's own units (its wins, its price curve), so this is
 a test of the board's internal consistency with its own record, not against an outside
 measure of value.</p>
