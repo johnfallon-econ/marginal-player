@@ -91,8 +91,20 @@ header .sub b{color:var(--amber-soft);font-weight:600}
   color:var(--amber-soft)}
 
 /* verdict band */
-.verdict{position:sticky;top:0;z-index:30;background:var(--ground);
+/* not pinned: with two teams' cards it filled half a laptop screen and nearly all of a phone */
+.verdict{background:var(--ground);
   padding:10px 0 12px;border-bottom:1px solid var(--line);margin-bottom:16px}
+/* the mini scorecard, shown once the band is scrolled past: in the left margin on a bigger
+   screen (the page shifts right where the margin is too narrow), a one-line bar on a phone */
+#vmini{display:none;position:fixed;z-index:30;background:var(--panel);border:1px solid var(--line);
+  font-variant-numeric:tabular-nums;cursor:pointer;left:12px;top:50%;transform:translateY(-50%);
+  width:150px;border-radius:8px;padding:10px 12px;font-size:13px}
+.vmini-on #vmini{display:block}
+#vmini .mrow{display:flex;gap:8px;padding:2px 0} #vmini .mrow span{flex:1;color:var(--muted)}
+#vmini b{font-family:var(--mono);font-weight:600} #vmini b.pos{color:var(--pos)} #vmini b.neg{color:var(--neg)}
+@media(min-width:641px) and (max-width:1503px){.vmini-on .wrap{padding-left:182px}}
+@media(max-width:640px){#vmini{left:0;right:0;top:0;width:auto;transform:none;border-radius:0;
+  border-width:0 0 1px;padding:6px 16px;font-size:12px} .vmini-on #vmini{display:flex;flex-wrap:wrap;gap:4px 16px}}
 .vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .vcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
 .vcard .who{font-size:12px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
@@ -188,7 +200,7 @@ header .sub b{color:var(--amber-soft);font-weight:600}
 .nm a.plink{color:inherit;text-decoration:none}.nm a.plink:hover{text-decoration:underline}
 .tvrow .tm,.tvrow .ag{color:var(--muted)}
 .tvrow .deal{color:var(--faint);font-size:12px;white-space:nowrap}
-/* a pick's landing and trade history: a dialog, since pick rows sit below the sticky band */
+/* a pick's landing and trade history: a dialog, since pick rows sit below the verdict band */
 .pklink{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 .pklink:hover,.pklink:focus-visible{color:var(--amber)}
 .pkov{position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:10000;display:flex;
@@ -209,7 +221,7 @@ header .sub b{color:var(--amber-soft);font-weight:600}
 .pkbox .note{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5}
 .pkbox .tag{font-size:12px;color:var(--muted)}
 .pkbox .pksec+.pksec{margin-top:18px;padding-top:12px;border-top:1px solid var(--line)}
-/* the accounting behind "minutes reallocated": a panel below the sticky verdict band */
+/* the accounting behind "minutes reallocated": a panel below the verdict band */
 .acbtn{background:none;border:0;padding:0;margin-top:6px;font:inherit;font-size:12px;color:var(--amber);
   cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .acctp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:0 0 16px;font-size:12.5px}
@@ -287,7 +299,8 @@ header .sub b{color:var(--amber-soft);font-weight:600}
 </div>
 
 <div class="modenote" id="modenote"></div>
-<div class="verdict"><div class="vgrid" id="vgrid"></div></div>
+<div class="verdict" id="verdict"><div class="vgrid" id="vgrid"></div></div>
+<div id="vmini" role="button" tabindex="0" aria-label="Scorecard: back to the full verdict"></div>
 <div id="acctp" class="acctp" hidden></div>
 <div id="pkov" class="pkov" hidden><div class="pkbox" id="pkbox" role="dialog" aria-modal="true" aria-label="Pick history"></div></div>
 
@@ -650,7 +663,7 @@ const a=v.acct,nm=id=>{const p=byId[id];return p?pname(p):id;};const cls=x=>Math
       <div class="tot"><span>= ${label}${a.kMin!==1?', before weighting':''}</span><b class="${cls(v.minsRaw)}">${fmt(v.minsRaw)}</b></div>
       ${a.kMin!==1?`<div><span>× minutes weight ${a.kMin.toFixed(2)}</span><b class="${cls(v.mins)}">${fmt(v.mins)}</b></div>`:''}
     </div>`;}
-$('vgrid').addEventListener('click',e=>{const b=e.target.closest('[data-acct]');if(!b)return;ACCT_K=ACCT_K===b.dataset.acct?null:b.dataset.acct;render();if(ACCT_K)$('acctp').scrollIntoView({behavior:'smooth',block:'nearest'});});$('acctp').addEventListener('click',e=>{if(e.target.closest('.acx')){ACCT_K=null;render();}});function render(){$('build').innerHTML=TEAMS.map(k=>`<div class="side" id="side${k}"></div>`).join('');TEAMS.forEach(renderSide);const useT=$('teq').checked,useTax=$('taxck').checked;const both=(YEAR!=='current'&&VIEW==='both');if(both){const rp=evaluateAs('asof');const rr=evaluateAs('retro');ACCT=rp;$('vgrid').innerHTML=TEAMS.map(k=>{const np=netOf(rp[k],useT),nr=netOf(rr[k],useT),gap=nr-np;const mag=Math.min(Math.max(Math.abs(np),Math.abs(nr))/250,1);const agree=(np>=0)===(nr>=0);const verdict=agree?(np>=0?'sound call, and it worked':'bad call, and it showed'):(np>=0?'defensible call that did not work out':'poor call that got away with it');const a=rp[k],b=rr[k];const cmp=(label,x,y)=>(Math.abs(x)<0.5&&Math.abs(y)<0.5)?'':`<div class="vrow3"><span>${label}</span>
+$('vgrid').addEventListener('click',e=>{const b=e.target.closest('[data-acct]');if(!b)return;ACCT_K=ACCT_K===b.dataset.acct?null:b.dataset.acct;render();if(ACCT_K)$('acctp').scrollIntoView({behavior:'smooth',block:'nearest'});});$('acctp').addEventListener('click',e=>{if(e.target.closest('.acx')){ACCT_K=null;render();}});new IntersectionObserver(([e])=>document.body.classList.toggle('vmini-on',!e.isIntersecting&&e.boundingClientRect.bottom<0)).observe($('verdict'));$('vmini').onclick=$('vmini').onkeydown=e=>{if(e.key&&e.key!=='Enter')return;$('verdict').scrollIntoView({behavior:'smooth'});};function render(){$('build').innerHTML=TEAMS.map(k=>`<div class="side" id="side${k}"></div>`).join('');TEAMS.forEach(renderSide);const useT=$('teq').checked,useTax=$('taxck').checked;const both=(YEAR!=='current'&&VIEW==='both');const mini=[];if(both){const rp=evaluateAs('asof');const rr=evaluateAs('retro');ACCT=rp;$('vgrid').innerHTML=TEAMS.map(k=>{const np=netOf(rp[k],useT),nr=netOf(rr[k],useT),gap=nr-np;mini.push([S[k].tm,np,nr]);const mag=Math.min(Math.max(Math.abs(np),Math.abs(nr))/250,1);const agree=(np>=0)===(nr>=0);const verdict=agree?(np>=0?'sound call, and it worked':'bad call, and it showed'):(np>=0?'defensible call that did not work out':'poor call that got away with it');const a=rp[k],b=rr[k];const cmp=(label,x,y)=>(Math.abs(x)<0.5&&Math.abs(y)<0.5)?'':`<div class="vrow3"><span>${label}</span>
            <b class="${x>=0?'pos':'neg'}">${fmt(x)}</b>
            <b class="${y>=0?'pos':'neg'}">${fmt(y)}</b></div>`;return`<div class="vcard"><div class="who">${k} · ${S[k].tm}</div>
         <div class="vrow3 vhead"><span></span><span>process</span><span>realized</span></div>
@@ -677,7 +690,7 @@ $('vgrid').addEventListener('click',e=>{const b=e.target.closest('[data-acct]');
        it sent were projected to give it, and the rest of the roster's reallocation is the
        forecast's. The difference between the columns is therefore what the arrivals did, and
        what the rights to them turned out to be worth.</div>`;}
-const r=both?null:evaluate();if(!both)ACCT=r;drawAcct();if(!both)$('vgrid').innerHTML=TEAMS.map(k=>{const v=r[k],net=v.pl+v.pk+(useT?v.eq:0);const mag=Math.min(Math.abs(net)/250,1);return`<div class="vcard"><div class="who">${k} · ${S[k].tm} nets</div>
+const r=both?null:evaluate();if(!both)ACCT=r;drawAcct();if(!both)$('vgrid').innerHTML=TEAMS.map(k=>{const v=r[k],net=v.pl+v.pk+(useT?v.eq:0);mini.push([S[k].tm,net]);const mag=Math.min(Math.abs(net)/250,1);return`<div class="vcard"><div class="who">${k} · ${S[k].tm} nets</div>
       <div class="net ${net>=0?'pos':'neg'}">${fmt(net)}</div>
       ${(YEAR==='current'||VIEW==='asof')?bandRow(v,useT):''}
       <div class="vrow"><span>players acquired − sent</span><b class="${v.direct>=0?'pos':'neg'}">${fmt(v.direct)}</b></div>
@@ -692,7 +705,8 @@ const r=both?null:evaluate();if(!both)ACCT=r;drawAcct();if(!both)$('vgrid').inne
     </div>`;}).join('')+
 (useTax?`<div class="taxnote">Financial footnote (owner’s ledger, not wins): ${TEAMS.map(k=>
       r[k].tax==null?`${S[k].tm}tax n/a`:`${S[k].tm}tax bill ${r[k].tax>=0?'rises':'falls'}<b>${fmt(Math.abs(r[k].tax))}</b>`).join(' · ')}
-      — excluded from the verdict: above the cap, saved money doesn’t buy wins unless reinvested.</div>`:'');$('foot').innerHTML=`<b>Method.</b> Player surplus = Σ<sub>h</sub> market-price(mWAR<sub>h</sub>)·cap<sub>h</sub> − salary,
+      — excluded from the verdict: above the cap, saved money doesn’t buy wins unless reinvested.</div>`:'');$('vmini').innerHTML=mini.map(([tm,...v])=>`<div class="mrow"><span>${tm}</span>${
+    v.map(x=>`<b class="${x>=0?'pos':'neg'}">${fmt(x)}</b>`).join(' ')}</div>`).join('');$('foot').innerHTML=`<b>Method.</b> Player surplus = Σ<sub>h</sub> market-price(mWAR<sub>h</sub>)·cap<sub>h</sub> − salary,
    accrued only over REAL contract years (bbref multi-year deals; “(est)” = flat current salary where no contract data);
    after expiry, re-signing rights: P(re-signs with the club holding him) × his value above his expected pay — the max for his
    years of service with P(a max deal), otherwise what players like him re-sign for — negative in a season he is worth less — over the rest of his career to age 40 &mdash; a chain of 4-season deals, each re-signed with a fresh probability (realized: every season he went on to play there). mPM ages on the delta-method curve; durability &lt;75%
