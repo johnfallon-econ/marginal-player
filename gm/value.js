@@ -27,16 +27,18 @@ export function surplus(p, capOf, K, disc = 0.1) {
   return (p.contract?.years || []).reduce((a, y, i) => a + (marketValue(p, i, capOf(y.s), K) - y.sal) / (1 + disc) ** i, 0);
 }
 
-// What a free agent asks: the Trade Lab's deal rule (trade_tool_template.html pMax/nmShare, fit on
-// real re-signings in _retention_draft.py) -- the max with P(max | WAR, age, first contract), else
-// the share of the cap players like him signed for. `u` is his draw, fixed for the summer, that
-// decides whether he is a max man; the term is by age.
+// What a free agent asks (K.pay, _gm_pay.py, fit on every real new deal 2015-24): the max with
+// P(max | rating, minutes, age), else a share of the cap from his rating, last season's minutes per
+// game played and games, age and whether he is coming off his first contract -- never under his
+// minimum. `u` is his draw, fixed for the summer, that decides whether he is a max man; the term is
+// by age. A man with no NBA season yet is taken at the minutes his rating usually earns.
 export function ask(p, f, K, u = 0.5) {
-  const w = war(p, 0, K), first = p.yos <= 4, sw = Math.sqrt(Math.max(w, 0));
-  const lin = (c) => c.a + c.war * w + c.sqrt_war * sw + c.first * (first ? 1 : 0) + (c.age_28 || 0) * (p.age - 28) + (c.age_over_32 || 0) * Math.max(p.age - 32, 0);
-  const mx = maxSalary(p.yos, f, p.prior * 1e6 || 0), pMax = 1 / (1 + Math.exp(-lin(K.maxdeal)));
-  const share = Math.min(Math.max(lin(K.nonmax), K.nonmax.min_share), mx / f.cap);
-  const sal = u < pMax ? mx : Math.max(share * f.cap, minSalary(p.yos, f.cap));
+  const l = p.log?.findLast((x) => x.gp > 0), mpg = l ? l.mpg : mpgFor(p.rate, K) / (p.av ?? 0.9), gp = l ? l.gp : 82 * (p.av ?? 0.9);
+  const x = { const: 1, rating: p.rate, rating_pos2: Math.max(p.rate, 0) ** 2, log_mpg: Math.log(Math.max(mpg, 1)), gp_82: gp / 82,
+    age_28: p.age - 28, age_over_32: Math.max(p.age - 32, 0), first: p.yos <= 4 ? 1 : 0 };
+  const lin = (c) => Object.entries(c).reduce((a, [k, v]) => a + v * x[k], 0);
+  const mx = maxSalary(p.yos, f, p.prior * 1e6 || 0), pMax = 1 / (1 + Math.exp(-lin(K.pay.maxdeal)));
+  const sal = u < pMax ? mx : Math.min(Math.max(lin(K.pay.nonmax) * f.cap, minSalary(p.yos, f.cap)), mx);
   const years = p.age <= 27 ? 4 : p.age <= 30 ? 3 : p.age <= 32 ? 2 : 1;
   return { sal: Math.round(sal), years, max: u < pMax };
 }

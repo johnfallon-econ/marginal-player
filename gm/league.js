@@ -431,7 +431,7 @@ export function faDay(G, r, user = {}, human = G.user) {
   }
   for (const o of user.offers || []) if (G.fa.includes(o.pid)) (offers[o.pid] ||= []).push(o);
   for (const [pid, os] of Object.entries(offers)) {
-    const p = P[pid], need = askOf(G, p, F).sal * Math.max(0.5, 1 - 0.03 * day);
+    const p = P[pid], need = askOf(G, p, F).sal * (1 - 0.03 * day);
     const top = os.filter((o) => o.sal >= need).sort((a, b) => b.sal * b.years - a.sal * a.years)[0];
     if (!top) continue;
     const club = p.qo && rfaClub(pid);
@@ -468,7 +468,7 @@ function bestTarget(G, ab, day) {
     const p = P[id];
     if (p.qo && T.rfa?.includes(id)) continue;
     const a = askOf(G, p, F), v = teamValue(G, ab, p);
-    if (v < a.sal * Math.max(0.5, 1 - 0.03 * day)) continue;
+    if (v < a.sal * (1 - 0.03 * day)) continue;
     // the most this club can offer him, and under which rule
     const room = F.cap - capPay;
     const ways = [['room', room], ['ntmle', T.exc.ntmle], ['bae', T.exc.bae], ['tpmle', T.exc.tpmle], ['roomMle', T.exc.roomMle], ['min', C.minSalary(p.yos, F.cap)]];
