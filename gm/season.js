@@ -96,14 +96,19 @@ export const net = (players, maxMpg) => {
   return players.reduce((a, p, i) => a + p.play * m[i] / 48, 0);
 };
 
-// Injury spells: a two-state chain per player, spells averaging SPELL games, whose share of
-// games missed equals 1 - av (the Trade Lab's availability).
-const SPELL = 8;
-function injuries(p, n, r) {
+// Injury: a two-state chain of short spells averaging SPELL games, and now and then (K.longInj a
+// season, calibrate.js) one long injury of 20-82 games from a random night, so a season's games
+// missed have real seasons' long tail; the short spells make up the rest, so the share of games
+// missed is 1 - av (the Trade Lab's availability) on average either way.
+const SPELL = 8, LONG = [20, 82];
+const LONG_SHARE = (() => { let a = 0, n = 0; for (let st = 0; st < 82; st++) for (let l = LONG[0]; l <= LONG[1]; l++) { a += Math.min(l, 82 - st); n++; } return a / n / 82; })();
+function injuries(p, n, r, q = 0) {
   const out = new Array(n).fill(false), miss = Math.min(Math.max(1 - (p.av ?? 0.9), 0), 0.95);
-  const toHurt = miss / ((1 - miss) * SPELL), heal = 1 / SPELL;
-  let hurt = r() < miss;
-  for (let g = 0; g < n; g++) { out[g] = hurt; hurt = hurt ? r() >= heal : r() < toHurt; }
+  if (r() < q) { const st = Math.floor(r() * n), l = LONG[0] + Math.floor(r() * (LONG[1] - LONG[0] + 1)); for (let g = st; g < Math.min(st + l, n); g++) out[g] = true; }
+  const ms = Math.max((miss - q * LONG_SHARE) / (1 - q * LONG_SHARE), 0);
+  const toHurt = ms / ((1 - ms) * SPELL), heal = 1 / SPELL;
+  let hurt = r() < ms;
+  for (let g = 0; g < n; g++) { out[g] ||= hurt; hurt = hurt ? r() >= heal : r() < toHurt; }
   return out;
 }
 
@@ -117,7 +122,7 @@ export function startSeason(league, season, r) {
   const { teams, players } = league, days = schedule(teams, season, r), hurt = {}, played = {}, rec = {};
   for (const ab in teams) {
     played[ab] = 0;
-    for (const id of teams[ab].roster) hurt[id] = injuries(players[id], 82, r);
+    for (const id of teams[ab].roster) hurt[id] = injuries(players[id], 82, r, league.const.longInj);
     rec[ab] = { w: 0, l: 0, h2h: {}, confW: 0, confL: 0, divW: 0, divL: 0 };
   }
   return { season, days, d: 0, hurt, played, record: rec, results: [], gp: {}, mins: {} };
@@ -126,7 +131,7 @@ export function simDays(league, st, r, to = st.days.length) {
   const { teams, players, const: K } = league;
   const strength = (ab) => {
     const g = st.played[ab]++;
-    const avail = teams[ab].roster.map((id) => players[id]).filter((p) => !(st.hurt[p.id] ??= injuries(p, 82, r))[g]), m = minutes(avail, K.maxMpg);
+    const avail = teams[ab].roster.map((id) => players[id]).filter((p) => !(st.hurt[p.id] ??= injuries(p, 82, r, K.longInj))[g]), m = minutes(avail, K.maxMpg);
     avail.forEach((p, i) => { if (m[i] > 0) { st.gp[p.id] = (st.gp[p.id] || 0) + 1; st.mins[p.id] = (st.mins[p.id] || 0) + m[i]; } });
     return avail.reduce((a, p, i) => a + p.play * m[i] / 48, 0);
   };

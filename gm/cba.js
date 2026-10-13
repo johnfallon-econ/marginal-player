@@ -207,10 +207,11 @@ export function maxIncoming(out, nOut, post, f) {
 
 // trade: { date, moves: [{ pid, from, to }], picks: [{ id, from, to }], cash: [{ from, to, amt }],
 //          tpe: { [team]: [{ pid, tpeIndex }] } }   -- absorb an incoming player into a TPE
-// Returns { ok, errors: [...], hardCaps: { team: 'apron1'|'apron2' }, newTpes: { team: [...] } }
+// Returns { ok, errors: [...], hardCaps: { team: 'apron1'|'apron2' }, newTpes: { team: [...] }, waive: { team: n } }
+// (waive: men a club must let go to get back under the roster limit)
 export function validateTrade(league, tr) {
   const s = seasonOf(tr.date), f = league.f[s], d = seasonDates(s), P = league.players;
-  const errors = [], hardCaps = {}, newTpes = {};
+  const errors = [], hardCaps = {}, newTpes = {}, waive = {};
   if (tr.date > d.deadline && tr.date <= d.end && !league.seasonOver)
     errors.push('the trade deadline has passed');
   const teams = [...new Set([...tr.moves.flatMap((m) => [m.from, m.to]),
@@ -268,7 +269,9 @@ export function validateTrade(league, tr) {
     const roster = T.roster.filter((id) => !out.some((m) => m.pid === id)).concat(inn.map((m) => m.pid));
     const std = roster.filter((id) => !P[id].contract.twoWay).length, tw = roster.length - std;
     const inSeason = tr.date >= d.opening && tr.date <= d.seasonEnd;
-    if (inSeason ? std > 15 : roster.length > 21) errors.push(`${ab} would carry ${inSeason ? std + ' standard contracts (15 max)' : roster.length + ' players (21 max)'}`);
+    // over the limit is not a bar: the club waives men to get back under as the trade completes
+    const over = inSeason ? std - 15 : roster.length - 21;
+    if (over > 0) waive[ab] = over;
     if (tw > 3) errors.push(`${ab} would carry ${tw} two-way players (3 max)`);
     // a standard TPE: one player out, less back (§6(j)(1)(i)); never for a two-way
     if (nOut === 1 && inSal < outSal && capPost > f.cap)
@@ -284,7 +287,7 @@ export function validateTrade(league, tr) {
   }
   for (const pk of tr.picks || []) errors.push(...pickTradeErrors(league, pk, s));
   if ((tr.picks || []).length) for (const ab of teams) errors.push(...stepien(league, ab, tr.picks, s));
-  return { ok: errors.length === 0, errors, hardCaps, newTpes };
+  return { ok: errors.length === 0, errors, hardCaps, newTpes, waive };
 }
 
 // Picks: no further than seven drafts out; a second-apron team's frozen first stays put
@@ -352,7 +355,7 @@ export const avgSalary = (cap) => Math.round(14_510_000 * cap / OFFICIAL[2026].c
 const LIMITS = {        // [max seasons incl. options, raise % of year 1] (Art. IX §1; Art. VII §5-6)
   bird: [5, 0.08], earlyBird: [4, 0.08], nonBird: [4, 0.05], room: [4, 0.05], ntmle: [4, 0.05],
   tpmle: [2, 0.05], roomMle: [3, 0.05], bae: [2, 0.05], min: [2, 0.05], twoWay: [2, 0],
-  rookie: [4, 0.05], second: [4, 0.05], ext: [5, 0.08], ext_dv: [6, 0.08],
+  rookie: [4, 0.05], second: [4, 0.05], ext: [5, 0.08], ext_dv: [6, 0.08], dpe: [1, 0],
 };
 
 // Each season's unspent exceptions: { s, ntmle, tpmle, roomMle, bae, baeUsed: [seasons], room }
@@ -405,6 +408,9 @@ export function validateSigning(league, o) {
       if (y1 > Math.max(1.2 * (o.prior || 0), 1.2 * minSalary(p.yos, f.cap), o.qo || 0)) errors.push('above the non-Bird limit'); break;
     case 'ntmle': if (E.usedRoom) errors.push('the non-taxpayer MLE is gone once cap room is used');
       if (y1 > amt('ntmle')) errors.push('more than the non-taxpayer MLE left'); uses.ntmle = y1; hc('apron1'); break;
+    case 'dpe': {                                       // disabled player exception: one season, by March 10
+      const e = T.tpes.find((x) => x.dpe && x.expires >= o.date);
+      if (!e) errors.push('no live disabled player exception'); else if (y1 > e.amt) errors.push('more than the disabled player exception'); break; }
     case 'tpmle': if (y1 > amt('tpmle')) errors.push('more than the taxpayer MLE left'); uses.tpmle = y1; hc('apron2'); break;
     case 'roomMle': if (!E.usedRoom && capAfter - y1 > f.cap) errors.push('the room MLE is for teams that went under the cap');
       if (y1 > amt('roomMle')) errors.push('more than the room MLE left'); uses.roomMle = y1; break;

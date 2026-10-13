@@ -44,7 +44,8 @@ const NEXT = {
   },
   season: () => {
     const w = G.cur.win, to = ['Sim to Dec 15', 'Sim to the trade deadline', 'Sim the rest of the season'][w];
-    const rec = G.cur.record[G.user];
+    const rec = G.cur.record[G.user], n = std(me()).length;
+    if (n > 15) return [`You carry ${n} standard contracts after the trade: waive down to 15 before the next game.`, btn('autocut', 'Make the cuts for me'), btn('go', 'Choose the cuts', 'roster')];
     return [`${rec.w}-${rec.l} after ${rec.w + rec.l} games. ${w < 2 ? 'Clubs can trade until the deadline.' : 'The deadline has passed.'}`, btn('sim', to)];
   },
   offseason: () => G.step === 'decisions' ? ['Options and qualifying offers are due before the new league year.', btn('newyear', 'Start the new league year')]
@@ -193,7 +194,7 @@ const payroll = () => {
   return `<div class="pay">${line(`${SEASON(s)} payroll`, $M(pay))}${line('Cap', $M(f.cap))}${line('Tax line', $M(f.tax))}${line('First apron', $M(f.apron1))}${line('Second apron', $M(f.apron2))}
 ${line('Cap room', $M(Math.max(f.cap - capPay, 0)))}${T.hardCap ? line('Hard cap', T.hardCap === 'apron1' ? 'first apron' : 'second apron') : ''}
 ${['ntmle', 'tpmle', 'roomMle', 'bae'].filter((k) => T.exc?.[k] > 0 && (k === 'tpmle' ? pay <= f.apron2 : k === 'roomMle' ? capPay <= f.cap : pay <= f.apron1)).map((k) => line({ ntmle: 'Mid-level', tpmle: 'Taxpayer MLE', roomMle: 'Room MLE', bae: 'Bi-annual' }[k], $M(T.exc[k]))).join('')}
-${T.tpes.length ? line('Trade exceptions', T.tpes.map((e) => $M(e.amt)).join(', ')) : ''}${T.dead.filter((x) => x.s === s).length ? line('Dead money', $M(T.dead.filter((x) => x.s === s).reduce((a, x) => a + x.amt, 0))) : ''}</div>`;
+${T.tpes.filter((e) => !e.dpe).length ? line('Trade exceptions', T.tpes.filter((e) => !e.dpe).map((e) => $M(e.amt)).join(', ')) : ''}${T.tpes.filter((e) => e.dpe && e.expires >= G.date).map((e) => line(`Disabled player exception (${esc(P(e.from).nm)})`, $M(e.amt))).join('')}${T.dead.filter((x) => x.s === s).length ? line('Dead money', $M(T.dead.filter((x) => x.s === s).reduce((a, x) => a + x.amt, 0))) : ''}</div>`;
 };
 const yrs = (p) => (p.contract?.years || []).filter((y) => y.s >= G.season);
 const contract = (p) => yrs(p).map((y) => `${SEASON(y.s)} ${$M(y.sal)}${y.opt ? (y.opt === 'tm' ? ' (team option)' : ' (player option)') : ''}${y.gtd < y.sal ? ` (${$M(y.gtd)} guaranteed)` : ''}`).join('<br>');
@@ -277,7 +278,7 @@ ${rows.map(([ab, w, l], i) => `<tr class="${ab === G.user ? 'me' : ''}${i === 5 
     };
     const v = ui.verdict, md = { contend: 'contending', middle: 'in the middle', rebuild: 'rebuilding' }[X.mode(L.projWins(G, B))];
     const say = !v ? '' : !v.ok ? `<p class="bad">Not allowed: ${esc(v.errors.join('; '))}.</p>`
-      : v.accept ? `<p class="good">${esc(NAME(B))} accept.</p>${btn('accept', 'Make the trade')}`
+      : v.accept ? `<p class="good">${esc(NAME(B))} accept.</p>${Object.entries(v.res.waive || {}).map(([ab, n]) => `<p class="note">${ab === G.user ? `You will have to waive ${n}` : `${esc(NAME(ab))} will waive ${n}`} to get back to the roster limit.</p>`).join('')}${btn('accept', 'Make the trade')}`
       : `<p class="bad">${esc(NAME(B))} decline: they would want about ${$M(Math.max(F().cap * X.MIN_GAIN - v.gains[B], 0))} more in value.</p>`;
     const open = G.phase !== 'season' || G.date <= C.seasonDates(G.season).deadline;
     return `<div class="card"><label>Trade with <select id="partner" data-chg="partner">${others.map((ab) => `<option value="${ab}"${ab === B ? ' selected' : ''}>${esc(NAME(ab))}</option>`).join('')}</select></label>
@@ -324,7 +325,7 @@ ${btn('market', 'Open the market')}</div>`;
     const pool = G.fa.map(P).filter((p) => !p.retired).sort((a, b) => b.rate - a.rate).slice(0, 80);
     const ask = (p) => L.askOf(G, p, f);
     const lvl = (p) => me().holds.some((h) => h.pid === p.id) && C.birdLevel(p, G.user);
-    const hows = (p) => [...(lvl(p) ? [{ full: 'bird', early: 'earlyBird' }[lvl(p)] || 'nonBird'] : []), 'room', 'ntmle', 'tpmle', 'roomMle', 'bae', 'min', ...(p.yos < 4 ? ['twoWay'] : [])];
+    const hows = (p) => [...(lvl(p) ? [{ full: 'bird', early: 'earlyBird' }[lvl(p)] || 'nonBird'] : []), 'room', 'ntmle', 'tpmle', 'roomMle', 'bae', 'min', ...(p.yos < 4 ? ['twoWay'] : []), ...(me().tpes.some((x) => x.dpe && x.expires >= G.date) ? ['dpe'] : [])];
     const valid = (p, how) => C.validateSigning(G, { team: G.user, pid: p.id, how, date: G.date, prior: (p.prior || 0) * 1e6,
       years: L.years5(how === 'min' ? C.minSalary(p.yos, f.cap) : ask(p).sal, how === 'min' ? 1 : Math.min(ask(p).years, 2), 0.05) }).ok;
     const form = (p) => { const h0 = hows(p).find((h) => valid(p, h)) || 'min'; return `<div class="form"><label>Using <select id="how">${hows(p).map((h) => `<option${h === h0 ? ' selected' : ''}>${h}</option>`).join('')}</select></label>

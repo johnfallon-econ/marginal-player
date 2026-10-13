@@ -153,9 +153,22 @@ export function seasonStart(G, r) {
   if (G.history.length || G.log.some((x) => x.type === 'trade')) assignRoles(G);
   V.seasonForm(G.teams, G.players, G.K, r);
   G.cur = S.startSeason(lg(G), G.season, r); G.seasonOver = false;
+  grantDPE(G);
   G.phase = 'season'; G.date = C.seasonDates(G.season).opening;
 }
-export const seasonTo = (G, r, frac) => S.simDays(lg(G), G.cur, r, Math.floor(G.cur.days.length * frac));
+export const seasonTo = (G, r, frac) => { S.simDays(lg(G), G.cur, r, Math.floor(G.cur.days.length * frac)); if (frac <= WINDOWS[0].frac) grantDPE(G); };   // applications close Jan 15: by the Dec 15 stop
+// A disabled player exception (CBA_REFERENCE.md): a man out for the rest of the season, as the league's
+// physician would rule by Jan 15, gives his club the lesser of half his salary or the mid-level for a
+// one-season signing until March 10 (trades into one are not modelled). One per man.
+function grantDPE(G) {
+  const s = G.season, F = fig(G, s), st = G.cur;
+  for (const [ab, T] of Object.entries(G.teams)) for (const id of T.roster) {
+    const p = G.players[id], g = st.played[ab], h = st.hurt[id], sal = C.yearOf(p.contract, s)?.sal || 0;
+    if (!h || p.dpe === s || !sal || p.contract.twoWay || g >= 82 || !h.slice(g).every(Boolean)) continue;
+    p.dpe = s;
+    T.tpes.push({ dpe: true, amt: Math.round(Math.min(sal / 2, F.ntmle)), season: s, expires: `${s + 1}-03-10`, from: id });
+  }
+}
 const lg = (G) => ({ teams: G.teams, players: G.players, const: G.K });
 // trade windows in the season: Dec 15, when summer signings become tradable (56 of 173 days in),
 // and the deadline (114 of 173)
@@ -471,6 +484,7 @@ export function sign(G, ab, p, how, sal, years, date, raise) {
   if (how === 'ntmle' || how === 'bae') T.hardCap = 'apron1';
   if (how === 'tpmle') T.hardCap = T.hardCap || 'apron2';
   if (how === 'room') { T.exc.usedRoom = true; T.holds = []; }
+  if (how === 'dpe') T.tpes.splice(T.tpes.findIndex((x) => x.dpe && x.expires >= date), 1);
   T.holds = T.holds.filter((h) => h.pid !== p.id);
   T.rfa = (T.rfa || []).filter((x) => x !== p.id);
   G.fa = G.fa.filter((x) => x !== p.id);
@@ -530,6 +544,7 @@ export function fillRosters(G, clubs = Object.keys(G.teams)) {
 
 // ---- a whole year, untouched by the user (computer GMs decide for every club) --------------------
 export function simYear(G, r) {
+  G.autoUser = true;                                // no one at the controls: the user's club is a computer GM's too
   fillRosters(G);                                   // offseason trades can leave a club short
   for (const ab of Object.keys(G.teams)) cutdown(G, r, ab);
   const h = playSeason(G, r);
@@ -539,5 +554,6 @@ export function simYear(G, r) {
   newLeagueYear(G, r);
   freeAgency(G, r);
   X.tradeWindow(G, r, `${G.season}-09-20`, TRADES, null);
+  delete G.autoUser;
   return h;
 }

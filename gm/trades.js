@@ -3,9 +3,9 @@
 // out ahead by their own lights and the rules engine passes it.
 import * as C from './cba.js';
 import * as M from './value.js';
-import { teamValue, projWins, capAt } from './league.js';
+import { teamValue, projWins, capAt, cutdown } from './league.js';
 
-export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.01, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
+export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.025, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
 // how a club weighs a season h ahead, and a pick, by what it is trying to do
 const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
@@ -203,5 +203,7 @@ export function execute(G, trade, res) {
   }
   for (const [ab, lvl] of Object.entries(res.hardCaps || {})) if (G.teams[ab].hardCap !== 'apron1') G.teams[ab].hardCap = lvl;
   for (const [ab, tp] of Object.entries(res.newTpes || {})) G.teams[ab].tpes.push(...tp);
+  // a club over the roster limit waives its least valuable men (the user's club chooses its own cuts)
+  for (const ab of Object.keys(res.waive || {})) if (ab !== G.user || G.autoUser) cutdown(G, null, ab);
   for (const c of trade.cash || []) { G.teams[c.from].cashSent += c.amt; G.teams[c.to].cashRecv += c.amt; }
 }
