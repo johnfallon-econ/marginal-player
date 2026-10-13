@@ -176,19 +176,28 @@ export function standings(teams, rec, r) {
 }
 
 // ---- play-in and playoffs ---------------------------------------------------------------------
-function game(h, a, nets, K, r) { return K.netScale * (nets[h] - nets[a]) + K.hca + K.sigma * r.normal() > 0 ? h : a; }
-// Best of seven, 2-2-1-1-1, home court to `hi`.
-export function series(hi, lo, nets, K, r) {
-  let w = 0, l = 0;
-  const home = [hi, hi, lo, lo, hi, lo, hi];
-  for (let g = 0; w < 4 && l < 4; g++) {
-    const h = home[g], a = h === hi ? lo : hi;
-    (game(h, a, nets, K, r) === hi ? w++ : l++);
-  }
-  return { winner: w === 4 ? hi : lo, games: `${w}-${l}` };
-}
+// In steps, so the page can play the user's series a game at a time: postseasonStart (the play-in,
+// then the first round's series), seriesGame, roundDone / nextRound; postseason runs it all.
 // nets: each team's full-strength net for the postseason.
-export function postseason(teams, rec, stand, nets, K, r) {
+export const winP = (h, a, nets, K) => Phi((K.netScale * (nets[h] - nets[a]) + K.hca) / K.sigma);   // home side
+function game(h, a, nets, K, r) { return K.netScale * (nets[h] - nets[a]) + K.hca + K.sigma * r.normal() > 0 ? h : a; }
+const HOME = [0, 0, 1, 1, 0, 1, 0];                 // 2-2-1-1-1, home court to the higher seed (0)
+export const seriesDone = (sr) => sr.w === 4 || sr.l === 4;
+export function seriesGame(sr, nets, K, r) {
+  if (seriesDone(sr)) return null;
+  const n = sr.w + sr.l, h = HOME[n] ? sr.lo : sr.hi, a = h === sr.hi ? sr.lo : sr.hi;
+  const m = K.netScale * (nets[h] - nets[a]) + K.hca + K.sigma * r.normal(), win = m > 0 ? h : a;
+  (win === sr.hi ? sr.w++ : sr.l++);
+  sr.g.push({ h, a, win, by: Math.max(Math.round(Math.abs(m)), 1) });
+  return sr.g.at(-1);
+}
+// Best of seven, all at once.
+export function series(hi, lo, nets, K, r) {
+  const sr = { hi, lo, w: 0, l: 0, g: [] };
+  while (!seriesDone(sr)) seriesGame(sr, nets, K, r);
+  return { winner: sr.w === 4 ? hi : lo, games: `${sr.w}-${sr.l}` };
+}
+export function postseasonStart(teams, rec, stand, nets, K, r) {
   const playin = {}, seeds = {};
   for (const conf of ['East', 'West']) {
     const s = stand[conf];
@@ -198,25 +207,26 @@ export function postseason(teams, rec, stand, nets, K, r) {
     seeds[conf] = [...s.slice(0, 6), w78, eighth];
     playin[conf] = { w78, l78, w910, l910, eighth, out: [l910, eighth === l78 ? w910 : l78] };
   }
-  const rounds = [];
-  const better = (x, y) => (rec[x].w > rec[y].w || (rec[x].w === rec[y].w && r() < 0.5) ? [x, y] : [y, x]);
-  let alive = {};
-  for (const conf of ['East', 'West']) {
-    const S = seeds[conf];
-    alive[conf] = [[S[0], S[7]], [S[3], S[4]], [S[2], S[5]], [S[1], S[6]]];
-  }
-  for (let round = 0; round < 3; round++) {
-    const res = {};
-    for (const conf of ['East', 'West']) {
-      const ws = alive[conf].map(([a, b]) => { const x = series(a, b, nets, K, r); res[`${a}-${b}`] = x; return x.winner; });
-      alive[conf] = [];
-      for (let i = 0; i < ws.length; i += 2) if (ws[i + 1]) alive[conf].push(better(ws[i], ws[i + 1]));
-      if (round === 2) alive[conf] = ws;
-    }
-    rounds.push(res);
-  }
-  const [hi, lo] = better(alive.East[0], alive.West[0]);
-  const finals = series(hi, lo, nets, K, r);
-  rounds.push({ [`${hi}-${lo}`]: finals });
-  return { playin, seeds, rounds, champion: finals.winner };
+  const sr = (hi, lo, conf) => ({ hi, lo, conf, w: 0, l: 0, g: [] });
+  const series = ['East', 'West'].flatMap((c) => { const S = seeds[c]; return [[0, 7], [3, 4], [2, 5], [1, 6]].map(([i, j]) => sr(S[i], S[j], c)); });
+  return { playin, seeds, rec, nets, round: 0, series, rounds: [], champion: null };
+}
+export const roundDone = (po) => po.series.every(seriesDone);
+// Record the finished round and pair its winners for the next (home court to the better record).
+export function nextRound(po, r) {
+  const res = {}, win = (x) => (x.w === 4 ? x.hi : x.lo);
+  for (const x of po.series) res[`${x.hi}-${x.lo}`] = { winner: win(x), games: `${x.w}-${x.l}`, g: x.g };
+  po.rounds.push(res);
+  const better = (x, y) => (po.rec[x].w > po.rec[y].w || (po.rec[x].w === po.rec[y].w && r() < 0.5) ? [x, y] : [y, x]);
+  if (po.round === 3) { po.champion = win(po.series[0]); po.series = []; return po; }
+  const ws = po.series.map((x) => [win(x), x.conf]);
+  po.series = po.round === 2 ? [better(ws[0][0], ws[1][0])].map(([hi, lo]) => ({ hi, lo, conf: 'Finals', w: 0, l: 0, g: [] }))
+    : ws.filter((_, i) => i % 2 === 0).map(([x, c], i) => { const [hi, lo] = better(x, ws[2 * i + 1][0]); return { hi, lo, conf: c, w: 0, l: 0, g: [] }; });
+  po.round++;
+  return po;
+}
+export function postseason(teams, rec, stand, nets, K, r) {
+  const po = postseasonStart(teams, rec, stand, nets, K, r);
+  while (!po.champion) { for (const x of po.series) while (seriesGame(x, nets, K, r)); nextRound(po, r); }
+  return po;
 }

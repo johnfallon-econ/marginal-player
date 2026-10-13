@@ -173,20 +173,30 @@ const lg = (G) => ({ teams: G.teams, players: G.players, const: G.K });
 // trade windows in the season: Dec 15, when summer signings become tradable (56 of 173 days in),
 // and the deadline (114 of 173)
 export const WINDOWS = [{ frac: 56 / 173, date: 'dec15' }, { frac: 114 / 173, date: 'deadline' }];
-export function postseason(G, r) {
-  const s = G.season, K = G.K, res = G.cur;
+// The postseason in steps for the page: postseasonStart, then games (S.seriesGame on G.po.series)
+// and S.nextRound until there is a champion, then postseasonEnd.
+export function postseasonStart(G, r) {
+  const K = G.K, res = G.cur;
   const stand = S.standings(G.teams, res.record, r);
   const nets = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab,
     S.net(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay), K.maxMpg)]));
-  const po = S.postseason(G.teams, res.record, stand, nets, K, r);
+  G.po = S.postseasonStart(G.teams, res.record, stand, nets, K, r);
+  G.po.stand = stand;
+  G.phase = 'playoffs'; G.date = `${G.season + 1}-04-18`;
+}
+// Play every game left in the round, then move to the next.
+export function playRound(G, r) { for (const x of G.po.series) while (S.seriesGame(x, G.po.nets, G.K, r)); S.nextRound(G.po, r); }
+export function postseasonEnd(G) {
+  const s = G.season, res = G.cur, po = G.po;
   G.history.push({ season: s, record: Object.fromEntries(Object.entries(res.record).map(([k, v]) => [k, [v.w, v.l]])),
-    standings: stand, playin: po.playin, seeds: po.seeds, rounds: po.rounds, champion: po.champion });
-  G.lastMins = res.mins; G.lastGp = res.gp; G.lastRecord = res.record; G.lastPlayin = po.playin; G.lastStand = stand;
-  delete G.cur;
+    standings: po.stand, playin: po.playin, seeds: po.seeds, rounds: po.rounds.map((rd) => Object.fromEntries(Object.entries(rd).map(([k, v]) => [k, { winner: v.winner, games: v.games }]))), champion: po.champion });
+  G.lastMins = res.mins; G.lastGp = res.gp; G.lastRecord = res.record; G.lastPlayin = po.playin; G.lastStand = po.stand;
+  delete G.cur; delete G.po;
   G.seasonOver = true;                              // trades reopen after the Finals
   G.phase = 'offseason'; G.date = `${s + 1}-06-15`;
   return G.history.at(-1);
 }
+export function postseason(G, r) { postseasonStart(G, r); while (!G.po.champion) playRound(G, r); return postseasonEnd(G); }
 export function playSeason(G, r, window = (date) => X.tradeWindow(G, r, date, TRADES, null)) {
   seasonStart(G, r);
   const d = C.seasonDates(G.season);
@@ -336,15 +346,17 @@ export function newLeagueYear(G, r, decide = {}) {
   G.season = s; G.date = `${s}-07-01`; G.phase = 'freeagency';
   retire(G, r);
 }
-// A free agent who hasn't played a season, or is 35 and below replacement, is out of the league;
-// so is anyone 40 or older.
-function retire(G) {
-  G.fa = G.fa.filter((id) => {
-    const p = G.players[id];
-    const out = p.age >= 40 || (p.idle || 0) >= 1 || (p.age >= 35 && p.rate < G.K.repl);
-    if (out) { p.retired = G.season; delete p.tm; }
-    return !out;
-  });
+// Retirements, each summer before free agency: every man draws his chance of walking away from the
+// fitted model (K.retire, _gm_retire.py: age, rating, last season's minutes per game played), and a
+// man under contract who retires forfeits the rest of it. A free agent who has gone a season unsigned
+// is out of the league too: the market passed on him.
+function retire(G, r) {
+  const K = G.K.retire, P = G.players;
+  const pRet = (p) => { const l = p.log?.at(-1); if (!l?.mpg) return 0;
+    return 1 / (1 + Math.exp(-(K.const + K.age_27 * (p.age - 27) + K.rating * p.rate + K.log_mpg * Math.log(l.mpg)))); };
+  const out = (p, ab) => { p.retired = G.season; delete p.tm; p.contract = null; G.log.push({ date: G.date, type: 'retire', team: ab, pid: p.id }); };
+  for (const [ab, T] of Object.entries(G.teams)) T.roster = T.roster.filter((id) => { const p = P[id]; if (r() < pRet(p)) { out(p, ab); return false; } return true; });
+  G.fa = G.fa.filter((id) => { const p = P[id]; if ((p.idle || 0) >= 1 || r() < pRet(p)) { out(p, p.freeFrom || null); return false; } return true; });
 }
 
 // ---- free agency -------------------------------------------------------------------------------
