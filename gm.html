@@ -28,12 +28,14 @@
 .gm .card{background:#fff;border:1px solid var(--rule);border-radius:8px;padding:12px 14px;margin:0 0 12px}
 .gm .card p{margin:0 0 10px}
 .gm .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
-.gm .b{background:var(--navy-900);color:#fff;border:0;border-radius:6px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:44px}
+.gm .b{white-space:nowrap;background:var(--navy-900);color:#fff;border:0;border-radius:6px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:44px}
 .gm .b.warn{background:var(--orange-text)}
-.gm .t{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.gm .t{width:100%;min-width:0;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .gm .t th,.gm .t td{padding:8px 6px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:middle}
 .gm .t th{font-size:12px;color:var(--muted);font-weight:500}
+.gm .t td,.gm .t th{white-space:normal;overflow-wrap:anywhere}
 .gm .t .n{text-align:right;white-space:nowrap}
+.gm .scroll{overflow-x:auto;max-width:100%}
 .gm .t td small{display:block;color:var(--muted);font-size:12px}
 .gm .t tr[data-act]{cursor:pointer}
 .gm .t tr.on,.gm .t tr.me{background:var(--cream)}
@@ -56,10 +58,14 @@
 .gm .log{list-style:none;padding:0}.gm .log li{padding:6px 0;border-bottom:1px solid var(--grey-100);font-size:14px}
 .gm .log small{color:var(--muted);margin-right:6px}
 .gm .busy{position:fixed;inset:0;background:rgba(247,246,242,.8);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px;z-index:50}
+.gm .cap{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;color:var(--muted);margin:0 0 6px;font-variant-numeric:tabular-nums}
+.gm .cap b{color:var(--ink);font-weight:600}
+.gm .log2{margin:8px 0;font-size:13px}.gm .log2 th,.gm .log2 td{padding:4px}
+.gm .rot{margin:0;padding-left:22px;columns:2 260px;font-size:14px}.gm .rot li{break-inside:avoid;padding:2px 0}.gm .rot small{color:var(--muted)}
 .gm fieldset{border:0;padding:0;margin:10px 0}
 </style>
 <h1>GM</h1>
-<div id="gm" class="gm"><noscript>The game runs in your browser and needs JavaScript.</noscript></div>
+<div id="gm" class="gm" data-teams='{"BOS":"Boston Celtics","BKN":"Brooklyn Nets","NYK":"New York Knicks","PHI":"Philadelphia 76ers","TOR":"Toronto Raptors","CHI":"Chicago Bulls","CLE":"Cleveland Cavaliers","DET":"Detroit Pistons","IND":"Indiana Pacers","MIL":"Milwaukee Bucks","ATL":"Atlanta Hawks","CHA":"Charlotte Hornets","MIA":"Miami Heat","ORL":"Orlando Magic","WAS":"Washington Wizards","DEN":"Denver Nuggets","MIN":"Minnesota Timberwolves","OKC":"Oklahoma City Thunder","POR":"Portland Trail Blazers","UTA":"Utah Jazz","GSW":"Golden State Warriors","LAC":"LA Clippers","LAL":"Los Angeles Lakers","PHX":"Phoenix Suns","SAC":"Sacramento Kings","DAL":"Dallas Mavericks","HOU":"Houston Rockets","MEM":"Memphis Grizzlies","NOP":"New Orleans Pelicans","SAS":"San Antonio Spurs"}'><noscript>The game runs in your browser and needs JavaScript.</noscript></div>
 <input type="file" id="importf" accept="application/json" hidden>
 <script type="module" src="gm/app.js"></script>
 </main>

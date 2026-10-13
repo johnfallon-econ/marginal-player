@@ -39,7 +39,7 @@ const NEXT = {
     const ok = n >= 14 && n <= 15 && tw <= 3;
     return [ok ? 'Opening night is next.' : n < 14 ? `Clubs open the season with at least 14 standard contracts: you carry ${n}.`
       : `Cut to 15 standard contracts and 3 two-ways first: you carry ${n} and ${tw}.`,
-      ok ? btn('start', 'Start the season') : n < 14 ? btn('autofill', 'Sign the best left at the minimum') : btn('autocut', 'Make the cuts for me'),
+      ok ? btn('start', 'Start the season') + (tw < 3 ? btn('autofill', 'Fill the two-way spots') : '') : n < 14 ? btn('autofill', 'Sign the best left at the minimum') : btn('autocut', 'Make the cuts for me'),
       !ok && btn('go', n < 14 ? 'Choose free agents' : 'Choose the cuts', n < 14 ? 'fa' : 'roster')];
   },
   season: () => {
@@ -128,10 +128,13 @@ const ACT = {
   tk: (k) => { const [side, id] = k.split('#'); ui[side][id] = !ui[side][id]; ui.verdict = null; render(); },
   take: (i) => { const j = X.judge(G, G.offers[+i].trade ?? G.offers[+i]);
     if (!j.ok) { alert(`No longer allowed: ${j.errors.join('; ')}`); G.offers.splice(+i, 1); return render(); }
-    step('Trade', () => { X.complete(G, j); if (G.phase === 'season') L.assignRoles(G); G.offers = []; }); },
+    step('Trade', () => { X.complete(G, j); if (G.phase === 'season') L.assignRoles(G); if (G.draft) L.draftNext(G, r);
+      // the other offers stand unless they share a player or a pick with this one
+      const used = new Set([...j.trade.moves.map((m) => m.pid), ...j.trade.picks.map((k) => k.id)]);
+      G.offers = G.offers.filter((o, k) => k !== +i && ![...o.moves.map((m) => m.pid), ...o.picks.map((x) => x.id)].some((x) => used.has(x))); }); },
   pass: (i) => { G.offers.splice(+i, 1); save(); render(); },
   propose: () => { ui.verdict = judgeTrade(tradeOf()); render(); },
-  accept: () => step('Trade', () => { const t = tradeOf(); if (!judgeTrade(t).accept) throw new Error('The deal fell through.'); X.complete(G, judgeTrade(t, G)); if (G.phase === 'season') L.assignRoles(G); ui = { partner: ui.partner, give: {}, get: {}, done: true }; }),
+  accept: () => step('Trade', () => { const t = tradeOf(); if (!judgeTrade(t).accept) throw new Error('The deal fell through.'); X.complete(G, judgeTrade(t, G)); if (G.phase === 'season') L.assignRoles(G); if (G.draft) L.draftNext(G, r); ui = { partner: ui.partner, give: {}, get: {}, done: true }; }),
   export: () => { G.rngState = r.state(); const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(G)], { type: 'application/json' }));
     a.download = `gm-${G.user}-${SEASON(G.season)}.json`; a.click(); },
@@ -145,7 +148,8 @@ function faDay() {
   G.myOffers = G.myOffers.filter((o) => G.fa.includes(o.pid)); G.matchAns = {};
   if (done) { L.faEnd(G, r); X.tradeWindow(G, r, `${G.season}-09-20`, L.TRADES); G.phase = 'preseason'; G.offers = X.offersFor(G); view = 'home'; }
 }
-const pickName = (k) => { const [o, y, rd] = k.split('|'); return `${y} ${rd === '1' ? '1st' : '2nd'} (${o})`; };
+const slotOf = (k) => { const [o, y, rd] = k.split('|'); return G.draft?.year === +y ? G.draft.order.find((e) => e.origin === o && (e.slot <= 30) === (rd === '1'))?.slot : null; };
+const pickName = (k) => { const [o, y, rd] = k.split('|'), n = slotOf(k); return `${y} ${rd === '1' ? '1st' : '2nd'} (${o}${n ? `, no. ${n}` : ''})`; };
 const tradeText = (t) => { const side = (to) => [...t.moves.filter((m) => m.to === to).map((m) => { const p = P(m.pid); return `${esc(p.nm)} <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`; }),
   ...t.picks.filter((k) => k.to === to).map((k) => pickName(k.id))].join('<br>') || 'nothing';
   return `<div class="two"><div><small>You get</small><br>${side(G.user)}</div><div><small>You send</small><br>${side(t.moves[0].to === G.user ? t.moves[0].from : t.moves[0].to)}</div></div>`; };
@@ -167,23 +171,44 @@ function render() {
   const phase = { preseason: 'Preseason', season: 'Season', offseason: 'Offseason', draft: 'Draft', freeagency: 'Free agency' }[G.phase];
   const extra = G.phase === 'draft' ? [['draft', 'Draft']] : ['freeagency', 'preseason', 'season'].includes(G.phase) ? [['fa', 'Free agents']] : G.step === 'decisions' ? [['decisions', 'Decisions']] : [];
   root().innerHTML = `<div class="top"><strong>${esc(NAME(G.user))}</strong> <span>${SEASON(G.season)} · ${phase} · ${G.date}</span></div>
+${capStrip()}
 <div class="tabs" role="navigation">${[...TABS.slice(0, 1), ...extra, ...TABS.slice(1)].map(([k, n]) => `<button data-act="go" data-arg="${k}"${view === k ? ' aria-current="page"' : ''}>${n}</button>`).join('')}</div>
 <section>${(VIEWS[view] || VIEWS.home)()}</section>`;
 }
+// The season whose books matter now: after the season ends, next season's commitments against its
+// projected cap (the cap is drawn July 1).
+const books = () => {
+  const s = G.season + (['offseason', 'draft'].includes(G.phase) ? 1 : 0), f = G.f[s] || C.figures(s, L.capAt(G, s));
+  const Lg = { ...G, f: { ...G.f, [s]: f } }, T = me();
+  return { s, f, pay: C.teamSalary(T, Lg, s), capPay: C.teamSalary(T, Lg, s, { holds: true, offseason: G.phase !== 'season' }) };
+};
+const capStrip = () => {
+  const { s, f, pay, capPay } = books(), d = (x) => `${$M(Math.abs(x))} ${x >= 0 ? 'under' : 'over'}`;
+  return `<div class="cap" role="status"><b>${SEASON(s)} payroll ${$M(pay)}</b><span>${capPay <= f.cap ? `${$M(f.cap - capPay)} cap room` : `${$M(capPay - f.cap)} over the cap`}</span>
+<span>${d(f.tax - pay)} the tax</span><span>${d(f.apron1 - pay)} the first apron</span><span>${d(f.apron2 - pay)} the second</span>${s > G.season ? '<span>(projected cap)</span>' : ''}</div>`;
+};
 const payroll = () => {
-  const T = me(), f = F(), pay = C.teamSalary(T, G, G.season), capPay = C.teamSalary(T, G, G.season, { holds: true, offseason: G.phase === 'freeagency' });
+  const T = me(), { s, f, pay, capPay } = books();
   const line = (k, v) => `<div><span>${k}</span><b>${v}</b></div>`;
-  return `<div class="pay">${line('Payroll', $M(pay))}${line('Cap', $M(f.cap))}${line('Tax line', $M(f.tax))}${line('First apron', $M(f.apron1))}${line('Second apron', $M(f.apron2))}
+  return `<div class="pay">${line(`${SEASON(s)} payroll`, $M(pay))}${line('Cap', $M(f.cap))}${line('Tax line', $M(f.tax))}${line('First apron', $M(f.apron1))}${line('Second apron', $M(f.apron2))}
 ${line('Cap room', $M(Math.max(f.cap - capPay, 0)))}${T.hardCap ? line('Hard cap', T.hardCap === 'apron1' ? 'first apron' : 'second apron') : ''}
 ${['ntmle', 'tpmle', 'roomMle', 'bae'].filter((k) => T.exc?.[k] > 0 && (k === 'tpmle' ? pay <= f.apron2 : k === 'roomMle' ? capPay <= f.cap : pay <= f.apron1)).map((k) => line({ ntmle: 'Mid-level', tpmle: 'Taxpayer MLE', roomMle: 'Room MLE', bae: 'Bi-annual' }[k], $M(T.exc[k]))).join('')}
-${T.tpes.length ? line('Trade exceptions', T.tpes.map((e) => $M(e.amt)).join(', ')) : ''}${T.dead.filter((x) => x.s === G.season).length ? line('Dead money', $M(T.dead.filter((x) => x.s === G.season).reduce((a, x) => a + x.amt, 0))) : ''}</div>`;
+${T.tpes.length ? line('Trade exceptions', T.tpes.map((e) => $M(e.amt)).join(', ')) : ''}${T.dead.filter((x) => x.s === s).length ? line('Dead money', $M(T.dead.filter((x) => x.s === s).reduce((a, x) => a + x.amt, 0))) : ''}</div>`;
 };
 const yrs = (p) => (p.contract?.years || []).filter((y) => y.s >= G.season);
 const contract = (p) => yrs(p).map((y) => `${SEASON(y.s)} ${$M(y.sal)}${y.opt ? (y.opt === 'tm' ? ' (team option)' : ' (player option)') : ''}${y.gtd < y.sal ? ` (${$M(y.gtd)} guaranteed)` : ''}`).join('<br>');
-const playerRow = (p, extra = '') => `<tr data-act="sel" data-arg="${p.id}" class="${ui.pid === p.id ? 'on' : ''}"><td><b>${esc(p.nm)}</b><small>${p.pos || ''} · ${Math.floor(p.age)}${p.contract?.twoWay ? ' · two-way' : ''}</small></td>
+// games and minutes: this season's so far, else his last season's
+const usage = (p) => { const gp = G.cur?.gp[p.id], l = p.log?.at(-1);
+  return G.cur ? `${gp || 0} gp, ${gp ? (G.cur.mins[p.id] / gp).toFixed(1) : '0.0'} mpg` : l ? `${SEASON(l.s)}: ${l.gp} gp, ${l.mpg} mpg` : ''; };
+const playerRow = (p, extra = '') => `<tr data-act="sel" data-arg="${p.id}" class="${ui.pid === p.id ? 'on' : ''}"><td><b>${esc(p.nm)}</b><small>${[p.pos, p.ht, Math.floor(p.age), p.contract?.twoWay && 'two-way', !p.pre && usage(p)].filter(Boolean).join(' · ')}</small>${p.pre ? pre(p) : ''}</td>
 <td class="n">${sg(p.rate)}</td><td class="n">${M.war(p, 0, G.K).toFixed(1)}</td>${extra}</tr>`;
+// a prospect's last season before the draft, per game
+const pre = (p) => { const [pts, trb, ast, stl, blk, fg, fg3, ft, g, mp] = p.pre.line, pc = (x) => (x == null ? '–' : (100 * x).toFixed(0));
+  return `<small>${p.pre.lvl}${p.wt ? ` · ${p.wt} lb` : ''}: ${pts} pts, ${trb} reb, ${ast} ast, ${stl} stl, ${blk} blk; ${pc(fg)}/${pc(fg3)}/${pc(ft)} shooting; ${mp} mpg in ${g} g</small>`; };
+const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Pts/Reb/Ast per 100</th></tr></thead><tbody>
+${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.p100 ? l.p100.join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
 const detail = (p, actions = '') => `<tr class="det"><td colspan="9">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.
-${p.contract ? `<br>${contract(p)}` : ''}${actions}</td></tr>`;
+Projected to be available for ${Math.round(100 * (p.av ?? 0.9))}% of games.${p.contract ? `<br>${contract(p)}` : ''}${logTable(p)}${actions}</td></tr>`;
 const extInfo = (p) => { const start = p.contract.years.at(-1).s + 1;
   return { start, t: C.extensionTerms(p, G.date, G.f[start] || C.figures(start, L.capAt(G, start))), a: L.extensionAsk(G, p) }; };
 // An extension, when the rules allow one now: his ask, and the most the rules let you offer.
@@ -195,6 +220,15 @@ const extForm = (p) => {
   return `<div class="form"><p class="note">Eligible for an extension: he asks ${$M(a.sal)} a year from ${SEASON(start)}; the rules allow up to ${$M(t.maxY1)} for up to ${t.maxNew} more seasons.</p>
 <label>Year one ($M) <input id="xsal" type="number" step="0.1" value="${(sal / 1e6).toFixed(1)}"></label>
 <label>Seasons <input id="xyrs" type="number" min="1" max="${t.maxNew}" value="${Math.min(a.years, t.maxNew)}"></label>${btn('extend', 'Offer the extension', p.id)}${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}</div>`;
+};
+// The coach's rotation: his order, the role it makes, the minutes he'd give a man when he plays,
+// and who is out hurt right now.
+const ROLE = (i, p) => p.contract?.twoWay ? 'two-way' : i < 5 ? 'starter' : i < 9 ? 'rotation' : i < 12 ? 'spot minutes' : 'end of bench';
+const rotationCard = () => {
+  const out = (p) => G.cur && G.cur.hurt[p.id]?.[G.cur.played[G.user]];
+  return `<div class="card"><h3>The coach's rotation</h3><p class="note">The coach sets it${G.rolesSet ? ': mostly last season\'s roles, nudged by each man\'s rating, age and a change of club, with his own read on top (fit to real seasons). Rookies by draft slot' : ' (for now, this season\'s real roles)'}.
+Minutes are per game when he plays: each night 240 go down the rotation among whoever is healthy, no one over 36, so the end of the bench plays when others are hurt.</p><ol class="rot">
+${L.rotation(G, G.user).map(([p, m], i) => `<li><b>${esc(p.nm)}</b> <small>${ROLE(i, p)} · ${m.toFixed(0)} min${out(p) ? ' · <span class="bad">out injured</span>' : ''}</small></li>`).join('')}</ol></div>`;
 };
 const VIEWS = {
   home: () => {
@@ -212,7 +246,7 @@ Ratings are points per 100 possessions against an average player; WAR is wins ab
   roster: () => {
     const T = me(), ps = T.roster.map(P).sort((a, b) => !!a.contract?.twoWay - !!b.contract?.twoWay || b.rate - a.rate);
     const canWaive = G.phase !== 'draft';
-    return `<table class="t"><thead><tr><th>Player</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Salary</th><th class="n">Yrs</th></tr></thead><tbody>
+    return `${rotationCard()}<table class="t"><thead><tr><th>Player</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Salary</th><th class="n">Yrs</th></tr></thead><tbody>
 ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?.sal || 0)}</td><td class="n">${yrs(p).length}</td>`)
       + (ui.pid === p.id ? detail(p, extForm(p) + (canWaive ? `<div class="row"><label><input type="checkbox" id="stretch"> stretch</label>${btn('waive', 'Waive', p.id, 'warn')}</div>` : '')) : '')).join('')}</tbody></table>${payroll()}`;
   },
@@ -239,12 +273,12 @@ ${rows.map(([ab, w, l], i) => `<tr class="${ab === G.user ? 'me' : ''}${i === 5 
       const sat = G.phase === 'freeagency' ? G.teams[ab].holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id) && !G.teams[ab].rfa?.includes(p.id)) : [];
       return sat.map((p) => { const o = L.satTerms(G, ab, p); return ck(`sat:${p.id}`, `<b>${esc(p.nm)}</b> <small>sign-and-trade · ${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(o.sal)} × ${o.years}</small>`); }).join('')
         + ps.map((p) => ck(p.id, `<b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`)).join('')
-        + pk.map((k) => ck(k.id, `${k.year} ${k.round === 1 ? '1st' : '2nd'} <small>(${k.origin}${k.protect ? ', protected' : ''})</small>`)).join('');
+        + pk.map((k) => ck(k.id, `${k.year} ${k.round === 1 ? '1st' : '2nd'} <small>(${k.origin}${slotOf(k.id) ? `, no. ${slotOf(k.id)}` : ''}${k.protect ? ', protected' : ''})</small>`)).join('');
     };
     const v = ui.verdict, md = { contend: 'contending', middle: 'in the middle', rebuild: 'rebuilding' }[X.mode(L.projWins(G, B))];
     const say = !v ? '' : !v.ok ? `<p class="bad">Not allowed: ${esc(v.errors.join('; '))}.</p>`
       : v.accept ? `<p class="good">${esc(NAME(B))} accept.</p>${btn('accept', 'Make the trade')}`
-      : `<p class="bad">${esc(NAME(B))} decline: they would want about ${$M(Math.max(F().cap * 0.002 - v.gains[B], 0))} more in value.</p>`;
+      : `<p class="bad">${esc(NAME(B))} decline: they would want about ${$M(Math.max(F().cap * X.MIN_GAIN - v.gains[B], 0))} more in value.</p>`;
     const open = G.phase !== 'season' || G.date <= C.seasonDates(G.season).deadline;
     return `<div class="card"><label>Trade with <select id="partner" data-chg="partner">${others.map((ab) => `<option value="${ab}"${ab === B ? ' selected' : ''}>${esc(NAME(ab))}</option>`).join('')}</select></label>
 <p class="note">${esc(NAME(B))} are ${md}.${open ? '' : ' The deadline has passed.'}${ui.done ? ' Trade done.' : ''}</p></div>
@@ -256,9 +290,14 @@ ${rows.map(([ab, w, l], i) => `<tr class="${ab === G.user ? 'me' : ''}${i === 5 
     if (!G.draft) return '<p>No draft under way.</p>';
     const c = L.draftNext(G, r), made = G.draft.picks.slice(-8).reverse();
     const pool = G.draft.avail.map(P).sort((a, b) => b.rate - a.rate);
-    return `<div class="card">${c ? `<p>Pick ${c.slot} is yours.</p>${btn('autopick', 'Best available')}` : `<p>The draft is done.</p>${btn('enddraft', 'Finish the draft')}`}</div>
+    const next = G.draft.order.slice(G.draft.picks.length, G.draft.picks.length + 8);
+    const mine = me().roster.map(P).filter((p) => !p.contract?.twoWay), byPos = (k) => mine.filter((p) => (p.pos || '').startsWith(k)).length;
+    return `<div class="card">${c ? `<p>Pick ${c.slot} is yours.</p>${btn('autopick', 'Best available')}` : `<p>The draft is done.</p>${btn('enddraft', 'Finish the draft')}`}
+<p class="note">On the clock next: ${next.map((e) => `${e.slot}. ${e.holder}`).join(', ')}. You can trade picks and players until your pick is in.</p>
+<p class="note">Your roster: ${byPos('G')} guards, ${byPos('F')} forwards, ${byPos('C')} centers.</p></div>
 <table class="t"><thead><tr><th>Prospect</th><th class="n">Rtg</th><th class="n">WAR</th><th></th></tr></thead><tbody>
 ${pool.slice(0, 60).map((p) => playerRow(p, `<td>${c ? btn('pick', 'Pick', p.id) : ''}</td>`)).join('')}</tbody></table>
+<p class="note">Rtg is the league's read of each prospect from the scouts' board; his line is his last season before the draft, per game.</p>
 <h3>Latest picks</h3><ul>${made.map((x) => `<li>${x.slot}. ${x.team}: ${esc(P(x.pid).nm)}</li>`).join('')}</ul>`;
   },
   decisions: () => {
@@ -339,7 +378,8 @@ async function boot() {
     adopt(JSON.parse(await f.text())); view = 'home'; await save(); render();
   });
   const g = await idb('readonly', (s) => s.get('game')).catch(() => null);
-  if (g) adopt(g); else TEAMS = Object.fromEntries(Object.entries((await data()).league.teams).map(([ab, t]) => [ab, t.name]));
+  TEAMS = JSON.parse(root().dataset.teams);         // the start screen needs only the names; the league loads on Start
+  if (g) adopt(g);
   render();
 }
 boot();

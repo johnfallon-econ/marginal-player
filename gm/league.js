@@ -102,19 +102,48 @@ export function release(G, ab, id, date, stretch) {
 }
 
 // ---- the season ----------------------------------------------------------------------------
-// Roles: each club's coach ranks his players by rating and plays them the league's rotation
-// shape (K.rotation, minutes per game played at each rank, 12_gm_data.py); two-ways at the end.
-// A coach reads each player through his own lens (K.coachSd, fixed for the season): real minutes
-// follow ratings only so far -- rank correlation 0.44 within a club (calibrate.js).
+// Roles: each club's coach sets every man's minutes when he plays (rotation, below).
 export function assignRoles(G) {
-  const R = G.K.rotation, P = G.players, sd = G.K.coachSd || 0;
-  const seen = (p, tank) => p.rate + sd * hashNoise(`coach|${p.id}|${G.season}`) + (tank ? (G.K.tankYouth || 0) * (26 - p.age) : 0);
-  for (const [ab, T] of Object.entries(G.teams)) {
-    // a rebuilding club plays its young (K.tankYouth per year under 26, set in balancing)
-    const tank = X.mode(projWins(G, ab)) === 'rebuild';
-    const order = T.roster.map((id) => P[id]).sort((a, b) => (!!a.contract?.twoWay - !!b.contract?.twoWay) || seen(b, tank) - seen(a, tank));
-    order.forEach((p, i) => { p.mpg = (R[i] ?? R[R.length - 1] / 2) * (p.av ?? 0.9); });
-  }
+  for (const ab of Object.keys(G.teams)) for (const [p, m] of rotation(G, ab, true)) p.mpg = m * (p.av ?? 0.9);
+  G.rolesSet = true;
+}
+// linear through a table of [x, y] points, flat past either end
+const interp = (t, x) => { const i = t.findIndex((c) => c[0] >= x);
+  return i < 0 ? t.at(-1)[1] : i === 0 ? t[0][1] : t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (x - t[i - 1][0]) / (t[i][0] - t[i - 1][0]); };
+// A club's rotation as its coach sees it: [player, minutes per game when he plays], most first. Until
+// the coaches first set roles, the real 2026-27 roles stand (minutes per game played: mpg / av).
+// After that (K.roles, _gm_roles.py) a man's minutes are what his rating earns on the league's curve,
+// plus how far above or below it he played last season (carried over in part), moved by age, a
+// change of club and where his minutes rank among his club-mates', times the coach's own read of him
+// (the fit's residual, drawn once a season, steadier the more he played); a rookie's go by his draft slot. The fit's intercept,
+// how far men with 40+ games sit above the all-player curve, is left out: the curve is everyone's
+// mean, and each night's 240 go down this order among the healthy (season.minutes).
+export function rotation(G, ab, coach = G.rolesSet) {
+  const P = G.players, { curve, vet: V_, rookie: Rk } = G.K.roles;
+  const ps = G.teams[ab].roster.map((id) => P[id]);
+  if (!coach) return ps.map((p) => [p, p.mpg / (p.av ?? 0.9)]).sort((a, b) => b[1] - a[1]);
+  const lc = (x) => interp(curve, x);
+  // a rebuilding club plays its young (K.tankYouth rating points per year under 26, set in balancing)
+  const tank = X.mode(projWins(G, ab)) === 'rebuild';
+  // last season's minutes per game played, and whether that was with another club (a man arriving
+  // mid-season with 10 games: this season's, with his old club)
+  const prior = new Map(ps.map((p) => {
+    const gp = G.cur?.gp[p.id] || 0, last = p.log?.findLast((l) => l.gp >= 10);
+    return [p, gp >= 10 ? [G.cur.mins[p.id] / gp, 1] : last ? [last.mpg, +(last.tm !== ab)] : null];
+  }));
+  // teammates: each man's minutes rank among the men who have a prior
+  const vets = ps.filter((p) => prior.get(p));
+  const rank = (p) => { const m = prior.get(p)[0], above = vets.filter((q) => prior.get(q)[0] > m).length, tied = vets.filter((q) => prior.get(q)[0] === m).length; return above + (tied + 1) / 2; };
+  const mpg = (p) => {
+    const pr = prior.get(p), rating = p.rate + (tank ? (G.K.tankYouth || 0) * (26 - p.age) : 0);
+    const x = pr ? lc(rating) + (G.K.roleShift || 0) + V_.dev * (Math.log(pr[0]) - lc(p.rate)) + V_.age_27 * (p.age - 27) + V_.age_over_30 * Math.max(p.age - 30, 0) + V_.moved * pr[1]
+      + (V_.log_rank + V_.moved_log_rank * pr[1]) * Math.log(rank(p))
+      : Rk.a + Rk.log_pick * Math.log(p.draft?.pick || 61);
+    return Math.min(Math.exp(x + (pr ? interp(V_.sd_by_mpg, pr[0]) : Rk.sd) * hashNoise(`coach|${p.id}|${G.season}`)), G.K.maxMpg);
+  };
+  // a role is set once a season with a club, and kept through the season's later reshuffles
+  const role = (p) => (p.role?.s === G.season && p.role.tm === ab ? p.role.m : (p.role = { s: G.season, tm: ab, m: mpg(p) }).m);
+  return ps.map((p) => [p, role(p)]).sort((a, b) => b[1] - a[1]);
 }
 // The season in steps, so the page can stop at the trade windows and a save can fall anywhere:
 // seasonStart, seasonTo(frac) as often as wanted, then postseason.
@@ -123,7 +152,7 @@ export function seasonStart(G, r) {
   // that, coaches assign them
   if (G.history.length || G.log.some((x) => x.type === 'trade')) assignRoles(G);
   V.seasonForm(G.teams, G.players, G.K, r);
-  G.cur = S.startSeason(lg(G), G.season, r);
+  G.cur = S.startSeason(lg(G), G.season, r); G.seasonOver = false;
   G.phase = 'season'; G.date = C.seasonDates(G.season).opening;
 }
 export const seasonTo = (G, r, frac) => S.simDays(lg(G), G.cur, r, Math.floor(G.cur.days.length * frac));
@@ -141,6 +170,7 @@ export function postseason(G, r) {
     standings: stand, playin: po.playin, seeds: po.seeds, rounds: po.rounds, champion: po.champion });
   G.lastMins = res.mins; G.lastGp = res.gp; G.lastRecord = res.record; G.lastPlayin = po.playin; G.lastStand = stand;
   delete G.cur;
+  G.seasonOver = true;                              // trades reopen after the Finals
   G.phase = 'offseason'; G.date = `${s + 1}-06-15`;
   return G.history.at(-1);
 }
@@ -161,6 +191,11 @@ export function endSeason(G, r) {
     (T.taxpaid ||= {})[s] = pay > f.tax;
     if (pay > f.apron2) freezePick(G, ab, s);
     for (const id of T.roster) { P[id].yos += 1; if (P[id].bird?.team === ab) P[id].bird.n += 1; else P[id].bird = { team: ab, n: 1 }; }
+  }
+  // each man's line for the season just played, kept for the page: club, games, minutes, rating
+  for (const [ab, T] of Object.entries(G.teams)) for (const id of T.roster) {
+    const gp = G.lastGp?.[id] || 0;
+    (P[id].log ||= []).push({ s, tm: ab, gp, mpg: gp ? +(G.lastMins[id] / gp).toFixed(1) : 0, rate: +P[id].rate.toFixed(2) });
   }
   V.endSeason(P, G.lastMins || {}, G.K, r, G.hidden);
   // Ratings are relative -- points per 100 against an average player -- so the league's
@@ -235,7 +270,7 @@ export function draftNext(G, r, choice, human = G.user) {
 }
 export function draftEnd(G) {
   for (const id of G.draft.avail) { const p = G.players[id]; p.tm = null; p.contract = null; G.fa.push(id); }
-  G.history.at(-1).draft = G.draft.picks;
+  G.history.at(-1).draft = G.draft.picks; G.lastDraft = G.draft.year;
   delete G.draft;
   G.phase = 'offseason';
 }

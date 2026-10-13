@@ -220,7 +220,8 @@ export function validateTrade(league, tr) {
     for (const m of out) {
       if (!T.roster.includes(m.pid)) errors.push(`${ab} does not hold ${P[m.pid].nm}`);
       const t = tradableFrom(P[m.pid]);
-      if (t && tr.date < t) errors.push(`${P[m.pid].nm} cannot be traded until ${t}`);
+      // before signing, draft rights trade freely
+      if (t && tr.date < t && tr.date >= P[m.pid].contract.signed) errors.push(`${P[m.pid].nm} cannot be traded until ${t}`);
     }
     const absorbed = new Set((tr.tpe?.[ab] || []).map((x) => x.pid));
     const outSal = out.reduce((a, m) => a + outgoingSalary(P[m.pid], tr.date), 0);
@@ -304,7 +305,9 @@ function stepien(league, ab, moves, s) {
   const gaps = (holder) => {
     const held = (y) => firsts.some((p) => p.year === y && holder(p.id) === ab);
     const g = [];
-    for (let y = s + 1; y < s + 1 + 7; y++) if (!held(y) && !held(y + 1)) g.push(y);
+    // future drafts: from the next one not yet under way or held
+    const y0 = Math.max(s + 1, (league.draft?.year || league.lastDraft || 0) + 1);
+    for (let y = y0; y < s + 1 + 7; y++) if (!held(y) && !held(y + 1)) g.push(y);
     return g;
   };
   const before = gaps((id) => league.picks[id].holder);

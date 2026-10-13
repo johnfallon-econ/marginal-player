@@ -69,16 +69,24 @@ export function schedule(teams, season, r) {
 }
 
 // ---- team strength -------------------------------------------------------------------------
-// Minutes: each available player's demand, scaled so the rotation fills 240, at most maxMpg.
-// The Trade Lab's mpg is per TEAM game, availability already netted out; a man who is
-// suiting up plays mpg / av, or injuries would be charged twice.
+// Minutes: each available player's demand (the minutes his role gives him when he plays), handed
+// out down the rotation until the night's 240 are gone -- the end of the bench gets a coach's DNP --
+// at most maxMpg each; if injuries leave the demands short of 240, everyone's are scaled up to fill
+// it. The Trade Lab's mpg is per TEAM game, availability already netted out; a man who is suiting
+// up plays mpg / av, or injuries would be charged twice.
 export function minutes(players, maxMpg = 36) {
-  const dem = players.map((p) => Math.max((p.mpg || 0) / (p.av ?? 1), 1));
-  let m = dem.slice(), free = 240;
+  const dem = players.map((p) => Math.min(Math.max((p.mpg || 0) / (p.av ?? 1), 1), maxMpg));
+  if (dem.reduce((a, x) => a + x, 0) >= 240) {
+    const m = dem.map(() => 0);
+    let left = 240;
+    for (const i of dem.map((x, i) => i).sort((a, b) => dem[b] - dem[a])) { m[i] = Math.min(dem[i], left); left -= m[i]; }
+    return m;
+  }
+  let m = dem.slice();
   for (let k = 0; k < 6; k++) {                  // scale, cap, rescale the uncapped
     const open = m.map((x, i) => (x < maxMpg ? i : -1)).filter((i) => i >= 0);
     const fixed = m.reduce((a, x) => a + (x >= maxMpg ? maxMpg : 0), 0);
-    const s = (free - fixed) / open.reduce((a, i) => a + dem[i], 0);
+    const s = (240 - fixed) / open.reduce((a, i) => a + dem[i], 0);
     m = m.map((x, i) => (x >= maxMpg ? maxMpg : Math.min(dem[i] * s, maxMpg)));
   }
   return m;
@@ -119,7 +127,7 @@ export function simDays(league, st, r, to = st.days.length) {
   const strength = (ab) => {
     const g = st.played[ab]++;
     const avail = teams[ab].roster.map((id) => players[id]).filter((p) => !(st.hurt[p.id] ??= injuries(p, 82, r))[g]), m = minutes(avail, K.maxMpg);
-    avail.forEach((p, i) => { st.gp[p.id] = (st.gp[p.id] || 0) + 1; st.mins[p.id] = (st.mins[p.id] || 0) + m[i]; });
+    avail.forEach((p, i) => { if (m[i] > 0) { st.gp[p.id] = (st.gp[p.id] || 0) + 1; st.mins[p.id] = (st.mins[p.id] || 0) + m[i]; } });
     return avail.reduce((a, p, i) => a + p.play * m[i] / 48, 0);
   };
   for (; st.d < Math.min(to, st.days.length); st.d++) for (const [h, a] of st.days[st.d]) {

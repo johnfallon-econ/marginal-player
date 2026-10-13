@@ -5,7 +5,7 @@ import * as C from './cba.js';
 import * as M from './value.js';
 import { teamValue, projWins, capAt } from './league.js';
 
-const ENDOW = 0.25, MAX_PICKS = 4, MIN_GAIN = 0.002, PER_CLUB = 3;   // tuned so trades a year match the real league (_gm_targets.json)
+export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.01, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
 // how a club weighs a season h ahead, and a pick, by what it is trying to do
 const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
@@ -41,9 +41,10 @@ export function pickWorth(G, ab, pick, m) {
 // Every pick a club holds in the next seven drafts, in the shape the rules engine reads.
 export function picksView(G) {
   const out = {};
-  for (let y = G.season + 1; y <= G.season + 8; y++) for (const o of Object.keys(G.teams)) for (const rd of [1, 2]) {
+  const D = G.draft, used = new Set(D ? D.order.slice(0, D.picks.length).map((e) => `${e.origin}|${D.year}|${e.slot <= 30 ? 1 : 2}`) : []);
+  for (let y = Math.max(G.season + 1, (G.lastDraft || 0) + 1); y <= G.season + 8; y++) for (const o of Object.keys(G.teams)) for (const rd of [1, 2]) {
     const id = `${o}|${y}|${rd}`, e = G.picks[id];
-    if (e?.t === 'gone' && !e.h) continue;
+    if ((e?.t === 'gone' && !e.h) || used.has(id)) continue;
     out[id] = { id, origin: o, year: y, round: rd, holder: e?.h || o, protect: !!e?.p, swapOwed: !!e?.s, frozen: !!e?.frozen };
   }
   return out;
@@ -193,7 +194,13 @@ export function execute(G, trade, res) {
     if (p.bird) p.bird.team = m.to;                            // Bird rights travel with a trade
     if (p.contract) p.contract.acquired = trade.date;
   }
-  for (const pk of trade.picks || []) G.picks[pk.id] = { ...(G.picks[pk.id] || {}), t: 'gone', h: pk.to };
+  for (const pk of trade.picks || []) {
+    G.picks[pk.id] = { ...(G.picks[pk.id] || {}), t: 'gone', h: pk.to };
+    // a pick in the draft under way changes hands in the draft order too
+    const [o, y, rd] = pk.id.split('|');
+    for (const e of G.draft?.year === +y ? G.draft.order.slice(G.draft.picks.length) : [])
+      if (e.origin === o && (e.slot <= 30) === (rd === '1')) e.holder = pk.to;
+  }
   for (const [ab, lvl] of Object.entries(res.hardCaps || {})) if (G.teams[ab].hardCap !== 'apron1') G.teams[ab].hardCap = lvl;
   for (const [ab, tp] of Object.entries(res.newTpes || {})) G.teams[ab].tpes.push(...tp);
   for (const c of trade.cash || []) { G.teams[c.from].cashSent += c.amt; G.teams[c.to].cashRecv += c.amt; }
