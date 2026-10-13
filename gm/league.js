@@ -58,7 +58,7 @@ function hashNoise(s) {
 }
 // A player's ask this summer, with his max-or-not draw fixed for the summer (hashed, so asking twice
 // gives the same answer)
-export const askOf = (G, p, F) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)));
+export const askOf = (G, p, F, ext = 0) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)), ext);
 // A club's projected wins for the coming season: the site's identity, 41 + wins-per-net x net,
 // with each man at his projection and the role he is in line for, at his availability.
 export function projWins(G, ab) {
@@ -109,16 +109,14 @@ export function assignRoles(G) {
   for (const ab of Object.keys(G.teams)) for (const [p, m] of rotation(G, ab, true)) p.mpg = m * (p.av ?? 0.9);
   G.rolesSet = true;
 }
-// linear through a table of [x, y] points, flat past either end
-const interp = (t, x) => { const i = t.findIndex((c) => c[0] >= x);
-  return i < 0 ? t.at(-1)[1] : i === 0 ? t[0][1] : t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (x - t[i - 1][0]) / (t[i][0] - t[i - 1][0]); };
+const interp = V.interp;
 // A club's rotation as its coach sees it: [player, minutes per game when he plays], most first. Until
 // the coaches first set roles, the real 2026-27 roles stand (minutes per game played: mpg / av).
 // After that (K.roles, _gm_roles.py) a man's minutes are what his rating earns on the league's curve,
 // plus how far above or below it he played last season (carried over in part), moved by age, a
 // change of club and where his minutes rank among his club-mates', times the coach's own read of him
-// (the fit's residual, drawn once a season, steadier the more he played); a rookie's go by his draft slot. The fit's intercept,
-// how far men with 40+ games sit above the all-player curve, is left out: the curve is everyone's
+// (the fit's residual, drawn once a season, steadier the more he played); a rookie's go by his draft slot. The fit's intercept
+// gives way to K.roleShift, set in calibrate.js to the league's mean minutes: the curve is everyone's
 // mean, and each night's 240 go down this order among the healthy (season.minutes).
 export function rotation(G, ab, coach = G.rolesSet) {
   const P = G.players, { curve, vet: V_, rookie: Rk } = G.K.roles;
@@ -217,10 +215,13 @@ export function endSeason(G, r) {
     if (pay > f.apron2) freezePick(G, ab, s);
     for (const id of T.roster) { P[id].yos += 1; if (P[id].bird?.team === ab) P[id].bird.n += 1; else P[id].bird = { team: ab, n: 1 }; }
   }
-  // each man's line for the season just played, kept for the page: club, games, minutes, rating
+  // each man's line for the season just played, kept for the page: club, games, minutes, and the
+  // rating the season showed (the board's read pulled toward how he played, by his minutes, as a
+  // real season's rating is estimated from that season)
   for (const [ab, T] of Object.entries(G.teams)) for (const id of T.roster) {
-    const gp = G.lastGp?.[id] || 0;
-    (P[id].log ||= []).push({ s, tm: ab, gp, mpg: gp ? +(G.lastMins[id] / gp).toFixed(1) : 0, rate: +P[id].rate.toFixed(2) });
+    const p = P[id], gp = G.lastGp?.[id] || 0, m = G.lastMins?.[id] || 0;
+    const rate = G.hidden ? p.rate + m / (m + G.K.learnMinutes) * ((p.play ?? p.talent) - p.rate) : p.rate;
+    (p.log ||= []).push({ s, tm: ab, gp, mpg: gp ? +(m / gp).toFixed(1) : 0, rate: +rate.toFixed(2), lean: +(p.lean ?? 0).toFixed(2), p100: V.boxLine(p, gp && m / gp, G.K, r) ?? undefined });
   }
   V.endSeason(P, G.lastMins || {}, G.K, r, G.hidden);
   // Ratings are relative -- points per 100 against an average player -- so the league's
@@ -520,8 +521,9 @@ export function extend(G, ab, p, sal, years, date) {
   G.log.push({ date, type: 'extend', team: ab, pid: p.id, sal, years });
   return [];
 }
-// What p asks to extend: his free-agent ask in the first new season.
-export const extensionAsk = (G, p) => askOf(G, p, fig(G, p.contract.years.at(-1).s + 1));
+// What p asks to extend: the ask in the first new season, as an extension (they pay more than free
+// agency at a rating: the club chose him).
+export const extensionAsk = (G, p) => askOf(G, p, fig(G, p.contract.years.at(-1).s + 1), 1);
 // Computer GMs extend the players they value at their ask, as often as such players re-sign.
 export function extensions(G, r, date, human = G.user) {
   for (const [ab, T] of Object.entries(G.teams)) {
@@ -539,7 +541,7 @@ export function extensions(G, r, date, human = G.user) {
 // Every club reaches 14 standard contracts and 3 two-ways with the best men left -- best over the
 // next three seasons, so a club filling its bench takes the 22-year-old with a future over the
 // 35-year-old with a past: minimum deals, and two-ways for players with under four years of service.
-export function fillRosters(G, clubs = Object.keys(G.teams)) {
+export function fillRosters(G, clubs = Object.keys(G.teams), date = G.phase === 'season' ? G.date : `${G.season}-09-25`) {
   const s = G.season, F = fig(G, s), P = G.players, K = G.K;
   const v3 = (id) => [0, 1, 2].reduce((a, h) => a + M.war(P[id], h, K), 0);
   const byRate = () => G.fa.slice().sort((a, b) => v3(b) - v3(a));
@@ -547,11 +549,11 @@ export function fillRosters(G, clubs = Object.keys(G.teams)) {
     const T = G.teams[ab];
     while (T.roster.filter((id) => !P[id].contract?.twoWay).length < 14) {
       const id = byRate()[0]; if (!id) break;
-      sign(G, ab, P[id], 'min', C.minSalary(P[id].yos, F.cap), 1, `${s}-09-25`, 0);
+      sign(G, ab, P[id], 'min', C.minSalary(P[id].yos, F.cap), 1, date, 0);
     }
     while (T.roster.filter((id) => P[id].contract?.twoWay).length < 3) {
       const id = byRate().find((x) => P[x].yos < 4); if (!id) break;
-      sign(G, ab, P[id], 'twoWay', C.twoWaySalary(F.cap), 1, `${s}-09-25`, 0);
+      sign(G, ab, P[id], 'twoWay', C.twoWaySalary(F.cap), 1, date, 0);
     }
   }
 }

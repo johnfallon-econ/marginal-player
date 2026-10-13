@@ -27,15 +27,16 @@ export function surplus(p, capOf, K, disc = 0.1) {
   return (p.contract?.years || []).reduce((a, y, i) => a + (marketValue(p, i, capOf(y.s), K) - y.sal) / (1 + disc) ** i, 0);
 }
 
-// What a free agent asks (K.pay, _gm_pay.py, fit on every real new deal 2015-24): the max with
+// What a man asks (K.pay, _gm_pay.py, fit on every real new deal 2015-24 and extension 2015-25; ext = 1
+// for an extension): the max with
 // P(max | rating, minutes, age), else a share of the cap from his rating, last season's minutes per
 // game played and games, age and whether he is coming off his first contract -- never under his
 // minimum. `u` is his draw, fixed for the summer, that decides whether he is a max man; the term is
 // by age. A man with no NBA season yet is taken at the minutes his rating usually earns.
-export function ask(p, f, K, u = 0.5) {
+export function ask(p, f, K, u = 0.5, ext = 0) {
   const l = p.log?.findLast((x) => x.gp > 0), mpg = l ? l.mpg : mpgFor(p.rate, K) / (p.av ?? 0.9), gp = l ? l.gp : 82 * (p.av ?? 0.9);
   const x = { const: 1, rating: p.rate, rating_pos2: Math.max(p.rate, 0) ** 2, log_mpg: Math.log(Math.max(mpg, 1)), gp_82: gp / 82,
-    age_28: p.age - 28, age_over_32: Math.max(p.age - 32, 0), first: p.yos <= 4 ? 1 : 0 };
+    age_28: p.age - 28, age_over_32: Math.max(p.age - 32, 0), first: p.yos <= 4 ? 1 : 0, ext };
   const lin = (c) => Object.entries(c).reduce((a, [k, v]) => a + v * x[k], 0);
   const mx = maxSalary(p.yos, f, p.prior * 1e6 || 0), pMax = 1 / (1 + Math.exp(-lin(K.pay.maxdeal)));
   const sal = u < pMax ? mx : Math.min(Math.max(lin(K.pay.nonmax) * f.cap, minSalary(p.yos, f.cap)), mx);

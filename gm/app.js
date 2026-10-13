@@ -46,6 +46,7 @@ const NEXT = {
     const w = G.cur.win, to = ['Sim to Dec 15', 'Sim to the trade deadline', 'Sim the rest of the season'][w];
     const rec = G.cur.record[G.user], n = std(me()).length;
     if (n > 15) return [`You carry ${n} standard contracts after the trade: waive down to 15 before the next game.`, btn('autocut', 'Make the cuts for me'), btn('go', 'Choose the cuts', 'roster')];
+    if (n < 13) return [`You carry ${n} standard contracts after the trade: sign up to 13 before the next game.`, btn('autofill', 'Sign the best left at the minimum'), btn('go', 'Choose free agents', 'fa')];
     return [`${rec.w}-${rec.l} after ${rec.w + rec.l} games. ${w < 2 ? 'Clubs can trade until the deadline.' : 'The deadline has passed.'}`, btn('sim', to)];
   },
   playoffs: () => {
@@ -229,12 +230,14 @@ const contract = (p) => yrs(p).map((y) => `${SEASON(y.s)} ${$M(y.sal)}${y.opt ? 
 const usage = (p) => { const gp = G.cur?.gp[p.id], l = p.log?.at(-1);
   return G.cur ? `${gp || 0} gp, ${gp ? (G.cur.mins[p.id] / gp).toFixed(1) : '0.0'} mpg` : l ? `${SEASON(l.s)}: ${l.gp} gp, ${l.mpg} mpg` : ''; };
 const playerRow = (p, extra = '') => `<tr data-act="sel" data-arg="${p.id}" class="${ui.pid === p.id ? 'on' : ''}"><td><b>${esc(p.nm)}</b><small>${[p.pos, p.ht, Math.floor(p.age), p.contract?.twoWay && 'two-way', !p.pre && usage(p)].filter(Boolean).join(' · ')}</small>${p.pre ? pre(p) : ''}</td>
-<td class="n">${sg(p.rate)}</td><td class="n">${M.war(p, 0, G.K).toFixed(1)}</td>${extra}</tr>`;
+<td class="n">${sg(p.rate)}<small> ${od(p.rate, p.lean)}</small></td><td class="n">${M.war(p, 0, G.K).toFixed(1)}</td>${extra}</tr>`;
+// offense and defense: the net rating split by his lean (offense minus defense)
+const od = (r, lean = 0) => `O ${sg((r + lean) / 2)} D ${sg((r - lean) / 2)}`;
 // a prospect's last season before the draft, per game
 const pre = (p) => { const [pts, trb, ast, stl, blk, fg, fg3, ft, g, mp] = p.pre.line, pc = (x) => (x == null ? '–' : (100 * x).toFixed(0));
   return `<small>${p.pre.lvl}${p.wt ? ` · ${p.wt} lb` : ''}: ${pts} pts, ${trb} reb, ${ast} ast, ${stl} stl, ${blk} blk; ${pc(fg)}/${pc(fg3)}/${pc(ft)} shooting; ${mp} mpg in ${g} g</small>`; };
-const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Pts/Reb/Ast per 100</th></tr></thead><tbody>
-${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.p100 ? l.p100.join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
+const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Off / Def</th><th class="n">Pts/Reb/Ast/Stl/Blk per 100</th></tr></thead><tbody>
+${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.rate == null || l.lean == null ? '–' : od(l.rate, l.lean).replace('O ', '').replace(' D ', ' / ')}</td><td class="n">${l.p100 ? l.p100.join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
 const detail = (p, actions = '') => `<tr class="det"><td colspan="9">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.
 Projected to be available for ${Math.round(100 * (p.av ?? 0.9))}% of games.${p.contract ? `<br>${contract(p)}` : ''}${logTable(p)}${actions}</td></tr>`;
 const extInfo = (p) => { const start = p.contract.years.at(-1).s + 1;
@@ -270,7 +273,7 @@ ${(() => { const gone = G.log.filter((x) => x.type === 'retire' && x.team === G.
 ${G.dev?.length && ['draft', 'offseason'].includes(G.phase) ? `<div class="card"><h3>How your players developed</h3><p class="note">Rating at the end of the season against the start${G.hidden ? ', as the league now sees it' : ''}.</p>
 ${G.dev.map(([id, b, a]) => `<div>${esc(P(id).nm)} <small>${Math.floor(P(id).age)}</small>: ${sg(b)} → ${sg(a)} <b class="${a >= b ? 'good' : 'bad'}">(${sg(a - b)})</b></div>`).join('')}</div>` : ''}
 <p class="note">${G.hidden ? 'Ratings are what the league can see: each player\'s true talent is hidden and shows itself as he plays.' : 'Ratings are the truth: each player is exactly as good as his projection.'}
-Ratings are points per 100 possessions against an average player; WAR is wins above a replacement player this season.</p>`;
+Ratings are points per 100 possessions against an average player, split into offense (O) and defense (D); WAR is wins above a replacement player this season.</p>`;
   },
   roster: () => {
     const T = me(), ps = T.roster.map(P).sort((a, b) => !!a.contract?.twoWay - !!b.contract?.twoWay || b.rate - a.rate);

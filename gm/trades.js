@@ -3,7 +3,7 @@
 // out ahead by their own lights and the rules engine passes it.
 import * as C from './cba.js';
 import * as M from './value.js';
-import { teamValue, projWins, capAt, cutdown } from './league.js';
+import { teamValue, projWins, capAt, cutdown, fillRosters } from './league.js';
 
 export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.025, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
@@ -115,14 +115,6 @@ function gain(G, x, ab, tr) {
   }
   return v - x.tax(ab, d);
 }
-// A club needs 13 standard contracts in the season (the 14th may wait two weeks).
-function shortHanded(G, tr) {
-  if (G.phase !== 'season') return false;
-  const P = G.players, n = {};
-  for (const m of tr.moves) if (!P[m.pid].contract?.twoWay) { n[m.from] = (n[m.from] || 0) - 1; n[m.to] = (n[m.to] || 0) + 1; }
-  return Object.entries(n).some(([ab, d]) => G.teams[ab].roster.filter((id) => !P[id].contract?.twoWay).length + d < 13);
-}
-
 // What buyer B sends for p: nothing if the rules allow, else its contracts worth least to it until
 // salaries match; then the side coming out behind is paid in picks while the other stays ahead.
 export function buildOffer(G, x, B, S, p, date) {
@@ -136,7 +128,7 @@ export function buildOffer(G, x, B, S, p, date) {
     trade.moves.push({ pid: id, from: B, to: S });
     res = C.validateTrade(league, trade);
   }
-  if (!res.ok || shortHanded(G, trade)) return null;
+  if (!res.ok) return null;
   const g = (ab) => gain(G, x, ab, trade);
   // the side behind pays in picks, up to MAX_PICKS: the cheapest one that closes the gap, else its best and go on
   const [payer, payee] = g(S) < 0 ? [B, S] : g(B) < 0 ? [S, B] : [];
@@ -158,7 +150,6 @@ export function buildOffer(G, x, B, S, p, date) {
 export function judge(G, tr, human = G.user) {
   tr = { date: G.date, cash: [], picks: [], ...tr };
   const x = market(G), res = C.validateTrade({ ...G, picks: x.pv }, tr);
-  if (shortHanded(G, tr)) res.errors.push('a club would be left under 13 standard contracts');
   const clubs = [...new Set(tr.moves.flatMap((m) => [m.from, m.to]).concat(tr.picks.flatMap((p) => [p.from, p.to])))];
   const gains = Object.fromEntries(clubs.map((ab) => [ab, gain(G, x, ab, tr)]));
   const ok = res.ok && !res.errors.length;
@@ -205,5 +196,7 @@ export function execute(G, trade, res) {
   for (const [ab, tp] of Object.entries(res.newTpes || {})) G.teams[ab].tpes.push(...tp);
   // a club over the roster limit waives its least valuable men (the user's club chooses its own cuts)
   for (const ab of Object.keys(res.waive || {})) if (ab !== G.user || G.autoUser) cutdown(G, null, ab);
+  // a club left short signs the best men left at the minimum (the user's club signs its own)
+  if (G.phase === 'season') fillRosters(G, [...new Set(trade.moves.flatMap((m) => [m.from, m.to]))].filter((ab) => ab !== G.user || G.autoUser));
   for (const c of trade.cash || []) { G.teams[c.from].cashSent += c.amt; G.teams[c.to].cashRecv += c.amt; }
 }

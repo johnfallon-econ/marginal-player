@@ -46,6 +46,19 @@ export function seasonForm(teams, players, K, r) {
 
 // After a season: the projection learns from his season (weight by minutes played, so a
 // bench season moves it little), then everyone ages a year and talent drifts.
+// linear through a table of [x, y] points, flat past either end
+export const interp = (t, x) => { const i = t.findIndex((c) => c[0] >= x);
+  return i < 0 ? t.at(-1)[1] : i === 0 ? t[0][1] : t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (x - t[i - 1][0]) / (t[i][0] - t[i - 1][0]); };
+// A season's box line per 100 possessions (K.box, _gm_box.py): the fit on his offense, defense,
+// position and minutes, his own style (drawn once for a man with no real seasons) and the season's
+// noise; [pts, reb, ast, stl, blk], none for a man with no position. A count is never under zero.
+export function boxLine(p, mpg, K, r) {
+  const B = K.box, ps = p.pos?.[0];
+  if (!ps || !mpg) return null;
+  p.box ??= B.stats.map((s) => +(B.sd_player[s] * r.normal()).toFixed(2));
+  const x = { const: 1, off: (p.rate + (p.lean ?? 0)) / 2, def: (p.rate - (p.lean ?? 0)) / 2, F: +(ps === 'F'), C: +(ps === 'C'), log_mpg: Math.log(mpg) };
+  return B.stats.map((s, i) => +Math.max(0, Object.entries(B.coef[s]).reduce((a, [k, v]) => a + v * x[k], 0) + p.box[i] + B.sd_season[s] * r.normal()).toFixed(1));
+}
 export function endSeason(players, minutesPlayed, K, r, hidden) {
   for (const p of Object.values(players)) {
     const m = minutesPlayed[p.id] || 0, step = agingStep(K, p.age);
@@ -58,6 +71,8 @@ export function endSeason(players, minutesPlayed, K, r, hidden) {
       p.rate = p.talent;
     }
     stepTrend(p, K, r, hidden);
+    // offense minus defense (_gm_od.py): offense fades from about 27, defense holds to about 31
+    p.lean = (p.lean ?? 0) + interp(K.od.drift, p.age) + K.od.rho * (p.lean ?? 0) + K.od.sd * r.normal();
     p.age += 1;
   }
 }
