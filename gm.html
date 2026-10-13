@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GM — The Marginal Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="assets/fonts/inter-v20-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet"></noscript>
+<link rel="stylesheet" href="site.css">
+<link rel="icon" href="assets/favicon-32.png">
+<!-- seo --><meta name="description" content="Run an NBA club from the 2026-27 season on: real rosters, contracts and picks, the full salary cap rules, and 29 computer GMs who value players the way this site does."><link rel="canonical" href="https://themarginalplayer.com/gm.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="GM — The Marginal Player"><meta property="og:description" content="Run an NBA club from the 2026-27 season on: real rosters, contracts and picks, the full salary cap rules, and 29 computer GMs who value players the way this site does."><meta property="og:url" content="https://themarginalplayer.com/gm.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="GM — The Marginal Player"><meta name="twitter:description" content="Run an NBA club from the 2026-27 season on: real rosters, contracts and picks, the full salary cap rules, and 29 computer GMs who value players the way this site does."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
+<body>
+<header><div class="wrap"><nav>
+<a class="brand" href="index.html"><img src="assets/mark-light-sm.webp" alt="" width="34" height="35" style="display:block;flex:none;width:34px;height:35px"><span>The <br>Marginal <br>Player</span></a>
+<div class="nl"><a href="index.html">Home</a><a href="players.html">Players</a><a href="value-board.html">Value</a><a href="draft-board.html">Draft</a><a href="trades.html">Trades</a><a href="gm.html" class='on'>GM</a><a href="insights.html">Insights</a><a href="methodology-value.html">Method</a></div>
+</nav></div></header>
+<div class="wrap"><main>
+<style>
+.gm{font-size:15px;position:relative;min-height:60vh}
+.gm .top{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin:0 0 8px}
+.gm .top span{color:var(--muted);font-size:13px}
+.gm .tabs{display:flex;gap:4px;overflow-x:auto;margin:0 0 12px;border-bottom:1px solid var(--rule)}
+.gm .tabs button{background:none;border:0;padding:10px 12px;font:inherit;color:var(--muted);cursor:pointer;white-space:nowrap;min-height:44px}
+.gm .tabs button[aria-current]{color:var(--ink);border-bottom:3px solid var(--orange-text);font-weight:600}
+.gm .card{background:#fff;border:1px solid var(--rule);border-radius:8px;padding:12px 14px;margin:0 0 12px}
+.gm .card p{margin:0 0 10px}
+.gm .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+.gm .b{background:var(--navy-900);color:#fff;border:0;border-radius:6px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:44px}
+.gm .b.warn{background:var(--orange-text)}
+.gm .t{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.gm .t th,.gm .t td{padding:8px 6px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:middle}
+.gm .t th{font-size:12px;color:var(--muted);font-weight:500}
+.gm .t .n{text-align:right;white-space:nowrap}
+.gm .t td small{display:block;color:var(--muted);font-size:12px}
+.gm .t tr[data-act]{cursor:pointer}
+.gm .t tr.on,.gm .t tr.me{background:var(--cream)}
+.gm .t tr.cut td{border-bottom:2px solid var(--axis)}
+.gm .t .b{padding:6px 10px;min-height:36px}
+.gm .det td{background:var(--cream);font-size:14px}
+.gm .pay{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:12px 0;font-size:14px}
+.gm .pay div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted var(--rule)}
+.gm .pay span{color:var(--muted)}
+.gm .ck{display:block;padding:8px 0;border-bottom:1px solid var(--grey-100);min-height:24px}
+.gm .ck small{color:var(--muted)}
+.gm .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.gm .two{grid-template-columns:1fr}}
+.gm .sticky{position:sticky;bottom:0;box-shadow:0 -2px 8px rgba(13,27,42,.08)}
+.gm .note{color:var(--muted);font-size:13px}
+.gm .good{color:#166534;font-weight:600}.gm .bad{color:#9a3412;font-weight:600}
+.gm .form{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-top:8px}
+.gm .form label{display:flex;flex-direction:column;font-size:13px;color:var(--muted)}
+.gm input[type=number],.gm select{font:inherit;padding:8px;border:1px solid var(--rule);border-radius:6px;min-height:40px;max-width:100%}
+.gm .log{list-style:none;padding:0}.gm .log li{padding:6px 0;border-bottom:1px solid var(--grey-100);font-size:14px}
+.gm .log small{color:var(--muted);margin-right:6px}
+.gm .busy{position:fixed;inset:0;background:rgba(247,246,242,.8);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px;z-index:50}
+.gm fieldset{border:0;padding:0;margin:10px 0}
+</style>
+<h1>GM</h1>
+<div id="gm" class="gm"><noscript>The game runs in your browser and needs JavaScript.</noscript></div>
+<input type="file" id="importf" accept="application/json" hidden>
+<script type="module" src="gm/app.js"></script>
+</main>
+<footer>
+<p><strong>The Marginal Player</strong> — the numbers behind better rosters.
+Figures are model output, not official NBA statistics. Player value is measured on this
+model's own scale; see <a href="methodology-value.html">the method</a>. Player portraits
+are illustrations adapted from Creative Commons photographs &mdash;
+<a href="credits.html">credits</a>.</p>
+</footer>
+</div>
+</body>
+</html>
