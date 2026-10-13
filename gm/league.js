@@ -60,10 +60,12 @@ function hashNoise(s) {
 // gives the same answer)
 export const askOf = (G, p, F) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)));
 // A club's projected wins for the coming season: the site's identity, 41 + wins-per-net x net,
-// with each man at his projection and the role he is in line for.
+// with each man at his projection and the role he is in line for, at his availability.
 export function projWins(G, ab) {
   const ps = G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay);
-  return 41 + G.K.winsPerNet * (S.net(ps.map((p) => ({ ...p, play: p.rate })), G.K.maxMpg) - (G.leagueNet ?? 0));
+  // each man at his minutes per TEAM game (his role times his availability), as the site's team
+  // projection does: a club built on stars loses more to their nights out than a deep one
+  return 41 + G.K.winsPerNet * (S.net(ps.map((p) => ({ ...p, play: p.rate, av: 1 })), G.K.maxMpg) - (G.leagueNet ?? 0));
 }
 export function setLeagueNet(G) {
   G.leagueNet = 0;
