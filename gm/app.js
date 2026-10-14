@@ -253,8 +253,13 @@ const contract = (p) => yrs(p).map((y) => `${SEASON(y.s)} ${$M(y.sal)}${y.opt ? 
 // games and minutes: this season's so far, else his last season's
 const usage = (p) => { const gp = G.cur?.gp[p.id], l = p.log?.at(-1);
   return G.cur ? `${gp || 0} gp, ${gp ? (G.cur.mins[p.id] / gp).toFixed(1) : '0.0'} mpg` : l ? `${SEASON(l.s)}: ${l.gp} gp, ${l.mpg} mpg` : ''; };
-const playerRow = (p, extra = '') => `<tr data-act="sel" data-arg="${p.id}" class="${ui.pid === p.id ? 'on' : ''}"><td><b>${esc(p.nm)}</b><small>${[p.pos, p.ht, Math.floor(p.age), p.contract?.twoWay && 'two-way', !p.pre && usage(p)].filter(Boolean).join(' · ')}</small>${p.pre ? pre(p) : ''}</td>
-<td class="n">${sg(p.rate)}<small> ${od(p.rate, p.lean)}</small></td><td class="n">${M.war(p, 0, G.K).toFixed(1)}</td>${extra}</tr>`;
+// his line under his name: this season's (or his last), per game; a prospect's pre-draft line until
+// his first NBA game
+const statLine = (p) => { const l = A.line(G, p);
+  return l ? `${SEASON(l.s)}: ${l.gp} gp, ${l.mpg.toFixed(1)} mpg${l.pg ? ` · ${l.pg[0].toFixed(1)} pts, ${l.pg[1].toFixed(1)} reb, ${l.pg[2].toFixed(1)} ast` : ''}` : ''; };
+const playerRow = (p, extra = '') => { const l = statLine(p);
+  return `<tr data-act="sel" data-arg="${p.id}" class="${ui.pid === p.id ? 'on' : ''}"><td><b>${esc(p.nm)}</b><small>${[p.pos, p.ht, Math.floor(p.age), p.contract?.twoWay && 'two-way', l].filter(Boolean).join(' · ')}</small>${p.pre && !l ? pre(p) : ''}</td>
+<td class="n">${sg(p.rate)}<small> ${od(p.rate, p.lean)}</small></td><td class="n">${M.war(p, 0, G.K).toFixed(1)}</td>${extra}</tr>`; };
 // offense and defense: the net rating split by his lean (offense minus defense)
 const od = (r, lean = 0) => `O ${sg((r + lean) / 2)} D ${sg((r - lean) / 2)}`;
 // a prospect's last season before the draft, per game
@@ -272,8 +277,8 @@ const card = (id) => { const p = P(id), h = honors(id);
 <p>Rating <b>${sg(p.rate)}</b> <small>${od(p.rate, p.lean)}</small> · WAR ${M.war(p, 0, G.K).toFixed(1)}${p.tm ? ` · ${usage(p)}` : ''}</p>
 <p class="sub">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.</p>
 ${p.contract ? `<p>${contract(p)}</p>` : ''}${h.length ? `<p><b>Honors</b><br>${h.join('<br>')}</p>` : ''}${logTable(p)}</div></div>`; };
-const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Off / Def</th><th class="n">Pts/Reb/Ast/Stl/Blk per 100</th></tr></thead><tbody>
-${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.rate == null || l.lean == null ? '–' : od(l.rate, l.lean).replace('O ', '').replace(' D ', ' / ')}</td><td class="n">${l.p100 ? l.p100.join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
+const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Off / Def</th><th class="n">Pts/Reb/Ast/Stl/Blk per game</th></tr></thead><tbody>
+${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.rate == null || l.lean == null ? '–' : od(l.rate, l.lean).replace('O ', '').replace(' D ', ' / ')}</td><td class="n">${l.p100 ? l.p100.map((x) => (x * l.mpg / 48).toFixed(1)).join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
 const detail = (p, actions = '') => `<tr class="det"><td colspan="9">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.
 Projected to be available for ${Math.round(100 * (p.av ?? 0.9))}% of games.${p.contract ? `<br>${contract(p)}` : ''}${logTable(p)}${actions}</td></tr>`;
 const extInfo = (p) => { const start = p.contract.years.at(-1).s + 1;
@@ -360,6 +365,27 @@ function news(before) {
   return [`You went ${w}-${l} over the stretch; ${rec.w}-${rec.l} now, ${rank}${['st', 'nd', 'rd'][rank - 1] || 'th'} in the ${conf}.`,
     hurt.length ? `Out injured: ${hurt.map(([id, n]) => `${nm(id)} (about ${n} more game${n > 1 ? 's' : ''})`).join(', ')}.` : 'Your whole roster is healthy.',
     ...trades.slice(-6).map((x) => `Trade: ${logLine(x)}`), trades.length > 6 ? `${trades.length - 6} more trades in the Moves tab.` : ''].filter(Boolean);
+}
+// What the user's club can spend on free agents now, and what bars each way of signing
+function spendCard() {
+  const f = F(), T = me(), p = G.fa.map(P).find((q) => !q.retired);
+  if (!p || !T.exc) return '';                                  // exceptions are set from the first new league year
+  const pay = C.teamSalary(T, G, G.season), capPay = C.teamSalary(T, G, G.season, { holds: true, offseason: G.phase !== 'season' });
+  const holds = T.holds.reduce((a, h) => a + h.amt, 0), room = Math.max(0, f.cap - capPay), min = C.minSalary(p.yos, f.cap);
+  const ways = [['room', 'Cap room', room], ['ntmle', 'Mid-level exception', T.exc.ntmle], ['tpmle', 'Taxpayer mid-level', T.exc.tpmle],
+    ['roomMle', 'Room mid-level', T.exc.roomMle], ['bae', 'Bi-annual exception', T.exc.bae]];
+  // each way tried on a free agent: at its full amount, and when that is barred, at the minimum;
+  // the most it can pay is its amount, or what keeps the club under the apron that bars it
+  const test = (how, sal) => C.validateSigning(G, { team: G.user, pid: p.id, how, date: G.date, years: L.years5(sal, 1, 0), prior: 0 });
+  const usable = (how, amt) => { if (amt < min) return [0, how === 'room' ? 'no room' : 'used up'];
+    const full = test(how, amt); if (full.ok) return [amt, ''];
+    if (!test(how, min).ok) return [0, test(how, min).errors.join('; ')];
+    const lvl = /first apron/.test(full.errors.join()) ? 'apron1' : /second apron/.test(full.errors.join()) ? 'apron2' : null;
+    return [lvl ? Math.max(min, f[lvl] - pay) : min, full.errors.join('; ')]; };
+  const rows = ways.map(([how, nm, amt]) => [nm, ...usable(how, amt)]);
+  return `<div class="card"><h3>What you can spend</h3><div class="pay">${rows.map(([nm, a, w]) => `<div><span>${nm}</span><b class="${a ? '' : 'bad'}">${a ? `${w ? 'up to ' : ''}${$M(a)}` : '–'}</b></div>`).join('')}<div><span>Minimum contracts</span><b>any</b></div></div>
+${rows.filter(([, , w]) => w && w !== 'used up' && w !== 'no room').map(([nm, a, w]) => `<p class="note">${nm}${a ? ', in full' : ''}: ${esc(w)}.</p>`).join('')}
+<p class="note">Payroll ${$M(pay)}${holds ? `, plus ${$M(holds)} in cap holds for ${T.holds.length} of your own free agents: the cap counts ${$M(capPay)}. Renounce a player's rights (open him below) to free his hold` : ''}. Your own free agents can be re-signed over the cap with their Bird rights.</p></div>`;
 }
 // Free agency in the summer: your offers and what each agent says, yesterday's answers, and who
 // signed where
@@ -492,7 +518,7 @@ ${btn('market', 'Open the market')}</div>`;
 <label>Salary ($M) <input id="sal" type="number" step="0.1" value="${(ask(p).sal / 1e6).toFixed(1)}"></label>
 <label>Years <input id="yrs" type="number" min="1" max="5" value="${ask(p).years}"></label>${btn('offer', 'Make the offer')}${lvl(p) ? btn('renounce', 'Renounce his rights', p.id, 'warn') : ''}${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}</div>`; };
     return `${sheets.map(([pid, o]) => `<div class="card"><p>${esc(NAME(o.ab))} offer ${esc(P(pid).nm)} ${$M(o.sal)} × ${o.years}.</p>${btn('match', 'Match', `${pid}|1`)}${btn('match', 'Let him go', `${pid}|0`)}${pid in G.matchAns ? ` <small>${G.matchAns[pid] ? 'matching' : 'declining'}</small>` : ''}</div>`).join('')}
-${open ? `<div class="card"><p class="note">The market has closed: whoever is left signs on the spot for an offer at half his summer ask or better.</p></div>` : faCards()}
+${open ? `<div class="card"><p class="note">The market has closed: whoever is left signs on the spot for an offer at half his summer ask or better.</p></div>` : faCards()}${spendCard()}
 <table class="t"><thead><tr><th>Free agent</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Ask</th></tr></thead><tbody>
 ${pool.map((p) => playerRow(p, `<td class="n">${$M(ask(p).sal)} × ${ask(p).years}</td>`) + (ui.pid === p.id ? detail(p, form(p)) : '')).join('')}</tbody></table>
 ${all.length > pool.length ? `<div class="row">${btn('famore', `Show more (${all.length - pool.length} left)`, '', 'ghost')}</div>` : ''}${payroll()}`;

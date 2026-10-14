@@ -58,9 +58,9 @@ export const askOf = (G, p, F, ext = 0) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask
 // with each man at his projection and the role he is in line for, at his availability.
 export function projWins(G, ab) {
   const ps = G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay);
-  // each man at his minutes per TEAM game (his role times his availability), as the site's team
-  // projection does: a club built on stars loses more to their nights out than a deep one
-  return 41 + G.K.winsPerNet * (S.net(ps.map((p) => ({ ...p, play: p.rate, av: 1 })), G.K.maxMpg) - (G.leagueNet ?? 0));
+  // over the nights each man is out as well as in (S.expNet): a club built on stars who miss games
+  // loses more to their nights out than a deep one
+  return 41 + G.K.winsPerNet * (S.expNet(ps.map((p) => ({ ...p, play: p.rate })), G.K.maxMpg) - (G.leagueNet ?? 0));
 }
 export function setLeagueNet(G) {
   G.leagueNet = 0;
@@ -134,7 +134,7 @@ export function rotation(G, ab, coach = G.rolesSet) {
     const x = pr ? lc(rating) + (G.K.roleShift || 0) + V_.dev * (Math.log(pr[0]) - lc(p.rate)) + V_.age_27 * (p.age - 27) + V_.age_over_30 * Math.max(p.age - 30, 0) + V_.moved * pr[1]
       + (V_.log_rank + V_.moved_log_rank * pr[1]) * Math.log(rank(p))
       : Rk.a + Rk.log_pick * Math.log(p.draft?.pick || 61);
-    return Math.min(Math.exp(x + (pr ? interp(V_.sd_by_mpg, pr[0]) : Rk.sd) * hashNoise(`coach|${p.id}|${G.season}`)), G.K.maxMpg);
+    return Math.min(Math.exp(x + (pr ? interp(V_.sd_by_mpg, pr[0]) : Rk.sd) * hashNoise(`coach|${p.id}|${G.season}`)), G.K.roleCap);
   };
   // a role is set once a season with a club, and kept through the season's later reshuffles
   const role = (p) => (p.role?.s === G.season && p.role.tm === ab ? p.role.m : (p.role = { s: G.season, tm: ab, m: mpg(p) }).m);

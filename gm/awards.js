@@ -18,6 +18,13 @@ export function lines(G, s) {
   }
   return out;
 }
+// One man's line: the season under way, else his last; null before his first NBA game
+export function line(G, p) {
+  const live = G.cur?.gp[p.id], l = live ? { s: G.season, gp: live, mpg: G.cur.mins[p.id] / live } : p.log?.findLast((x) => x.gp);
+  if (!l) return null;
+  const p100 = live ? V.boxLine(p, l.mpg, G.K, G.season) : l.p100;
+  return { s: l.s, gp: l.gp, mpg: l.mpg, pg: p100 && p100.map((x) => x * l.mpg / 48) };
+}
 // The top five in each per-game line, among men in 70% of their club's games, in the season under way
 export function leaders(G, s) {
   const L = lines(G, s), rec = G.cur.record;
