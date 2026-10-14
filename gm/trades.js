@@ -5,7 +5,7 @@ import * as C from './cba.js';
 import * as M from './value.js';
 import { teamValue, projWins, capAt, cutdown, fillRosters } from './league.js';
 
-export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.025, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
+export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.055, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
 // how a club weighs a season h ahead, and a pick, by what it is trying to do
 const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
@@ -122,12 +122,13 @@ export function buildOffer(G, x, B, S, p, date) {
     .filter((id) => id !== p.id && !P[id].contract?.twoWay && C.charge(P[id], x.s, x.F.cap) > 0)
     .sort((a, b) => playerWorth(G, B, P[a], x.modes[B]) - playerWorth(G, B, P[b], x.modes[B]));
   const trade = { date, moves: [{ pid: p.id, from: S, to: B }], picks: [], cash: [] }, league = { ...G, picks: x.pv };
-  let res = C.validateTrade(league, trade);
-  for (const id of mine) {
-    if (res.ok) break;
-    trade.moves.push({ pid: id, from: B, to: S });
-    res = C.validateTrade(league, trade);
-  }
+  // as few men as match the salaries: one, else two, each time the ones it values least; else
+  // its least valued, one after another until the rules allow
+  const send = (ids) => { trade.moves = [trade.moves[0], ...ids.map((id) => ({ pid: id, from: B, to: S }))]; return C.validateTrade(league, trade); };
+  const pairs = mine.slice(0, 12).flatMap((a, i, m) => m.slice(i + 1).map((b) => [a, b]))
+    .sort(([a, b], [c, d]) => playerWorth(G, B, P[a], x.modes[B]) + playerWorth(G, B, P[b], x.modes[B]) - playerWorth(G, B, P[c], x.modes[B]) - playerWorth(G, B, P[d], x.modes[B]));
+  let res = [[], ...mine.map((id) => [id]), ...pairs].reduce((r, ids) => (r?.ok ? r : send(ids)), null);
+  for (let k = 3; !res.ok && k <= mine.length; k++) res = send(mine.slice(0, k));
   if (!res.ok) return null;
   const g = (ab) => gain(G, x, ab, trade);
   // the side behind pays in picks, up to MAX_PICKS: the cheapest one that closes the gap, else its best and go on

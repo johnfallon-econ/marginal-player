@@ -7,6 +7,7 @@ import * as V from './dev.js';
 import * as D from './draft.js';
 import * as M from './value.js';
 import * as X from './trades.js';
+import * as A from './awards.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 export const TRADES = 30;                               // a window's ceiling on deals; value decides how many happen
@@ -49,13 +50,7 @@ export function teamValue(G, ab, p, h = 0) {
   const lean = 1 + g.youth * (27 - p.age) / 5 + g.winNow * (p.age > 28 ? 1 : 0);
   return base * lean * (1 + g.noise * hashNoise(`${ab}|${p.id}|${G.season}`));
 }
-// a stable N(0,1) per (club, player, season): the same GM thinks the same thing all summer
-function hashNoise(s) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  const u = ((h >>> 0) + 0.5) / 4294967296, v = ((Math.imul(h, 2654435761) >>> 0) + 0.5) / 4294967296;
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
+const hashNoise = V.hashNoise;
 // A player's ask this summer, with his max-or-not draw fixed for the summer (hashed, so asking twice
 // gives the same answer)
 export const askOf = (G, p, F, ext = 0) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)), ext);
@@ -191,6 +186,8 @@ export function postseasonEnd(G) {
   G.history.push({ season: s, record: Object.fromEntries(Object.entries(res.record).map(([k, v]) => [k, [v.w, v.l]])),
     standings: po.stand, playin: po.playin, seeds: po.seeds, rounds: po.rounds.map((rd) => Object.fromEntries(Object.entries(rd).map(([k, v]) => [k, { winner: v.winner, games: v.games }]))), champion: po.champion });
   G.lastMins = res.mins; G.lastGp = res.gp; G.lastRecord = res.record; G.lastPlayin = po.playin; G.lastStand = po.stand;
+  // the season's leaders and awards, on its lines and the regular season's record
+  Object.assign(G.history.at(-1), { leaders: A.leaders(G, s), awards: A.awards(G, s) });
   delete G.cur; delete G.po;
   G.seasonOver = true;                              // trades reopen after the Finals
   G.phase = 'offseason'; G.date = `${s + 1}-06-15`;
@@ -220,8 +217,8 @@ export function endSeason(G, r) {
   // real season's rating is estimated from that season)
   for (const [ab, T] of Object.entries(G.teams)) for (const id of T.roster) {
     const p = P[id], gp = G.lastGp?.[id] || 0, m = G.lastMins?.[id] || 0;
-    const rate = G.hidden ? p.rate + m / (m + G.K.learnMinutes) * ((p.play ?? p.talent) - p.rate) : p.rate;
-    (p.log ||= []).push({ s, tm: ab, gp, mpg: gp ? +(m / gp).toFixed(1) : 0, rate: +rate.toFixed(2), lean: +(p.lean ?? 0).toFixed(2), p100: V.boxLine(p, gp && m / gp, G.K, r) ?? undefined });
+    const rate = V.seasonRate(p, m, G.K, G.hidden);
+    (p.log ||= []).push({ s, tm: ab, gp, mpg: gp ? +(m / gp).toFixed(1) : 0, rate: +rate.toFixed(2), lean: +(p.lean ?? 0).toFixed(2), p100: V.boxLine(p, gp && m / gp, G.K, s) ?? undefined });
   }
   V.endSeason(P, G.lastMins || {}, G.K, r, G.hidden);
   // Ratings are relative -- points per 100 against an average player -- so the league's

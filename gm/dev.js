@@ -46,18 +46,30 @@ export function seasonForm(teams, players, K, r) {
 
 // After a season: the projection learns from his season (weight by minutes played, so a
 // bench season moves it little), then everyone ages a year and talent drifts.
+// a stable N(0,1) for any key (club, player, season...): the same draw every time it is asked
+export function hashNoise(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  const u = ((h >>> 0) + 0.5) / 4294967296, v = ((Math.imul(h, 2654435761) >>> 0) + 0.5) / 4294967296;
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
 // linear through a table of [x, y] points, flat past either end
 export const interp = (t, x) => { const i = t.findIndex((c) => c[0] >= x);
   return i < 0 ? t.at(-1)[1] : i === 0 ? t[0][1] : t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (x - t[i - 1][0]) / (t[i][0] - t[i - 1][0]); };
+// The rating a season shows after m minutes: the board's read pulled toward how he has played, by
+// his minutes, as a real season's rating is estimated from that season (the read itself when
+// talent is not hidden)
+export const seasonRate = (p, m, K, hidden) => (hidden ? p.rate + m / (m + K.learnMinutes) * ((p.play ?? p.talent) - p.rate) : p.rate);
 // A season's box line per 100 possessions (K.box, _gm_box.py): the fit on his offense, defense,
-// position and minutes, his own style (drawn once for a man with no real seasons) and the season's
-// noise; [pts, reb, ast, stl, blk], none for a man with no position. A count is never under zero.
-export function boxLine(p, mpg, K, r) {
+// position and minutes, his own style (drawn once for a man with no real seasons) and season s's
+// noise, both hashed so the line read mid-season is the one the season ends with;
+// [pts, reb, ast, stl, blk], none for a man with no position. A count is never under zero.
+export function boxLine(p, mpg, K, s) {
   const B = K.box, ps = p.pos?.[0];
   if (!ps || !mpg) return null;
-  p.box ??= B.stats.map((s) => +(B.sd_player[s] * r.normal()).toFixed(2));
+  p.box ??= B.stats.map((k, i) => +(B.sd_player[k] * hashNoise(`style|${p.id}|${i}`)).toFixed(2));
   const x = { const: 1, off: (p.rate + (p.lean ?? 0)) / 2, def: (p.rate - (p.lean ?? 0)) / 2, F: +(ps === 'F'), C: +(ps === 'C'), log_mpg: Math.log(mpg) };
-  return B.stats.map((s, i) => +Math.max(0, Object.entries(B.coef[s]).reduce((a, [k, v]) => a + v * x[k], 0) + p.box[i] + B.sd_season[s] * r.normal()).toFixed(1));
+  return B.stats.map((k, i) => +Math.max(0, Object.entries(B.coef[k]).reduce((a, [c, v]) => a + v * x[c], 0) + p.box[i] + B.sd_season[k] * hashNoise(`box|${p.id}|${s}|${i}`)).toFixed(1));
 }
 export function endSeason(players, minutesPlayed, K, r, hidden) {
   for (const p of Object.values(players)) {

@@ -5,6 +5,7 @@ import * as S from './season.js';
 import * as C from './cba.js';
 import * as M from './value.js';
 import * as X from './trades.js';
+import * as A from './awards.js';
 
 let G = null, r = null, view = 'home', ui = {};
 const $ = (s) => document.querySelector(s), root = () => $('#gm');
@@ -56,7 +57,7 @@ const NEXT = {
     const say = live ? `${seriesLine(x)}. ${nextGameLine(x)}` : x ? `${seriesLine(x)}.` : made() ? 'Your season is over.' : 'You missed the playoffs.';
     return [say, live && btn('pgame', `Play game ${x.w + x.l + 1}`), live && btn('pseries', 'Sim the series'),
       S.roundDone(po) ? btn('pround', ['Start the second round', 'Start the conference finals', 'Start the Finals', 'Crown the champion'][po.round]) : btn('pround', 'Sim the round'),
-      btn('go', 'Bracket', 'playoffs')];
+];
   },
   offseason: () => G.step === 'decisions' ? ['Options and qualifying offers are due before the new league year.', btn('newyear', 'Start the new league year')]
     : [summary(G.history.at(-1)), btn('todraft', 'On to the draft')],
@@ -261,12 +262,64 @@ const rotationCard = () => {
 Minutes are per game when he plays: each night 240 go down the rotation among whoever is healthy, no one over 36, so the end of the bench plays when others are hurt.</p><ol class="rot">
 ${L.rotation(G, G.user).map(([p, m], i) => `<li><b>${esc(p.nm)}</b> <small>${ROLE(i, p)} · ${m.toFixed(0)} min${out(p) ? ' · <span class="bad">out injured</span>' : ''}</small></li>`).join('')}</ol></div>`;
 };
+// Both conferences' standings: the record so far, else last season's, else projected wins
+const standings = () => {
+  const rec = G.cur?.record || (G.lastRecord && G.phase !== 'preseason' ? G.lastRecord : null);
+  const conf = (c) => {
+    const T = Object.keys(G.teams).filter((ab) => G.teams[ab].conf === c);
+    const rows = rec ? T.sort((a, b) => rec[b].w - rec[a].w || rec[a].l - rec[b].l).map((ab) => [ab, rec[ab].w, rec[ab].l])
+      : T.map((ab) => [ab, L.projWins(G, ab)]).sort((a, b) => b[1] - a[1]).map(([ab, w]) => [ab, w.toFixed(1), '']);
+    // games behind the conference leader
+    const gb = ([, w, l]) => (rec ? ((rows[0][1] - w + l - rows[0][2]) / 2 || '–') : '');
+    return `<h3>${c}</h3><table class="t"><thead><tr><th>Team</th><th class="n">${rec ? 'W' : 'Proj. W'}</th><th class="n">${rec ? 'L' : ''}</th><th class="n">${rec ? 'GB' : ''}</th></tr></thead><tbody>
+${rows.map((x, i) => `<tr class="${x[0] === G.user ? 'me' : ''}${i === 5 || i === 9 ? ' cut' : ''}"><td>${i + 1}. ${esc(NAME(x[0]))}</td><td class="n">${x[1]}</td><td class="n">${x[2]}</td><td class="n">${gb(x)}</td></tr>`).join('')}</tbody></table>`;
+  };
+  return `<div class="two"><div>${conf('East')}</div><div>${conf('West')}</div></div>`;
+};
+// ---- the season's numbers and the league's history -------------------------------------------
+const who = (id) => `${esc(P(id).nm)} <small>${P(id).tm || ''}</small>`;
+const leadersCard = () => {
+  const h = G.history.at(-1), s = G.cur ? G.season : h?.season, ld = G.cur ? A.leaders(G, s) : h?.leaders;
+  if (!ld) return '';
+  const col = (k, name, d = 1) => `<div><h4>${name}</h4><ol>${ld[k].map(([id, v]) => `<li>${who(id)} <b>${v.toFixed(d)}</b></li>`).join('')}</ol></div>`;
+  return `<h3>League leaders · ${SEASON(s)}</h3><div class="lead">${col('pts', 'Points')}${col('reb', 'Rebounds')}${col('ast', 'Assists')}${col('stl', 'Steals')}${col('blk', 'Blocks')}${col('rating', 'Rating', 2)}</div>
+<p class="note">Per game, among players in 70% of their club's games.</p>`;
+};
+const awardsCard = (h) => {
+  const a = h?.awards;
+  if (!a) return '';
+  const share = (xs) => xs.map(([id, v]) => `<li>${who(id)} <b>${v.toFixed(3)}</b></li>`).join('');
+  return `<h3>Awards · ${SEASON(h.season)}</h3><div class="lead">
+<div><h4>Most Valuable Player</h4><ol>${share(a.mvp)}</ol></div>
+${a.allNba.map((t, i) => `<div><h4>All-NBA ${['First', 'Second', 'Third'][i]} Team</h4><ul>${t.map((id) => `<li>${who(id)}</li>`).join('')}</ul></div>`).join('')}
+<div><h4>Rookie of the Year</h4><ol>${share(a.roy)}</ol></div><div><h4>Sixth Man of the Year</h4><ol>${share(a.smoy)}</ol></div>
+<div><h4>Defensive Player</h4><p>${a.dpoy ? `${who(a.dpoy[0])} <b>${sg(a.dpoy[1])}</b> defense` : '–'}</p><h4>Most Improved</h4><p>${a.mip ? `${who(a.mip[0])} <b>${sg(a.mip[1])}</b>` : '–'}</p></div></div>
+<p class="note">Vote shares from 100 simulated voters who weigh rating, scoring, team record and games as the real MVP and All-NBA electorates have since 1999; Rookie and Sixth Man use the MVP voters' weights. Defensive Player goes to the best defensive rating and Most Improved to the largest rise in rating, both with 65 games, as do MVP and All-NBA.</p>`;
+};
+const finals = (h) => { const [k, v] = Object.entries(h.rounds?.[3] || {})[0] || []; return k ? { lo: k.split('-').find((x) => x !== v.winner), games: v.games } : null; };
+const historyCards = () => {
+  if (!G.history.length) return '';
+  const champs = G.history.slice().reverse().map((h) => { const f = finals(h); return `<tr${h.champion === G.user ? ' class="me"' : ''}><td>${SEASON(h.season)}</td><td>${esc(NAME(h.champion))}</td><td>${f ? `${esc(NAME(f.lo))} <small>${f.games.split('-').sort().reverse().join('-')}</small>` : ''}</td><td>${h.awards?.mvp[0] ? who(h.awards.mvp[0][0]) : ''}</td></tr>`; }).join('');
+  const t = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab, { w: 0, l: 0, po: 0, fin: 0, ttl: 0 }]));
+  for (const h of G.history) {
+    for (const [ab, [w, l]] of Object.entries(h.record)) { t[ab].w += w; t[ab].l += l; }
+    Object.values(h.seeds || {}).flat().forEach((ab) => t[ab].po++);
+    const f = finals(h); if (f) { t[h.champion].fin++; t[f.lo].fin++; t[h.champion].ttl++; }
+  }
+  const rows = Object.entries(t).sort((a, b) => b[1].ttl - a[1].ttl || b[1].w / (b[1].w + b[1].l) - a[1].w / (a[1].w + a[1].l));
+  return `<h3>Champions</h3><table class="t"><thead><tr><th>Season</th><th>Champion</th><th>Finals opponent</th><th>MVP</th></tr></thead><tbody>${champs}</tbody></table>
+<h3>All-time · ${G.history.length} season${G.history.length > 1 ? 's' : ''}</h3><table class="t"><thead><tr><th>Team</th><th class="n">Titles</th><th class="n">Finals</th><th class="n">Playoffs</th><th class="n">W-L</th><th class="n">Pct</th></tr></thead><tbody>
+${rows.map(([ab, x]) => `<tr${ab === G.user ? ' class="me"' : ''}><td>${esc(NAME(ab))}</td><td class="n">${x.ttl}</td><td class="n">${x.fin}</td><td class="n">${x.po}</td><td class="n">${x.w}-${x.l}</td><td class="n">${(x.w / (x.w + x.l)).toFixed(3).replace(/^0/, '')}</td></tr>`).join('')}</tbody></table>
+<p class="note">Playoffs counts the 16 who make the bracket, through the play-in.</p>`;
+};
 const VIEWS = {
   home: () => {
     const [say, ...b] = NEXT[G.phase]();
     const T = me(), rec = G.cur?.record[G.user], last = G.history.at(-1);
     return `<div class="card"><p>${say}</p><div class="row">${b.filter(Boolean).join('')}</div></div>
 ${(G.offers || []).map((t, i) => `<div class="card"><h3>Offer from ${esc(NAME(t.moves[0].to))}</h3>${tradeText(t)}<div class="row">${btn('take', 'Accept', i)}${btn('pass', 'Decline', i, 'warn')}</div></div>`).join('')}
+${G.phase === 'season' ? standings() : G.phase === 'playoffs' ? VIEWS.playoffs() : ''}
+${['offseason', 'draft'].includes(G.phase) && last?.season === G.season ? `<div class="card"><h3>The ${SEASON(last.season)} season</h3><p><b>${esc(NAME(last.champion))}</b> are champions${finals(last) ? `, over the ${esc(NAME(finals(last).lo))}` : ''}. ${last.awards ? `MVP: ${who(last.awards.mvp[0][0])}.` : ''}</p>${awardsCard(last).replace(/<h3>.*?<\/h3>/, '')}</div>` : ''}
 <div class="card"><h3>${esc(NAME(G.user))}</h3><p>${rec ? `Record ${rec.w}-${rec.l}. ` : ''}Projected wins ${L.projWins(G, G.user).toFixed(1)}; ${std(T).length} standard contracts, ${T.roster.length - std(T).length} two-way.
 ${last ? `<br>Last season: ${summary(last)}` : ''}</p>${payroll()}</div>
 ${(() => { const gone = G.log.filter((x) => x.type === 'retire' && x.team === G.user && x.date >= `${G.season}-06-01`); return gone.length && G.phase === 'freeagency' ? `<div class="card"><p>Retired this summer: ${gone.map((x) => esc(P(x.pid).nm)).join(', ')}.</p></div>` : ''; })()}
@@ -283,16 +336,8 @@ ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?
       + (ui.pid === p.id ? detail(p, extForm(p) + (canWaive ? `<div class="row"><label><input type="checkbox" id="stretch"> stretch</label>${btn('waive', 'Waive', p.id, 'warn')}</div>` : '')) : '')).join('')}</tbody></table>${payroll()}`;
   },
   league: () => {
-    const rec = G.cur?.record || (G.lastRecord && G.phase !== 'preseason' ? G.lastRecord : null);
-    const conf = (c) => {
-      const T = Object.keys(G.teams).filter((ab) => G.teams[ab].conf === c);
-      const rows = rec ? T.sort((a, b) => rec[b].w - rec[a].w || rec[a].l - rec[b].l).map((ab) => [ab, rec[ab].w, rec[ab].l])
-        : T.map((ab) => [ab, L.projWins(G, ab)]).sort((a, b) => b[1] - a[1]).map(([ab, w]) => [ab, w.toFixed(1), '']);
-      return `<h3>${c}</h3><table class="t"><thead><tr><th>Team</th><th class="n">${rec ? 'W' : 'Proj. W'}</th><th class="n">${rec ? 'L' : ''}</th></tr></thead><tbody>
-${rows.map(([ab, w, l], i) => `<tr class="${ab === G.user ? 'me' : ''}${i === 5 || i === 9 ? ' cut' : ''}"><td>${i + 1}. ${esc(NAME(ab))}</td><td class="n">${w}</td><td class="n">${l}</td></tr>`).join('')}</tbody></table>`;
-    };
     const hist = G.history.slice().reverse().map((h) => `<tr><td>${SEASON(h.season)}</td><td class="n">${h.record[G.user].join('-')}</td><td>${esc(playoffs(h))}</td><td>${h.champion}</td></tr>`).join('');
-    return `${conf('East')}${conf('West')}${hist ? `<h3>Your seasons</h3><table class="t"><thead><tr><th>Season</th><th class="n">W-L</th><th>Playoffs</th><th>Champion</th></tr></thead><tbody>${hist}</tbody></table>` : ''}`;
+    return `${standings()}${leadersCard()}${awardsCard(G.history.at(-1))}${historyCards()}${hist ? `<h3>Your seasons</h3><table class="t"><thead><tr><th>Season</th><th class="n">W-L</th><th>Playoffs</th><th>Champion</th></tr></thead><tbody>${hist}</tbody></table>` : ''}`;
   },
   trade: () => {
     const others = Object.keys(G.teams).filter((ab) => ab !== G.user).sort();
@@ -321,12 +366,18 @@ ${capStrip(B)}<details><summary>Their cap sheet</summary>${payroll(B)}</details>
   playoffs: () => {
     const po = G.po;
     if (!po) return '<p>No playoffs under way.</p>';
+    // every round so far, finished and under way, in bracket order (1-8, 4-5, 3-6, 2-7 each side)
+    const rounds = [...po.rounds.map((rd) => Object.entries(rd).map(([k, v]) => { const [hi, lo] = k.split('-'), [w, l] = v.games.split('-').map(Number); return { hi, lo, w, l, g: v.g }; })), ...(po.champion ? [] : [po.series])];
+    const seed = (ab) => Object.values(po.seeds).map((S) => S.indexOf(ab) + 1).find((k) => k > 0);
+    const line = (ab, n, won) => `<div class="${won ? 'won' : ''}${ab === G.user ? ' me' : ''}"><small>${seed(ab)}</small> ${ab}<b>${n}</b></div>`;
+    const box = (x) => (x ? `<div class="bx">${line(x.hi, x.w, x.w === 4)}${line(x.lo, x.l, x.l === 4)}</div>` : '<div class="bx tbd">&nbsp;</div>');
+    const side = (c) => `<div class="br">${[4, 2, 1].map((n, i) => { const xs = (rounds[i] || []).filter((x) => G.teams[x.hi].conf === c);
+      return `<div class="rd"><small>${['First round', 'Semifinals', 'Conf. finals'][i]}</small><div class="rb">${Array.from({ length: n }, (_, j) => box(xs[j])).join('')}</div></div>`; }).join('')}</div>`;
+    const mine = rounds.flat().filter((x) => x.hi === G.user || x.lo === G.user).at(-1);
+    const games = mine ? `<div class="card mine"><b>${esc(NAME(mine.hi))} ${mine.w}, ${esc(NAME(mine.lo))} ${mine.l}</b><ol class="games">${mine.g.map((g, i) => `<li>Game ${i + 1} at ${g.h}: <b class="${g.win === G.user ? 'good' : 'bad'}">${g.win}</b> by ${g.by}</li>`).join('')}</ol></div>` : '';
     const pin = ['East', 'West'].map((c) => { const p = po.playin[c]; return `<p class="note">${c} play-in: ${p.w78} take the 7 seed; ${p.eighth} take the 8 seed; ${p.out.join(' and ')} are out.</p>`; }).join('');
-    const games = (x) => x.g.map((g, i) => `<li>Game ${i + 1} at ${g.h}: <b class="${g.win === G.user ? 'good' : (x.hi === G.user || x.lo === G.user) ? 'bad' : ''}">${g.win}</b> by ${g.by}</li>`).join('');
-    const card = (x, done) => { const mine = x.hi === G.user || x.lo === G.user;
-      return `<div class="card${mine ? ' mine' : ''}"><b>${esc(NAME(x.hi))} ${x.w}, ${esc(NAME(x.lo))} ${x.l}</b>${done || S.seriesDone(x) ? ` <small>${(x.w === 4 ? x.hi : x.lo)} win</small>` : ''}${mine ? `<ol class="games">${games(x)}</ol>` : ''}</div>`; };
-    const past = po.rounds.map((rd, i) => `<h3>${ROUND[i]}</h3>${Object.values(rd).map((v, j) => { const [hi, lo] = Object.keys(rd)[j].split('-'); const [w, l] = v.games.split('-').map(Number); return card({ hi, lo, w, l, g: v.g }, true); }).join('')}`).reverse().join('');
-    return `${po.champion ? '' : `<h3>${ROUND[po.round]}</h3>${po.series.map((x) => card(x)).join('')}`}${past}${pin}`;
+    return `<div class="brk"><h3>East</h3>${side('East')}<h3>West</h3>${side('West')}<h3>Finals</h3><div class="br"><div class="rd">${box(rounds[3]?.[0])}</div><div class="rd"></div><div class="rd"></div></div>
+${po.champion ? `<p><b>${esc(NAME(po.champion))}</b> are champions.</p>` : ''}</div>${games}${pin}`;
   },
   draft: () => {
     if (!G.draft) return '<p>No draft under way.</p>';
