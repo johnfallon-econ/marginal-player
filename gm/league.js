@@ -267,7 +267,7 @@ export function draftStart(G, r) {
   for (const p of pool) {
     // hidden talent: the league sees the scouts' board, shrunk to what it predicts; else the truth
     p.rate = G.hidden ? shrinkBoard(p, pool) : p.talent;
-    p.se = 1.0; p.av = 0.9; p.prior = 0; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal();
+    p.se = 1.0; p.prior = 0; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal();
     p.mpg = M.mpgFor(p.rate, G.K) * p.av;
     G.players[p.id] = p;
   }
@@ -293,7 +293,9 @@ export function outlook(G, p) {
     path.push({ k, age: p.age + k - 1, p10: q(draws, 0.1), p50: q(draws, 0.5), p90: q(draws, 0.9) });
     star = Math.max(star, draws.filter((x) => x >= 3).length / draws.length);
   }
-  return { path, star };
+  // his chance of being in the league in seasons 1-6, as the game's own leagues have kept such men
+  const stay = Object.values(K.stick).map((c) => 1 / (1 + Math.exp(-(c.const + c.rate * p.rate + c.av * p.av + c.age * p.age))));
+  return { path, star, stay };
 }
 // The pick on the clock, or null when the draft is done.
 export const onClock = (G) => G.draft.order[G.draft.picks.length] || null;
@@ -317,6 +319,18 @@ export function draftNext(G, r, choice, human = G.user, n = Infinity) {
     D_.picks.push({ slot, team: holder, pid: p.id });
   }
   return null;
+}
+// The chance each prospect is still on the board at the user's next pick: the clubs ahead pick
+// by the same rule as draftNext, n times over (a fixed seed, so the page doesn't flicker).
+export function there(G, n = 400) {
+  const D_ = G.draft, k = D_.order.findIndex((e, i) => i >= D_.picks.length && e.holder === G.user), r = S.rng(D_.year), c = {};
+  if (k < 0) return null;
+  for (let t = 0; t < n; t++) {
+    let pool = D_.avail.map((id) => G.players[id]);
+    for (let i = D_.picks.length; i < k; i++) { const p = D.aiPick(pool, r, G.teams[D_.order[i].holder].gm.noise * 3); pool = pool.filter((x) => x !== p); }
+    for (const p of pool) c[p.id] = (c[p.id] || 0) + 1 / n;
+  }
+  return { slot: D_.order[k].slot, p: c };
 }
 export function draftEnd(G) {
   for (const id of G.draft.avail) { const p = G.players[id]; p.tm = null; p.contract = null; G.fa.push(id); }

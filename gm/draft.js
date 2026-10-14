@@ -3,7 +3,7 @@ import { rookieScale, minSalary, twoWaySalary } from './cba.js';
 
 // ---- the class ---------------------------------------------------------------------------------
 // Each prospect's talent comes from a real player drafted near the same slot (L.draft.donors:
-// [pick, age at draft, entry talent, height, weight, position, level, pre-draft line, lean], 12_gm_data.py), so the class has the real spread of
+// [pick, age at draft, entry talent, height, weight, position, level, pre-draft line, lean, expected availability], 12_gm_data.py), so the class has the real spread of
 // stars, role players and washouts by slot. Scouts see talent through noise (scoutSd), set so
 // the order the league drafts in ranks talent as well as real drafts have (L.draft.sp).
 export function generateClass(L, season, r, scoutSd) {
@@ -11,8 +11,8 @@ export function generateClass(L, season, r, scoutSd) {
   const name = () => { for (;;) { const n = `${r.pick(names.first)} ${r.pick(names.last)}`; if (!real.has(n)) return n; } };
   for (let slot = 1; slot <= 75; slot++) {                 // 60 picks plus the undrafted market
     const near = donors.filter(([k]) => Math.abs(k - Math.min(slot, 60)) <= 2);
-    const [, age, talent, ht, wt, pos, lvl, line, lean] = r.pick(near);
-    pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, board: talent + scoutSd * r.normal(), yos: 0, draftYear: season + 1, lean,
+    const [, age, talent, ht, wt, pos, lvl, line, lean, av] = r.pick(near);
+    pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, board: talent + scoutSd * r.normal(), yos: 0, draftYear: season + 1, lean, av,
       pos, ht: ht && `${Math.floor(ht / 12)}-${ht % 12}`, wt, pre: lvl && { lvl, line } });
   }
   return pool;
