@@ -61,7 +61,11 @@ const NEXT = {
   },
   offseason: () => G.step === 'decisions' ? ['Options and qualifying offers are due before the new league year.', btn('newyear', 'Start the new league year')]
     : [summary(G.history.at(-1)), btn('todraft', 'On to the draft')],
-  draft: () => { const c = L.draftNext(G, r); return c ? [`You are on the clock with pick ${c.slot}.`, btn('go', 'Pick a player', 'draft')] : ['The draft is done.', btn('enddraft', 'Finish the draft')]; },
+  draft: () => { const c = L.onClock(G); if (!c) return ['The draft is done.', btn('enddraft', 'Finish the draft')];
+    if (c.holder === G.user) return [`You are on the clock with pick ${c.slot}.`, btn('go', 'Pick a player', 'draft')];
+    const next = G.draft.order.slice(G.draft.picks.length).find((e) => e.holder === G.user);
+    return [`Pick ${c.slot}: the ${NAME(c.holder)} are on the clock. ${next ? `Your next pick is ${next.slot}, ${next.slot - c.slot} away.` : 'You have no more picks.'} Trade for a pick before it is made.`,
+      btn('dnext', 'Next pick'), btn('dnext', 'Next 5 picks', 5), btn('dto', next ? 'Sim to my pick' : 'Sim the rest'), btn('go', 'Draft board', 'draft'), btn('go', 'Trade', 'trade')]; },
   freeagency: () => G.fa_ ? [`Free agency, day ${G.fa_.day}.${Object.keys(G.fa_.sheets).length ? ' A rival has signed one of your restricted free agents to an offer sheet: match or let him go.' : ''}`,
     btn('faday', 'Next day'), btn('farest', 'Sim to the end of free agency'), btn('go', 'Free agents', 'fa')]
     : ['Your own free agents first: choose whom to re-sign.', btn('go', 'Re-sign', 'resign')],
@@ -116,10 +120,12 @@ const ACT = {
     G.dev = Object.entries(before).map(([id, b]) => [id, b, P(id).rate]).sort((a, b) => (b[2] - b[1]) - (a[2] - a[1]));
     X.tradeWindow(G, r, `${G.season + 1}-06-20`, L.TRADES);
     G.offers = X.offersFor(G);
-    L.draftStart(G, r); L.draftNext(G, r); view = 'draft';
+    L.draftStart(G, r); view = 'draft';
   }),
-  pick: (id) => step('The draft', () => { L.draftNext(G, r, id); }),
-  autopick: () => step('The draft', () => { const c = L.draftNext(G, r); if (c) L.draftNext(G, r, G.draft.avail.map(P).sort((a, b) => b.rate - a.rate)[0].id); }),
+  pick: (id) => step('The draft', () => { L.draftNext(G, r, id, G.user, 0); }),
+  autopick: () => step('The draft', () => { if (L.onClock(G)?.holder === G.user) L.draftNext(G, r, G.draft.avail.map(P).sort((a, b) => b.rate - a.rate)[0].id, G.user, 0); }),
+  dnext: (n) => step('The draft', () => { L.draftNext(G, r, null, G.user, +n || 1); }),
+  dto: () => step('The draft', () => { L.draftNext(G, r); }),
   enddraft: () => step('Wrapping up', () => { L.draftEnd(G); G.step = 'decisions'; G.choices = {}; view = 'decisions'; }),
   toggle: (k) => { G.choices[k] = !G.choices[k]; render(); },
   newyear: () => step('The new league year', () => {
@@ -144,6 +150,9 @@ const ACT = {
     G.myOffers = G.myOffers.filter((x) => x.pid !== p.id).concat(o); ui = {}; save(); render();
   },
   unoffer: (pid) => { G.myOffers = G.myOffers.filter((x) => x.pid !== pid); save(); render(); },
+  // answer the agent: meet his number, or beat the rival's offer (more in all, over the same years)
+  meet: (pid) => reoffer(pid, (o) => need(P(pid))),
+  beat: (pid) => reoffer(pid, (o) => { const t = G.fa_.resp[pid].top; return Math.ceil((t.sal * t.years / o.years + 1e5) / 1e5) * 1e5; }),
   card: (id) => { ui.card = id; render(); },
   closecard: () => { ui.card = null; render(); },
   noop: () => {},
@@ -164,13 +173,13 @@ const ACT = {
   tk: (k) => { const [side, id] = k.split('#'); ui[side][id] = !ui[side][id]; ui.verdict = null; render(); },
   take: (i) => { const j = X.judge(G, G.offers[+i].trade ?? G.offers[+i]);
     if (!j.ok) { alert(`No longer allowed: ${j.errors.join('; ')}`); G.offers.splice(+i, 1); return render(); }
-    step('Trade', () => { X.complete(G, j); if (G.phase === 'season') L.assignRoles(G); if (G.draft) L.draftNext(G, r);
+    step('Trade', () => { X.complete(G, j); if (G.phase === 'season') L.assignRoles(G);
       // the other offers stand unless they share a player or a pick with this one
       const used = new Set([...j.trade.moves.map((m) => m.pid), ...j.trade.picks.map((k) => k.id)]);
       G.offers = G.offers.filter((o, k) => k !== +i && ![...o.moves.map((m) => m.pid), ...o.picks.map((x) => x.id)].some((x) => used.has(x))); }); },
   pass: (i) => { G.offers.splice(+i, 1); save(); render(); },
   propose: () => { ui.verdict = judgeTrade(tradeOf()); render(); },
-  accept: () => step('Trade', () => { const t = tradeOf(); if (!judgeTrade(t).accept) throw new Error('The deal fell through.'); X.complete(G, judgeTrade(t, G)); if (G.phase === 'season') L.assignRoles(G); if (G.draft) L.draftNext(G, r); ui = { partner: ui.partner, give: {}, get: {}, done: true }; }),
+  accept: () => step('Trade', () => { const t = tradeOf(); if (!judgeTrade(t).accept) throw new Error('The deal fell through.'); X.complete(G, judgeTrade(t, G)); if (G.phase === 'season') L.assignRoles(G); ui = { partner: ui.partner, give: {}, get: {}, done: true }; }),
   export: () => { G.rngState = r.state(); const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(G)], { type: 'application/json' }));
     a.download = `gm-${G.user}-${SEASON(G.season)}.json`; a.click(); },
@@ -178,6 +187,14 @@ const ACT = {
   newgame: () => { if (!G || confirm('Start over? The current game is replaced.')) { G = null; view = 'new'; render(); } },
   renounce: (pid) => { const T = me(); T.holds = T.holds.filter((h) => h.pid !== pid); T.rfa = (T.rfa || []).filter((x) => x !== pid); ui = {}; save(); render(); },
 };
+// what a free agent takes today: his ask, falling 3% a day through the summer
+const need = (p) => Math.ceil(L.askOf(G, p, F()).sal * (1 - 0.03 * G.fa_.day) / 1e5) * 1e5;
+function reoffer(pid, salOf) {
+  const o = G.myOffers.find((x) => x.pid === pid), sal = salOf(o), p = P(pid);
+  const v = C.validateSigning(G, { team: G.user, pid, how: o.how, date: G.date, years: L.years5(sal, o.years, 0.05), prior: (p.prior || 0) * 1e6 });
+  if (!v.ok) { ui.err = `${$M(sal)} is more than ${o.how} allows: ${v.errors.join('; ')}.`; return render(); }
+  o.sal = sal; ui.err = null; save(); render();
+}
 function faDay() {
   const ok = G.myOffers.filter((o) => G.fa.includes(o.pid));
   const done = L.faDay(G, r, { offers: ok, match: G.matchAns });
@@ -344,6 +361,24 @@ function news(before) {
     hurt.length ? `Out injured: ${hurt.map(([id, n]) => `${nm(id)} (about ${n} more game${n > 1 ? 's' : ''})`).join(', ')}.` : 'Your whole roster is healthy.',
     ...trades.slice(-6).map((x) => `Trade: ${logLine(x)}`), trades.length > 6 ? `${trades.length - 6} more trades in the Moves tab.` : ''].filter(Boolean);
 }
+// Free agency in the summer: your offers and what each agent says, yesterday's answers, and who
+// signed where
+function faCards() {
+  const st = G.fa_, resp = st.resp || {}, today = G.log.filter((x) => x.type === 'sign' && x.date === G.date && st.day > 1);
+  const summer = G.log.filter((x) => x.type === 'sign' && x.date >= `${G.season}-07-01` && x.date <= G.date && !['min', 'twoWay'].includes(x.how)).sort((a, b) => b.sal - a.sal);
+  const say = (o) => { const p = P(o.pid), x = resp[o.pid], n = need(p);
+    if (x?.status === 'outbid') return `<span class="bad">The ${esc(NAME(x.top.ab))} offer ${$M(x.top.sal)} × ${x.top.years}: beat it today or he signs there.</span> ${btn('beat', 'Beat it', o.pid)}`;
+    if (o.sal < n) return `His agent wants ${$M(n)} a year. ${btn('meet', 'Meet it', o.pid)}`;
+    return `<span class="good">That meets his ask.</span> He decides tomorrow, unless someone offers more.`; };
+  const done = Object.entries(resp).filter(([, x]) => ['signed', 'lost'].includes(x.status));
+  const line = (x) => `<li>${nm(x.pid)} <small>${Math.floor(P(x.pid).age)} · ${sg(P(x.pid).rate)}</small> to <b>${x.team}</b>, ${$M(x.sal)} × ${x.years}</li>`;
+  return `<div class="card"><h3>Your offers · day ${st.day}</h3>${G.myOffers.map((o) => `<div class="off"><b>${nm(o.pid)}</b>: ${$M(o.sal)} × ${o.years} (${o.how}) ${btn('unoffer', 'Withdraw', o.pid, 'ghost')}<br><small>${say(o)}</small></div>`).join('') || '<p>None out. Open a player below to make one.</p>'}
+${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}${done.length ? `<p>${done.map(([pid, x]) => x.status === 'signed' ? `<span class="good">${nm(pid)} signed with you.</span>` : `<span class="bad">${nm(pid)} took the ${esc(NAME(x.top.ab))}' offer, ${$M(x.top.sal)} × ${x.top.years}.</span>`).join(' ')}</p>` : ''}
+<p class="note">A player takes the richest offer that meets his ask; asks fall about 3% a day. When a rival tops an offer of yours that meets his ask, his agent gives you a day to beat it.</p>
+<div class="row">${btn('faday', 'Next day')}${btn('farest', 'Sim to the end')}</div></div>
+${today.length ? `<div class="card"><h3>Signed today</h3><ul class="log">${today.sort((a, b) => b.sal - a.sal).map(line).join('')}</ul></div>` : ''}
+${summer.length ? `<details class="card"><summary>Every signing this summer (${summer.length})</summary><ul class="log">${summer.map(line).join('')}</ul></details>` : ''}`;
+}
 const VIEWS = {
   home: () => {
     const [say, ...b] = NEXT[G.phase]();
@@ -413,15 +448,16 @@ ${po.champion ? `<p><b>${esc(NAME(po.champion))}</b> are champions.</p>` : ''}</
   },
   draft: () => {
     if (!G.draft) return '<p>No draft under way.</p>';
-    const c = L.draftNext(G, r), made = G.draft.picks.slice(-8).reverse();
+    const c = L.onClock(G), onMe = c?.holder === G.user, made = G.draft.picks.slice(-8).reverse();
     const pool = G.draft.avail.map(P).sort((a, b) => b.rate - a.rate);
     const next = G.draft.order.slice(G.draft.picks.length, G.draft.picks.length + 8);
-    const mine = me().roster.map(P).filter((p) => !p.contract?.twoWay), byPos = (k) => mine.filter((p) => (p.pos || '').startsWith(k)).length;
-    return `<div class="card">${c ? `<p>Pick ${c.slot} is yours.</p>${btn('autopick', 'Best available')}` : `<p>The draft is done.</p>${btn('enddraft', 'Finish the draft')}`}
-<p class="note">On the clock next: ${next.map((e) => `${e.slot}. ${e.holder}`).join(', ')}. You can trade picks and players until your pick is in.</p>
+    const roster = me().roster.map(P).filter((p) => !p.contract?.twoWay), byPos = (k) => roster.filter((p) => (p.pos || '').startsWith(k)).length;
+    const [say, ...b] = NEXT.draft();
+    return `<div class="card"><p>${say}</p><div class="row">${onMe ? btn('autopick', 'Take the best available') : b.filter((x) => x && !x.includes('data-arg="draft"')).join('')}</div>
+${c ? `<p class="note">On the clock, in order: ${next.map((e) => `${e.slot}. ${e.holder === G.user ? `<b>${e.holder}</b>` : e.holder}`).join(', ')}. You can trade picks and players between picks.</p>` : ''}
 <p class="note">Your roster: ${byPos('G')} guards, ${byPos('F')} forwards, ${byPos('C')} centers.</p></div>
 <table class="t"><thead><tr><th>Prospect</th><th class="n">Rtg</th><th class="n">WAR</th><th></th></tr></thead><tbody>
-${pool.slice(0, 60).map((p) => playerRow(p, `<td>${c ? btn('pick', 'Pick', p.id) : ''}</td>`)).join('')}</tbody></table>
+${pool.slice(0, 60).map((p) => playerRow(p, `<td>${onMe ? btn('pick', 'Pick', p.id) : ''}</td>`)).join('')}</tbody></table>
 <p class="note">Rtg is the league's read of each prospect from the scouts' board; his line is his last season before the draft, per game.</p>
 <h3>Latest picks</h3><ul>${made.map((x) => `<li>${x.slot}. ${x.team}: ${nm(x.pid)}</li>`).join('')}</ul>`;
   },
@@ -446,7 +482,7 @@ ${btn('market', 'Open the market')}</div>`;
     const open = G.phase !== 'freeagency';                      // after the summer market: sign on the spot
     if (!G.fa_ && !open) return VIEWS.resign();
     const f = F(), sheets = open ? [] : Object.entries(G.fa_.sheets);
-    const pool = G.fa.map(P).filter((p) => !p.retired).sort((a, b) => b.rate - a.rate).slice(0, 80);
+    const all = G.fa.map(P).filter((p) => !p.retired).sort((a, b) => b.rate - a.rate), pool = all.slice(0, ui.more ? 150 : 30);
     const ask = (p) => L.askOf(G, p, f);
     const lvl = (p) => me().holds.some((h) => h.pid === p.id) && C.birdLevel(p, G.user);
     const hows = (p) => [...(lvl(p) ? [{ full: 'bird', early: 'earlyBird' }[lvl(p)] || 'nonBird'] : []), 'room', 'ntmle', 'tpmle', 'roomMle', 'bae', 'min', ...(p.yos < 4 ? ['twoWay'] : []), ...(me().tpes.some((x) => x.dpe && x.expires >= G.date) ? ['dpe'] : [])];
@@ -456,10 +492,10 @@ ${btn('market', 'Open the market')}</div>`;
 <label>Salary ($M) <input id="sal" type="number" step="0.1" value="${(ask(p).sal / 1e6).toFixed(1)}"></label>
 <label>Years <input id="yrs" type="number" min="1" max="5" value="${ask(p).years}"></label>${btn('offer', 'Make the offer')}${lvl(p) ? btn('renounce', 'Renounce his rights', p.id, 'warn') : ''}${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}</div>`; };
     return `${sheets.map(([pid, o]) => `<div class="card"><p>${esc(NAME(o.ab))} offer ${esc(P(pid).nm)} ${$M(o.sal)} × ${o.years}.</p>${btn('match', 'Match', `${pid}|1`)}${btn('match', 'Let him go', `${pid}|0`)}${pid in G.matchAns ? ` <small>${G.matchAns[pid] ? 'matching' : 'declining'}</small>` : ''}</div>`).join('')}
-${open ? `<div class="card"><p class="note">The market has closed: whoever is left signs on the spot for an offer at half his summer ask or better.</p></div>` : `<div class="card"><h3>Your offers</h3>${G.myOffers.map((o) => `<div>${esc(P(o.pid).nm)}: ${$M(o.sal)} × ${o.years} (${o.how}) ${btn('unoffer', 'Withdraw', o.pid)}</div>`).join('') || '<p>None out.</p>'}
-<p class="note">A player signs with the richest offer that meets his ask; asks fall as the summer goes on.</p><div class="row">${btn('faday', 'Next day')}${btn('farest', 'Sim to the end')}</div></div>`}
+${open ? `<div class="card"><p class="note">The market has closed: whoever is left signs on the spot for an offer at half his summer ask or better.</p></div>` : faCards()}
 <table class="t"><thead><tr><th>Free agent</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Ask</th></tr></thead><tbody>
-${pool.map((p) => playerRow(p, `<td class="n">${$M(ask(p).sal)} × ${ask(p).years}</td>`) + (ui.pid === p.id ? detail(p, form(p)) : '')).join('')}</tbody></table>${payroll()}`;
+${pool.map((p) => playerRow(p, `<td class="n">${$M(ask(p).sal)} × ${ask(p).years}</td>`) + (ui.pid === p.id ? detail(p, form(p)) : '')).join('')}</tbody></table>
+${all.length > pool.length ? `<div class="row">${btn('famore', `Show more (${all.length - pool.length} left)`, '', 'ghost')}</div>` : ''}${payroll()}`;
   },
   log: () => {
     const mine = ui.all ? G.log : G.log.filter((x) => (x.teams || [x.team]).includes(G.user));
@@ -469,6 +505,7 @@ ${pool.map((p) => playerRow(p, `<td class="n">${$M(ask(p).sal)} × ${ask(p).year
 <div class="row">${btn('export', 'Export the save')}${btn('import', 'Import a save')}${btn('newgame', 'New game', '', 'warn')}</div></div>`,
 };
 ACT.logall = () => { ui.all = !ui.all; render(); };
+ACT.famore = () => { ui.more = true; render(); };
 
 function newGame() {
   return `<div class="card"><h2>Run a club</h2><p>Take over any team on the eve of the 2026-27 season, with its real roster, contracts and picks.

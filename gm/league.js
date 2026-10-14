@@ -274,11 +274,17 @@ export function draftStart(G, r) {
   G.draft = { year, order, avail: pool.map((p) => p.id), picks: [], lottery: lot };
   G.phase = 'draft'; G.date = `${year}-06-24`;
 }
-export function draftNext(G, r, choice, human = G.user) {
+// The pick on the clock, or null when the draft is done.
+export const onClock = (G) => G.draft.order[G.draft.picks.length] || null;
+// Make picks: the user's (choice) when he is on the clock, then the computer clubs', stopping at
+// the user's next pick or after n of theirs (so the user can trade between picks).
+export function draftNext(G, r, choice, human = G.user, n = Infinity) {
   const D_ = G.draft, s = G.season, year = D_.year;
+  let made = 0;
   while (D_.picks.length < D_.order.length) {
     const { slot, holder } = D_.order[D_.picks.length];
     if (holder === human && choice == null) return { slot, holder };          // on the clock
+    if (holder !== human && made++ >= n) return { slot, holder };
     const avail = D_.avail.map((id) => G.players[id]);
     const p = holder === human ? G.players[choice] : D.aiPick(avail, r, G.teams[holder].gm.noise * 3);
     choice = null;
@@ -390,7 +396,7 @@ export function faStart(G, r, user = {}, human = G.user) {
     // computer GMs renounce the holds they will not use, keeping their restricted free agents
     if (ab !== human) T.holds = T.holds.filter((h) => T.rfa.includes(h.pid));
   }
-  G.fa_ = { day: 1, sheets: {} };
+  G.fa_ = { day: 1, sheets: {}, calls: {}, resp: {} };
   G.phase = 'freeagency'; G.date = faDate(s, 1);
 }
 // What a club's own free agent takes to stay: his ask, within what his Bird level allows.
@@ -428,10 +434,21 @@ export function faDay(G, r, user = {}, human = G.user) {
     if (best) (offers[best.pid] ||= []).push({ ab, ...best });
   }
   for (const o of user.offers || []) if (G.fa.includes(o.pid)) (offers[o.pid] ||= []).push(o);
+  // a rival's offer that the user was told of yesterday still stands, if the rules still allow it
+  st.calls ??= {}; st.resp = {};
+  for (const [pid, o] of Object.entries(st.calls))
+    if (G.fa.includes(pid) && C.validateSigning(G, { team: o.ab, pid, how: o.how, date: G.date, years: years5(o.sal, o.years, 0.05), prior: (P[pid].prior || 0) * 1e6 }).ok) (offers[pid] ||= []).push(o);
   for (const [pid, os] of Object.entries(offers)) {
     const p = P[pid], need = askOf(G, p, F).sal * (1 - 0.03 * day);
     const top = os.filter((o) => o.sal >= need).sort((a, b) => b.sal * b.years - a.sal * a.years)[0];
+    const mine = os.find((o) => o.ab === human);
+    // the agent answers the user: short of the ask he counters; topped by a rival, he waits a day
+    // for the user to beat it (once), then signs with the best
+    if (mine && mine.sal < need) st.resp[pid] = { status: 'short', need: Math.ceil(need / 1e5) * 1e5 };
     if (!top) continue;
+    if (mine && top.ab !== human && mine.sal >= need && !st.calls[pid]) { st.calls[pid] = top; st.resp[pid] = { status: 'outbid', top }; continue; }
+    delete st.calls[pid];
+    if (mine) st.resp[pid] = { status: top.ab === human ? 'signed' : 'lost', top };
     const club = p.qo && rfaClub(pid);
     if (club && club !== top.ab) {                                     // an offer sheet: does the club match?
       if (club === human) { st.sheets[pid] = top; continue; }
