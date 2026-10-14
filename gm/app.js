@@ -99,9 +99,11 @@ const ACT = {
     L.seasonStart(G, r); G.cur.win = 0; G.offers = [];
   }),
   sim: () => step('Simulating', () => {
-    const w = G.cur.win++, d = C.seasonDates(G.season);
+    const w = G.cur.win++, d = C.seasonDates(G.season), before = { ...G.cur.record[G.user], log: G.log.length };
     if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; X.tradeWindow(G, r, G.date, L.TRADES); L.assignRoles(G); G.offers = X.offersFor(G); }
-    else { L.seasonTo(G, r, 1); L.postseasonStart(G, r); G.offers = []; view = 'home'; }
+    else L.seasonTo(G, r, 1);
+    G.news = news(before);
+    if (w >= 2) { L.postseasonStart(G, r); G.offers = []; view = 'home'; }
   }),
   pgame: () => { const x = mySeries(); S.seriesGame(x, G.po.nets, G.K, r); keepPace(x); save(); render(); },
   pseries: () => { const x = mySeries(); while (S.seriesGame(x, G.po.nets, G.K, r)); keepPace(x); save(); render(); },
@@ -141,6 +143,9 @@ const ACT = {
     G.myOffers = G.myOffers.filter((x) => x.pid !== p.id).concat(o); ui = {}; save(); render();
   },
   unoffer: (pid) => { G.myOffers = G.myOffers.filter((x) => x.pid !== pid); save(); render(); },
+  card: (id) => { ui.card = id; render(); },
+  closecard: () => { ui.card = null; render(); },
+  noop: () => {},
   sel: (pid) => { ui.pid = ui.pid === pid ? null : pid; ui.err = null; render(); },
   waive: (pid) => {
     if (!confirm(`Waive ${P(pid).nm}? His guaranteed money stays on your books.`)) return;
@@ -180,7 +185,7 @@ function faDay() {
 }
 const slotOf = (k) => { const [o, y, rd] = k.split('|'); return G.draft?.year === +y ? G.draft.order.find((e) => e.origin === o && (e.slot <= 30) === (rd === '1'))?.slot : null; };
 const pickName = (k) => { const [o, y, rd] = k.split('|'), n = slotOf(k); return `${y} ${rd === '1' ? '1st' : '2nd'} (${o}${n ? `, no. ${n}` : ''})`; };
-const tradeText = (t) => { const side = (to) => [...t.moves.filter((m) => m.to === to).map((m) => { const p = P(m.pid); return `${esc(p.nm)} <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`; }),
+const tradeText = (t) => { const side = (to) => [...t.moves.filter((m) => m.to === to).map((m) => { const p = P(m.pid); return `${nm(p.id)} <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`; }),
   ...t.picks.filter((k) => k.to === to).map((k) => pickName(k.id))].join('<br>') || 'nothing';
   return `<div class="two"><div><small>You get</small><br>${side(G.user)}</div><div><small>You send</small><br>${side(t.moves[0].to === G.user ? t.moves[0].from : t.moves[0].to)}</div></div>`; };
 const tradeOf = () => {
@@ -203,7 +208,7 @@ function render() {
   root().innerHTML = `<div class="top"><strong>${esc(NAME(G.user))}</strong> <span>${SEASON(G.season)} · ${phase} · ${G.date}</span></div>
 ${capStrip()}
 <div class="tabs" role="navigation">${[...TABS.slice(0, 1), ...extra, ...TABS.slice(1)].map(([k, n]) => `<button data-act="go" data-arg="${k}"${view === k ? ' aria-current="page"' : ''}>${n}</button>`).join('')}</div>
-<section>${(VIEWS[view] || VIEWS.home)()}</section>`;
+<section>${(VIEWS[view] || VIEWS.home)()}</section>${ui.card && P(ui.card) ? card(ui.card) : ''}`;
 }
 // The season whose books matter now: after the season ends, next season's commitments against its
 // projected cap (the cap is drawn July 1).
@@ -237,6 +242,18 @@ const od = (r, lean = 0) => `O ${sg((r + lean) / 2)} D ${sg((r - lean) / 2)}`;
 // a prospect's last season before the draft, per game
 const pre = (p) => { const [pts, trb, ast, stl, blk, fg, fg3, ft, g, mp] = p.pre.line, pc = (x) => (x == null ? '–' : (100 * x).toFixed(0));
   return `<small>${p.pre.lvl}${p.wt ? ` · ${p.wt} lb` : ''}: ${pts} pts, ${trb} reb, ${ast} ast, ${stl} stl, ${blk} blk; ${pc(fg)}/${pc(fg3)}/${pc(ft)} shooting; ${mp} mpg in ${g} g</small>`; };
+// a player's name, opening his card
+const nm = (id) => `<a class="pl" data-act="card" data-arg="${id}">${esc(P(id).nm)}</a>`;
+// what he has won, from the league's history
+const honors = (id) => G.history.flatMap((h) => { const a = h.awards; if (!a) return [];
+  return [a.mvp[0]?.[0] === id && 'MVP', ...a.allNba.map((t, i) => t.includes(id) && `All-NBA ${['First', 'Second', 'Third'][i]} Team`), a.roy[0]?.[0] === id && 'Rookie of the Year',
+    a.smoy[0]?.[0] === id && 'Sixth Man of the Year', a.dpoy?.[0] === id && 'Defensive Player of the Year', a.mip?.[0] === id && 'Most Improved'].filter(Boolean).map((x) => `${x} ${SEASON(h.season)}`); });
+const card = (id) => { const p = P(id), h = honors(id);
+  return `<div class="ov" data-act="closecard"><div class="ovc" data-act="noop" role="dialog" aria-label="${esc(p.nm)}"><button class="x" data-act="closecard" aria-label="Close">&times;</button>
+<h3>${esc(p.nm)}</h3><p>${[p.pos, p.ht, `${Math.floor(p.age)} years old`, p.tm ? esc(NAME(p.tm)) : p.retired ? `retired ${SEASON(p.retired)}` : 'free agent'].filter(Boolean).join(' · ')}</p>
+<p>Rating <b>${sg(p.rate)}</b> <small>${od(p.rate, p.lean)}</small> · WAR ${M.war(p, 0, G.K).toFixed(1)}${p.tm ? ` · ${usage(p)}` : ''}</p>
+<p class="sub">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.</p>
+${p.contract ? `<p>${contract(p)}</p>` : ''}${h.length ? `<p><b>Honors</b><br>${h.join('<br>')}</p>` : ''}${logTable(p)}</div></div>`; };
 const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Off / Def</th><th class="n">Pts/Reb/Ast/Stl/Blk per 100</th></tr></thead><tbody>
 ${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.rate == null || l.lean == null ? '–' : od(l.rate, l.lean).replace('O ', '').replace(' D ', ' / ')}</td><td class="n">${l.p100 ? l.p100.join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
 const detail = (p, actions = '') => `<tr class="det"><td colspan="9">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.
@@ -260,7 +277,7 @@ const rotationCard = () => {
   const out = (p) => G.cur && G.cur.hurt[p.id]?.[G.cur.played[G.user]];
   return `<div class="card"><h3>The coach's rotation</h3><p class="note">The coach sets it${G.rolesSet ? ': mostly last season\'s roles, nudged by each man\'s rating, age and a change of club, with his own read on top (fit to real seasons). Rookies by draft slot' : ' (for now, this season\'s real roles)'}.
 Minutes are per game when he plays: each night 240 go down the rotation among whoever is healthy, no one over 36, so the end of the bench plays when others are hurt.</p><ol class="rot">
-${L.rotation(G, G.user).map(([p, m], i) => `<li><b>${esc(p.nm)}</b> <small>${ROLE(i, p)} · ${m.toFixed(0)} min${out(p) ? ' · <span class="bad">out injured</span>' : ''}</small></li>`).join('')}</ol></div>`;
+${L.rotation(G, G.user).map(([p, m], i) => `<li><b>${nm(p.id)}</b> <small>${ROLE(i, p)} · ${m.toFixed(0)} min${out(p) ? ' · <span class="bad">out injured</span>' : ''}</small></li>`).join('')}</ol></div>`;
 };
 // Both conferences' standings: the record so far, else last season's, else projected wins
 const standings = () => {
@@ -277,7 +294,7 @@ ${rows.map((x, i) => `<tr class="${x[0] === G.user ? 'me' : ''}${i === 5 || i ==
   return `<div class="two"><div>${conf('East')}</div><div>${conf('West')}</div></div>`;
 };
 // ---- the season's numbers and the league's history -------------------------------------------
-const who = (id) => `${esc(P(id).nm)} <small>${P(id).tm || ''}</small>`;
+const who = (id) => `${nm(id)} <small>${P(id).tm || ''}</small>`;
 const leadersCard = () => {
   const h = G.history.at(-1), s = G.cur ? G.season : h?.season, ld = G.cur ? A.leaders(G, s) : h?.leaders;
   if (!ld) return '';
@@ -312,19 +329,33 @@ const historyCards = () => {
 ${rows.map(([ab, x]) => `<tr${ab === G.user ? ' class="me"' : ''}><td>${esc(NAME(ab))}</td><td class="n">${x.ttl}</td><td class="n">${x.fin}</td><td class="n">${x.po}</td><td class="n">${x.w}-${x.l}</td><td class="n">${(x.w / (x.w + x.l)).toFixed(3).replace(/^0/, '')}</td></tr>`).join('')}</tbody></table>
 <p class="note">Playoffs counts the 16 who make the bracket, through the play-in.</p>`;
 };
+// one line of the moves log
+const logLine = (x) => x.type === 'trade' ? `${x.teams.join(' / ')}: ${x.moves ? x.moves.map((m) => `${nm(m.pid)} to ${m.to}`).join(', ') : x.players.map(nm).join(', ')}${x.picks.length ? `; picks ${x.picks.map((k, i) => `${k.split('|').slice(0, 2).join(' ')} ${k.endsWith('|1') ? '1st' : '2nd'} to ${x.pickTo?.[i] ?? ''}`).join(', ')}` : ''}`
+  : x.type === 'sign' ? `${x.team} sign ${nm(x.pid)}, ${$M(x.sal)} × ${x.years}` : x.type === 'extend' ? `${x.team} extend ${nm(x.pid)}, ${$M(x.sal)} × ${x.years} more` : x.type === 'retire' ? `${nm(x.pid)} retires${x.team ? ` (${x.team})` : ''}` : `${x.team} waive ${nm(x.pid)}`;
+// What happened while the season was simmed: your stretch, who is hurt, the league's trades
+function news(before) {
+  const rec = G.cur.record[G.user], w = rec.w - before.w, l = rec.l - before.l, T = me(), g = G.cur.played[G.user];
+  const conf = G.teams[G.user].conf, rank = Object.keys(G.teams).filter((ab) => G.teams[ab].conf === conf)
+    .sort((a, b) => G.cur.record[b].w - G.cur.record[a].w || G.cur.record[a].l - G.cur.record[b].l).indexOf(G.user) + 1;
+  const hurt = T.roster.map((id) => [id, G.cur.hurt[id]]).filter(([, h]) => h?.[g]).map(([id, h]) => { let n = 0; while (h[g + n]) n++; return [id, n]; });
+  const trades = G.log.slice(before.log).filter((x) => x.type === 'trade');
+  return [`You went ${w}-${l} over the stretch; ${rec.w}-${rec.l} now, ${rank}${['st', 'nd', 'rd'][rank - 1] || 'th'} in the ${conf}.`,
+    hurt.length ? `Out injured: ${hurt.map(([id, n]) => `${nm(id)} (about ${n} more game${n > 1 ? 's' : ''})`).join(', ')}.` : 'Your whole roster is healthy.',
+    ...trades.slice(-6).map((x) => `Trade: ${logLine(x)}`), trades.length > 6 ? `${trades.length - 6} more trades in the Moves tab.` : ''].filter(Boolean);
+}
 const VIEWS = {
   home: () => {
     const [say, ...b] = NEXT[G.phase]();
     const T = me(), rec = G.cur?.record[G.user], last = G.history.at(-1);
-    return `<div class="card"><p>${say}</p><div class="row">${b.filter(Boolean).join('')}</div></div>
+    return `<div class="card"><p>${say}</p><div class="row">${b.filter(Boolean).join('')}</div>${G.news && ['season', 'playoffs'].includes(G.phase) ? `<ul class="news">${G.news.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
 ${(G.offers || []).map((t, i) => `<div class="card"><h3>Offer from ${esc(NAME(t.moves[0].to))}</h3>${tradeText(t)}<div class="row">${btn('take', 'Accept', i)}${btn('pass', 'Decline', i, 'warn')}</div></div>`).join('')}
 ${G.phase === 'season' ? standings() : G.phase === 'playoffs' ? VIEWS.playoffs() : ''}
 ${['offseason', 'draft'].includes(G.phase) && last?.season === G.season ? `<div class="card"><h3>The ${SEASON(last.season)} season</h3><p><b>${esc(NAME(last.champion))}</b> are champions${finals(last) ? `, over the ${esc(NAME(finals(last).lo))}` : ''}. ${last.awards ? `MVP: ${who(last.awards.mvp[0][0])}.` : ''}</p>${awardsCard(last).replace(/<h3>.*?<\/h3>/, '')}</div>` : ''}
 <div class="card"><h3>${esc(NAME(G.user))}</h3><p>${rec ? `Record ${rec.w}-${rec.l}. ` : ''}Projected wins ${L.projWins(G, G.user).toFixed(1)}; ${std(T).length} standard contracts, ${T.roster.length - std(T).length} two-way.
 ${last ? `<br>Last season: ${summary(last)}` : ''}</p>${payroll()}</div>
-${(() => { const gone = G.log.filter((x) => x.type === 'retire' && x.team === G.user && x.date >= `${G.season}-06-01`); return gone.length && G.phase === 'freeagency' ? `<div class="card"><p>Retired this summer: ${gone.map((x) => esc(P(x.pid).nm)).join(', ')}.</p></div>` : ''; })()}
+${(() => { const gone = G.log.filter((x) => x.type === 'retire' && x.team === G.user && x.date >= `${G.season}-06-01`); return gone.length && G.phase === 'freeagency' ? `<div class="card"><p>Retired this summer: ${gone.map((x) => nm(x.pid)).join(', ')}.</p></div>` : ''; })()}
 ${G.dev?.length && ['draft', 'offseason'].includes(G.phase) ? `<div class="card"><h3>How your players developed</h3><p class="note">Rating at the end of the season against the start${G.hidden ? ', as the league now sees it' : ''}.</p>
-${G.dev.map(([id, b, a]) => `<div>${esc(P(id).nm)} <small>${Math.floor(P(id).age)}</small>: ${sg(b)} → ${sg(a)} <b class="${a >= b ? 'good' : 'bad'}">(${sg(a - b)})</b></div>`).join('')}</div>` : ''}
+${G.dev.map(([id, b, a]) => `<div>${nm(id)} <small>${Math.floor(P(id).age)}</small>: ${sg(b)} → ${sg(a)} <b class="${a >= b ? 'good' : 'bad'}">(${sg(a - b)})</b></div>`).join('')}</div>` : ''}
 <p class="note">${G.hidden ? 'Ratings are what the league can see: each player\'s true talent is hidden and shows itself as he plays.' : 'Ratings are the truth: each player is exactly as good as his projection.'}
 Ratings are points per 100 possessions against an average player, split into offense (O) and defense (D); WAR is wins above a replacement player this season.</p>`;
   },
@@ -391,7 +422,7 @@ ${po.champion ? `<p><b>${esc(NAME(po.champion))}</b> are champions.</p>` : ''}</
 <table class="t"><thead><tr><th>Prospect</th><th class="n">Rtg</th><th class="n">WAR</th><th></th></tr></thead><tbody>
 ${pool.slice(0, 60).map((p) => playerRow(p, `<td>${c ? btn('pick', 'Pick', p.id) : ''}</td>`)).join('')}</tbody></table>
 <p class="note">Rtg is the league's read of each prospect from the scouts' board; his line is his last season before the draft, per game.</p>
-<h3>Latest picks</h3><ul>${made.map((x) => `<li>${x.slot}. ${x.team}: ${esc(P(x.pid).nm)}</li>`).join('')}</ul>`;
+<h3>Latest picks</h3><ul>${made.map((x) => `<li>${x.slot}. ${x.team}: ${nm(x.pid)}</li>`).join('')}</ul>`;
   },
   decisions: () => {
     const T = me(), s = G.season + 1, c = G.choices ||= {};
@@ -431,9 +462,7 @@ ${pool.map((p) => playerRow(p, `<td class="n">${$M(ask(p).sal)} × ${ask(p).year
   },
   log: () => {
     const mine = ui.all ? G.log : G.log.filter((x) => (x.teams || [x.team]).includes(G.user));
-    const line = (x) => x.type === 'trade' ? `${x.teams.join(' / ')}: ${x.moves ? x.moves.map((m) => `${esc(P(m.pid).nm)} to ${m.to}`).join(', ') : x.players.map((id) => esc(P(id).nm)).join(', ')}${x.picks.length ? `; picks ${x.picks.map((k, i) => `${k.split('|').slice(0, 2).join(' ')} ${k.endsWith('|1') ? '1st' : '2nd'} to ${x.pickTo?.[i] ?? ''}`).join(', ')}` : ''}`
-      : x.type === 'sign' ? `${x.team} sign ${esc(P(x.pid).nm)}, ${$M(x.sal)} × ${x.years}` : x.type === 'extend' ? `${x.team} extend ${esc(P(x.pid).nm)}, ${$M(x.sal)} × ${x.years} more` : x.type === 'retire' ? `${esc(P(x.pid).nm)} retires${x.team ? ` (${x.team})` : ''}` : `${x.team} waive ${esc(P(x.pid).nm)}`;
-    return `<div class="row">${btn('logall', ui.all ? 'Your club only' : 'Every club')}</div><ul class="log">${mine.slice(-150).reverse().map((x) => `<li><small>${x.date}</small> ${line(x)}</li>`).join('')}</ul>`;
+    return `<div class="row">${btn('logall', ui.all ? 'Your club only' : 'Every club')}</div><ul class="log">${mine.slice(-150).reverse().map((x) => `<li><small>${x.date}</small> ${logLine(x)}</li>`).join('')}</ul>`;
   },
   menu: () => `<div class="card"><h3>This game</h3><p>${esc(NAME(G.user))}, ${G.hidden ? 'hidden talent' : 'projections as the truth'}, started ${SEASON(G.history[0]?.season ?? G.season)}. Saved in this browser after every step.</p>
 <div class="row">${btn('export', 'Export the save')}${btn('import', 'Import a save')}${btn('newgame', 'New game', '', 'warn')}</div></div>`,
@@ -456,6 +485,7 @@ document.addEventListener('click', (e) => {
   if (b && root().contains(b) && b.tagName !== 'SELECT') { if (b.tagName === 'TR' && e.target.closest('button,input,label,select')) return; ACT[b.dataset.act](b.dataset.arg); }
   if (e.target.id === 'create') create();
 });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ui.card) ACT.closecard(); });
 document.addEventListener('change', (e) => { if (e.target.dataset.chg) ACT[e.target.dataset.chg](); });
 async function data() { return (await fetch('gm/league.json')).json(); }
 async function create() {
