@@ -58,6 +58,8 @@ nav a{color:var(--navy-700);text-decoration:none;font-size:14px;font-weight:500}
   .brand span br{display:none}
   .nl{width:100%;gap:20px;overflow-x:auto;white-space:nowrap;padding:4px 0 8px;scrollbar-width:none}
   .nl::-webkit-scrollbar{display:none}
+  /* the row runs past the screen: its right edge fades so the links beyond it show they are there */
+  .nl{-webkit-mask-image:linear-gradient(to right,#000 86%,transparent);mask-image:linear-gradient(to right,#000 86%,transparent);padding-right:28px}
   .nl a{padding:4px 0}
 }
 nav a:hover,nav a.on{color:var(--orange-text)}

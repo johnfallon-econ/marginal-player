@@ -80,7 +80,8 @@ const nextGameLine = (x) => { const n = x.w + x.l, h = [0, 0, 1, 1, 0, 1, 0][n] 
 const seriesP = (x) => { const hi = x.hi === G.user, ph = S.winP(x.hi, x.lo, G.po.nets, G.K), pa = 1 - S.winP(x.lo, x.hi, G.po.nets, G.K);
   const f = (w, l) => (w === 4 ? 1 : l === 4 ? 0 : (([0, 0, 1, 1, 0, 1, 0][w + l] ? pa : ph) * f(w + 1, l) + (1 - ([0, 0, 1, 1, 0, 1, 0][w + l] ? pa : ph)) * f(w, l + 1)));
   const p = f(x.w, x.l); return hi ? p : 1 - p; };
-const btn = (act, label, arg = '', cls = '') => `<button class="b ${cls}" data-act="${act}" data-arg="${esc(arg)}">${esc(label)}</button>`;
+// a button; one that only goes to another tab is drawn in outline, so the step that acts stands out
+const btn = (act, label, arg = '', cls = act === 'go' ? 'ghost' : '') => `<button class="b ${cls}" data-act="${act}" data-arg="${esc(arg)}">${esc(label)}</button>`;
 const summary = (h) => `${SEASON(h.season)}: ${h.record[G.user].join('-')}. ${playoffs(h)} Champion: ${NAME(h.champion)}.`;
 function playoffs(h) {
   const made = h.seeds.East.includes(G.user) || h.seeds.West.includes(G.user);
@@ -381,7 +382,7 @@ ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?
       const sat = G.phase === 'freeagency' ? G.teams[ab].holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id) && !G.teams[ab].rfa?.includes(p.id)) : [];
       return sat.map((p) => { const o = L.satTerms(G, ab, p); return ck(`sat:${p.id}`, `<b>${esc(p.nm)}</b> <small>sign-and-trade · ${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(o.sal)} × ${o.years}</small>`); }).join('')
         + ps.map((p) => ck(p.id, `<b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`)).join('')
-        + pk.map((k) => ck(k.id, `${k.year} ${k.round === 1 ? '1st' : '2nd'} <small>(${k.origin}${slotOf(k.id) ? `, no. ${slotOf(k.id)}` : ''}${k.protect ? ', protected' : ''})</small>`)).join('');
+        + (pk.length ? `<details${pk.some((k) => ui[side][k.id]) ? ' open' : ''}><summary>Draft picks (${pk.length})</summary>${pk.map((k) => ck(k.id, `${k.year} ${k.round === 1 ? '1st' : '2nd'} <small>(${k.origin}${slotOf(k.id) ? `, no. ${slotOf(k.id)}` : ''}${k.protect ? ', protected' : ''})</small>`)).join('')}</details>` : '');
     };
     const v = ui.verdict, md = { contend: 'contending', middle: 'in the middle', rebuild: 'rebuilding' }[X.mode(L.projWins(G, B))];
     const say = !v ? '' : !v.ok ? `<p class="bad">Not allowed: ${esc(v.errors.join('; '))}.</p>`

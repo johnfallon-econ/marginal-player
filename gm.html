@@ -17,36 +17,46 @@
 <a class="brand" href="index.html"><img src="assets/mark-light-sm.webp" alt="" width="34" height="35" style="display:block;flex:none;width:34px;height:35px"><span>The <br>Marginal <br>Player</span></a>
 <div class="nl"><a href="index.html">Home</a><a href="players.html">Players</a><a href="value-board.html">Value</a><a href="draft-board.html">Draft</a><a href="trades.html">Trades</a><a href="gm.html" class='on'>GM Game</a><a href="insights.html">Insights</a><a href="methodology-value.html">Method</a></div>
 </nav></div></header>
+<script>(function(){var n=document.querySelector('.nl'),a=n&&n.querySelector('a.on');if(a&&n.scrollWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-n.offsetLeft-(n.clientWidth-a.offsetWidth)/2;})();</script>
 <div class="wrap"><main>
 <style>
 .gm{font-size:15px;position:relative;min-height:60vh}
 .gm .top{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin:0 0 8px}
 .gm .top span{color:var(--muted);font-size:13px}
-.gm .tabs{display:flex;gap:4px;overflow-x:auto;margin:0 0 12px;border-bottom:1px solid var(--rule)}
+.gm .tabs{display:flex;flex-wrap:wrap;gap:0 4px;margin:0 0 14px;border-bottom:1px solid var(--rule)}
 .gm .tabs button{background:none;border:0;padding:10px 12px;font:inherit;color:var(--muted);cursor:pointer;white-space:nowrap;min-height:44px}
 .gm .tabs button[aria-current]{color:var(--ink);border-bottom:3px solid var(--orange-text);font-weight:600}
-.gm .card{background:#fff;border:1px solid var(--rule);border-radius:8px;padding:12px 14px;margin:0 0 12px}
+.gm .card{background:#fff;border:1px solid var(--rule);border-radius:10px;padding:14px 16px;margin:0 0 14px}
+.gm .card>h3:first-child{margin-top:0}
+.gm h3{margin:22px 0 8px}
 .gm .card p{margin:0 0 10px}
 .gm .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
 .gm .b{white-space:nowrap;background:var(--navy-900);color:#fff;border:0;border-radius:6px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:44px}
 .gm .b.warn{background:var(--orange-text)}
+.gm .b.ghost{background:#fff;color:var(--navy-900);box-shadow:inset 0 0 0 1px var(--navy-700)}
+.gm .b:hover{filter:brightness(1.15)}.gm .b.ghost:hover{background:var(--cream);filter:none}
 .gm .t{width:100%;min-width:0;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .gm .t th,.gm .t td{padding:8px 6px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:middle}
-.gm .t th{font-size:12px;color:var(--muted);font-weight:500}
+.gm .t th{font-size:12px;color:var(--muted);font-weight:500;background:none}
 .gm .t td,.gm .t th{white-space:normal;overflow-wrap:anywhere}
 .gm .t .n{text-align:right;white-space:nowrap}
 .gm .scroll{overflow-x:auto;max-width:100%}
 .gm .t td small{display:block;color:var(--muted);font-size:12px}
 .gm .t tr[data-act]{cursor:pointer}
 .gm .t tr.on,.gm .t tr.me{background:var(--cream)}
+.gm .t tr.me td:first-child{font-weight:600}
+.gm .t tbody tr[data-act]:hover{background:#fbfaf7}
 .gm .t tr.cut td{border-bottom:2px solid var(--axis)}
 .gm .t .b{padding:6px 10px;min-height:36px}
 .gm .det td{background:var(--cream);font-size:14px}
-.gm .pay{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:12px 0;font-size:14px}
-.gm .pay div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted var(--rule)}
+.gm .pay{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 18px;margin:12px 0;font-size:14px}
+.gm .pay div{display:flex;justify-content:space-between;gap:8px;padding:2px 0;border-bottom:1px dotted var(--rule)}
+.gm .pay span{white-space:nowrap}
 .gm .pay span{color:var(--muted)}
 .gm .ck{display:block;padding:8px 0;border-bottom:1px solid var(--grey-100);min-height:24px}
 .gm .ck small{color:var(--muted)}
+.gm .ck input{vertical-align:-2px;margin:0 8px 0 0;width:16px;height:16px;accent-color:var(--navy-900)}
+.gm details summary{cursor:pointer;padding:8px 0;font-weight:600}
 .gm .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .gm .brk h3{margin:14px 0 6px}
 .gm .news{margin:12px 0 0;padding:10px 0 0 18px;border-top:1px solid var(--rule);font-size:14px}
@@ -79,7 +89,7 @@
 .gm .bx small{font-size:10px;min-width:1.2em}
 @media(max-width:640px){.gm .two{grid-template-columns:1fr}}
 .gm .sticky{position:sticky;bottom:0;box-shadow:0 -2px 8px rgba(13,27,42,.08)}
-.gm .note{color:var(--muted);font-size:13px}
+.gm .note{color:var(--muted);font-size:13px;line-height:1.5;border:0;background:none;padding:0;margin:8px 0;box-shadow:none;max-width:60em}
 .gm .good{color:#166534;font-weight:600}.gm .bad{color:#9a3412;font-weight:600}
 .gm .form{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-top:8px}
 .gm .form label{display:flex;flex-direction:column;font-size:13px;color:var(--muted)}
