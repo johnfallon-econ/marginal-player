@@ -337,6 +337,13 @@ export function there(G, n = 400) {
   }
   return { slot: D_.order[k].slot, p: c };
 }
+// The chance each prospect goes with the pick on the clock: the club on it picks by its own rule,
+// n times over (a fixed seed per pick, so the page doesn't flicker).
+export function takenNow(G, n = 400) {
+  const D_ = G.draft, c = onClock(G), r = S.rng(D_.year * 100 + D_.picks.length), pool = D_.avail.map((id) => G.players[id]), out = {};
+  for (let t = 0; t < n; t++) { const p = D.aiPick(pool, r, G.teams[c.holder].gm.noise * 3); out[p.id] = (out[p.id] || 0) + 1 / n; }
+  return out;
+}
 export function draftEnd(G) {
   for (const id of G.draft.avail) { const p = G.players[id]; p.tm = null; p.contract = null; G.fa.push(id); }
   G.history.at(-1).draft = G.draft.picks; G.lastDraft = G.draft.year;

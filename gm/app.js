@@ -65,7 +65,7 @@ const NEXT = {
     if (c.holder === G.user) return [`You are on the clock with pick ${c.slot}.`, btn('go', 'Pick a player', 'draft')];
     const next = G.draft.order.slice(G.draft.picks.length).find((e) => e.holder === G.user);
     return [`Pick ${c.slot}: the ${NAME(c.holder)} are on the clock. ${next ? `Your next pick is ${next.slot}, ${next.slot - c.slot} away.` : 'You have no more picks.'} Trade for a pick before it is made.`,
-      btn('dnext', 'Next pick'), btn('dnext', 'Next 5 picks', 5), btn('dto', next ? 'Sim to my pick' : 'Sim the rest'), btn('go', 'Draft board', 'draft'), btn('go', 'Trade', 'trade')]; },
+      btn('dnext', 'Next pick'), btn('dnext', 'Next 5 picks', 5), btn('dto', next ? 'Sim to my pick' : 'Sim the rest'), btn('go', 'Draft board', 'draft'), btn('tradeclock', `Trade with ${c.holder}`, c.holder)]; },
   freeagency: () => G.fa_ ? [`Free agency, day ${G.fa_.day}.${Object.keys(G.fa_.sheets).length ? ' A rival has signed one of your restricted free agents to an offer sheet: match or let him go.' : ''}`,
     btn('faday', 'Next day'), btn('farest', 'Sim to the end of free agency'), btn('go', 'Free agents', 'fa')]
     : ['Your own free agents first: choose whom to re-sign.', btn('go', 'Re-sign', 'resign')],
@@ -96,6 +96,9 @@ function playoffs(h) {
 // ---- actions -----------------------------------------------------------------------------------
 const ACT = {
   go: (a) => { view = a; ui = {}; render(); },
+  // the draft's trade button: the club on the clock, its pick on the table
+  tradeclock: (ab) => { const c = L.onClock(G), k = Object.values(X.picksView(G)).find((x) => x.year === G.draft.year && x.origin === c.origin && x.round === (c.slot <= 30 ? 1 : 2));
+    view = 'trade'; ui = { partner: ab, give: {}, get: k ? { [k.id]: true } : {} }; render(); },
   autocut: () => step('Cutting', () => L.cutdown(G, r, G.user)),
   autofill: () => step('Signing', () => L.fillRosters(G, [G.user])),
   start: () => step('Opening night', () => {
@@ -322,17 +325,17 @@ const who = (id) => `${nm(id)} <small>${P(id).tm || ''}</small>`;
 const leadersCard = () => {
   const h = G.history.at(-1), s = G.cur ? G.season : h?.season, ld = G.cur ? A.leaders(G, s) : h?.leaders;
   if (!ld) return '';
-  const col = (k, name, d = 1) => `<div><h4>${name}</h4><ol>${ld[k].map(([id, v]) => `<li>${who(id)} <b>${v.toFixed(d)}</b></li>`).join('')}</ol></div>`;
+  const col = (k, name, d = 1) => `<div><h4>${name}</h4><ol>${ld[k].map(([id, v]) => `<li><b>${v.toFixed(d)}</b><span class="w" title="${esc(P(id).nm)}">${who(id)}</span></li>`).join('')}</ol></div>`;
   return `<h3>League leaders · ${SEASON(s)}</h3><div class="lead">${col('pts', 'Points')}${col('reb', 'Rebounds')}${col('ast', 'Assists')}${col('stl', 'Steals')}${col('blk', 'Blocks')}${col('rating', 'Rating', 2)}</div>
 <p class="note">Per game, among players in 70% of their club's games.</p>`;
 };
 const awardsCard = (h) => {
   const a = h?.awards;
   if (!a) return '';
-  const share = (xs) => xs.map(([id, v]) => `<li>${who(id)} <b>${v.toFixed(3)}</b></li>`).join('');
+  const share = (xs) => xs.map(([id, v]) => `<li><b>${v.toFixed(3)}</b><span class="w" title="${esc(P(id).nm)}">${who(id)}</span></li>`).join('');
   return `<h3>Awards · ${SEASON(h.season)}</h3><div class="lead">
 <div><h4>Most Valuable Player</h4><ol>${share(a.mvp)}</ol></div>
-${a.allNba.map((t, i) => `<div><h4>All-NBA ${['First', 'Second', 'Third'][i]} Team</h4><ul>${t.map((id) => `<li>${who(id)}</li>`).join('')}</ul></div>`).join('')}
+${a.allNba.map((t, i) => `<div><h4>All-NBA ${['First', 'Second', 'Third'][i]} Team</h4><ul>${t.map((id) => `<li><span class="w" title="${esc(P(id).nm)}">${who(id)}</span></li>`).join('')}</ul></div>`).join('')}
 <div><h4>Rookie of the Year</h4><ol>${share(a.roy)}</ol></div><div><h4>Sixth Man of the Year</h4><ol>${share(a.smoy)}</ol></div>
 <div><h4>Defensive Player</h4><p>${a.dpoy ? `${who(a.dpoy[0])} <b>${sg(a.dpoy[1])}</b> defense` : '–'}</p><h4>Most Improved</h4><p>${a.mip ? `${who(a.mip[0])} <b>${sg(a.mip[1])}</b>` : '–'}</p></div></div>
 <p class="note">Vote shares from 100 simulated voters who weigh rating, scoring, team record and games as the real MVP and All-NBA electorates have since 1999; Rookie and Sixth Man use the MVP voters' weights. Defensive Player goes to the best defensive rating and Most Improved to the largest rise in rating, both with 65 games, as do MVP and All-NBA.</p>`;
@@ -479,16 +482,16 @@ ${po.champion ? `<p><b>${esc(NAME(po.champion))}</b> are champions.</p>` : ''}</
     const pool = G.draft.avail.map(P).sort((a, b) => b.rate - a.rate);
     const next = G.draft.order.slice(G.draft.picks.length, G.draft.picks.length + 8);
     const roster = me().roster.map(P).filter((p) => !p.contract?.twoWay), byPos = (k) => roster.filter((p) => (p.pos || '').startsWith(k)).length;
-    const [say, ...b] = NEXT.draft(), th = onMe ? null : L.there(G);
+    const [say, ...b] = NEXT.draft(), th = onMe ? null : L.there(G), tn = c && !onMe ? L.takenNow(G) : null;
     return `<div class="card"><p>${say}</p><div class="row">${onMe ? btn('autopick', 'Take the best available') : b.filter((x) => x && !x.includes('data-arg="draft"')).join('')}</div>
 ${c ? `<p class="note">On the clock, in order: ${next.map((e) => `${e.slot}. ${e.holder === G.user ? `<b>${e.holder}</b>` : e.holder}`).join(', ')}. You can trade picks and players between picks.</p>` : ''}
 <p class="note">Your roster: ${byPos('G')} guards, ${byPos('F')} forwards, ${byPos('C')} centers.</p></div>
-<div class="scroll"><table class="t dft"><thead><tr><th>Prospect</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Rookie</th><th>Year 4 <small>(10–90%)</small></th><th class="n">Peak</th><th class="n">Star</th><th class="n">Healthy</th><th class="n">In NBA <small>yr 5</small></th>${th ? `<th class="n">There at ${th.slot}</th>` : ''}<th></th></tr></thead><tbody>
+<div class="scroll"><table class="t dft"><thead><tr><th>Prospect</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Rookie</th><th>Year 4 <small>(10–90%)</small></th><th class="n">Peak</th><th class="n">Star</th><th class="n">Healthy</th><th class="n">In NBA <small>yr 5</small></th>${tn ? `<th class="n">Goes at ${c.slot}</th>` : ''}${th ? `<th class="n">There at ${th.slot}</th>` : ''}<th></th></tr></thead><tbody>
 ${pool.slice(0, 60).map((p) => { const o = L.outlook(G, p), y4 = o.path[3], pk = o.path.reduce((a, x) => (x.p50 > a.p50 ? x : a));
   const at = (x) => `${Math.min(Math.max((x + 4) * 10, 0), 100)}%`;
   return playerRow(p, `<td class="n">${sg(o.path[0].p50)}</td><td class="rg"><div class="rb2"><span style="left:${at(y4.p10)};right:calc(100% - ${at(y4.p90)})"></span><i style="left:${at(y4.p50)}"></i><b style="left:${at(0)}"></b></div><small>${sg(y4.p50)} <span>(${sg(y4.p10)} to ${sg(y4.p90)})</span></small></td>
-<td class="n">${sg(pk.p50)} <small>at ${Math.floor(pk.age)}</small></td><td class="n">${Math.round(100 * o.star)}%</td><td class="n">${Math.round(100 * p.av)}%</td><td class="n">${Math.round(100 * o.stay[4])}%</td>${th ? `<td class="n">${Math.round(100 * (th.p[p.id] || 0))}%</td>` : ''}<td>${onMe ? btn('pick', 'Pick', p.id) : ''}</td>`); }).join('')}</tbody></table></div>
-<p class="note">Rtg is the league's read of each prospect from the scouts' board; his line is his last season before the draft, per game. The outlook is the game's own: his talent is that read plus what boards like it miss (this class's misses, busts included), and then each year the league's age curve and his own trend. Rookie, Year 4 and Peak are medians (the bar spans the middle 80% of Year 4 outcomes, the tick at 0 is an average player); Star is his chance of a season at +3 or better. Healthy is the share of games he is expected to be fit for (a coach's choice to sit him is not counted against it). In NBA is his chance of being on a roster in his fifth season, past his rookie deal, as the game's own leagues have kept men of his rating, health and age. There at is his chance he's still on the board at your next pick, with the clubs ahead picking as they will: trade up for a man you want who is unlikely to last.</p>
+<td class="n">${sg(pk.p50)} <small>at ${Math.floor(pk.age)}</small></td><td class="n">${Math.round(100 * o.star)}%</td><td class="n">${Math.round(100 * p.av)}%</td><td class="n">${Math.round(100 * o.stay[4])}%</td>${tn ? `<td class="n">${Math.round(100 * (tn[p.id] || 0))}%</td>` : ''}${th ? `<td class="n">${Math.round(100 * (th.p[p.id] || 0))}%</td>` : ''}<td>${onMe ? btn('pick', 'Pick', p.id) : ''}</td>`); }).join('')}</tbody></table></div>
+<p class="note">Rtg is the league's read of each prospect from the scouts' board; his line is his last season before the draft, per game. The outlook is the game's own: his talent is that read plus what boards like it miss (this class's misses, busts included), and then each year the league's age curve and his own trend. Rookie, Year 4 and Peak are medians (the bar spans the middle 80% of Year 4 outcomes, the tick at 0 is an average player); Star is his chance of a season at +3 or better. Healthy is the share of games he is expected to be fit for (a coach's choice to sit him is not counted against it). In NBA is his chance of being on a roster in his fifth season, past his rookie deal, as the game's own leagues have kept men of his rating, health and age. Goes at is his chance the club on the clock takes him now, and There at his chance he's still on the board at your next pick, with the clubs ahead picking as they will: trade up for a man you want who is unlikely to last.</p>
 <h3>Latest picks</h3><ul>${made.map((x) => `<li>${x.slot}. ${x.team}: ${nm(x.pid)}</li>`).join('')}</ul>`;
   },
   decisions: () => {

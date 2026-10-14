@@ -14,12 +14,22 @@ export function mpgFor(rate, K) {
 }
 export const projRate = (p, h, K) => { let r = p.rate; for (let j = 0; j < h; j++) r += agingStep(K, p.age + j); return r; };
 // season WAR h seasons ahead; minutes from his own history this year, the curve after that
-export function war(p, h, K) {
-  const r = projRate(p, h, K), mpg = h === 0 && p.mpg ? p.mpg : mpgFor(r, K) * (p.av ?? 0.9);
-  return K.beta * 82 * mpg / 48 * (r - K.repl);
-}
+export const war = (p, h, K) => warAt(p, projRate(p, h, K), h, K);
+const warAt = (p, r, h, K) => K.beta * 82 * (h === 0 && p.mpg ? p.mpg : mpgFor(r, K) * (p.av ?? 0.9)) / 48 * (r - K.repl);
 export const price = (w, cap, K) => Math.max(K.price.a + K.price.b * w + K.price.c * w * w, 0) * cap;
-export const marketValue = (p, h, cap, K) => price(war(p, h, K), cap, K);
+// A recent draftee whose range the draft model draws wider than most (p.dsd, 12_gm_data.py) is worth
+// more than his median path, as the price is convex and a star's season pays more than a bust's
+// costs: his value adds what his own spread is worth over the league's usual one, each priced as
+// the average over the game's development spread h seasons out (Gauss-Hermite, five nodes).
+// Everyone else is priced on the median, as the curve was fitted.
+const GH = [[0, 0.53333], [1.35563, 0.22208], [-1.35563, 0.22208], [2.85697, 0.01126], [-2.85697, 0.01126]];
+const devSd = (K, h) => { const { walk, trend, rho } = K.dev; let v = 0; for (let i = 0; i < h; i++) for (let j = 0; j < h; j++) v += rho ** Math.abs(i - j); return Math.sqrt(walk * walk * h + trend * trend * v); };
+export function marketValue(p, h, cap, K) {
+  const r = projRate(p, h, K), v = price(warAt(p, r, h, K), cap, K);
+  if (!p.dsd || !h) return v;
+  const E = (sd) => GH.reduce((a, [z, w]) => a + w * price(warAt(p, r + sd * z, h, K), cap, K), 0);
+  return v + E(p.dsd * devSd(K, h)) - E(devSd(K, h));
+}
 
 // The surplus of a contract to whoever holds it: market value less salary, each future
 // season at that season's projected cap, discounted.

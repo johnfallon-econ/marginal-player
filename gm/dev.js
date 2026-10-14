@@ -24,13 +24,14 @@ export const agingStep = (K, age) => {
 // At game start (and for every player who enters the league later).
 export function initTalent(p, K, r, hidden) {
   p.talent = p.rate + (hidden ? K.devScale * K.dev.persist * r.normal() : 0);
-  p.trend = trendSd(K, hidden) * r.normal();
+  p.trend = (p.tp ?? 0) + trendSd(K, hidden, p) * r.normal();     // tp: the draft model's expected trend
 }
-const trendSd = (K, hidden) => (hidden ? K.trendHidden : K.dev.trend);
+// dsd: a recent draftee's own spread, from the draft model's range for him (12_gm_data.py)
+const trendSd = (K, hidden, p) => (hidden ? K.trendHidden : K.dev.trend) * (p.dsd ?? 1);
 // a year of the fading trend: keeps rho of itself, refreshed so its spread stays put
 function stepTrend(p, K, r, hidden) {
   const rho = K.dev.rho;
-  p.trend = rho * p.trend + Math.sqrt(1 - rho * rho) * trendSd(K, hidden) * r.normal();
+  p.trend = rho * p.trend + Math.sqrt(1 - rho * rho) * trendSd(K, hidden, p) * r.normal();
 }
 
 // Before a season: each player's play rating for the year.
@@ -77,12 +78,13 @@ export function endSeason(players, minutesPlayed, K, r, hidden) {
     if (hidden) {
       const w = m / (m + K.learnMinutes);
       p.rate = p.rate + w * ((p.play ?? p.talent) - p.rate) + step;
-      p.talent = p.talent + step + p.trend + K.dev.walk * r.normal();
+      p.talent = p.talent + step + p.trend + K.dev.walk * (p.dsd ?? 1) * r.normal();
     } else {
-      p.talent = p.talent + step + p.trend + K.dev.walk * r.normal();
+      p.talent = p.talent + step + p.trend + K.dev.walk * (p.dsd ?? 1) * r.normal();
       p.rate = p.talent;
     }
     stepTrend(p, K, r, hidden);
+    if (p.tp) p.tp *= K.dev.rho;
     // offense minus defense (_gm_od.py): offense fades from about 27, defense holds to about 31
     p.lean = (p.lean ?? 0) + interp(K.od.drift, p.age) + K.od.rho * (p.lean ?? 0) + K.od.sd * r.normal();
     p.age += 1;
