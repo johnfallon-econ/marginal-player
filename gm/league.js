@@ -218,7 +218,7 @@ export function endSeason(G, r) {
   for (const [ab, T] of Object.entries(G.teams)) for (const id of T.roster) {
     const p = P[id], gp = G.lastGp?.[id] || 0, m = G.lastMins?.[id] || 0;
     const rate = V.seasonRate(p, m, G.K, G.hidden);
-    (p.log ||= []).push({ s, tm: ab, gp, mpg: gp ? +(m / gp).toFixed(1) : 0, rate: +rate.toFixed(2), lean: +(p.lean ?? 0).toFixed(2), p100: V.boxLine(p, gp && m / gp, G.K, s) ?? undefined });
+    (p.log ||= []).push({ s, tm: ab, tw: p.contract?.twoWay ? 1 : undefined, gp, mpg: gp ? +(m / gp).toFixed(1) : 0, rate: +rate.toFixed(2), lean: +(p.lean ?? 0).toFixed(2), p100: V.boxLine(p, gp && m / gp, G.K, s) ?? undefined });
   }
   V.endSeason(P, G.lastMins || {}, G.K, r, G.hidden);
   // Ratings are relative -- points per 100 against an average player -- so the league's
@@ -312,10 +312,15 @@ export function draftNext(G, r, choice, human = G.user, n = Infinity) {
     const p = holder === human ? G.players[choice] : D.aiPick(avail, r, G.teams[holder].gm.noise * 3);
     choice = null;
     D_.avail = D_.avail.filter((id) => id !== p.id);
-    p.tm = holder; p.draft = { year, round: slot <= 30 ? 1 : 2, pick: slot, team: holder };
-    p.contract = { ...D.rookieContract(slot, s, capAt(G, year)), signed: `${year}-07-07` };
-    p.bird = { team: holder, n: 0 };
-    G.teams[holder].roster.push(p.id);
+    p.draft = { year, round: slot <= 30 ? 1 : 2, pick: slot, team: holder };
+    // a first-rounder signs his scale deal; a second-rounder's club holds his rights, to sign him
+    // when the league year opens or leave him abroad (newLeagueYear)
+    if (slot > 30) (G.teams[holder].rights ||= []).push(p.id);
+    else {
+      p.tm = holder; p.contract = { ...D.rookieContract(slot, s, capAt(G, year)), signed: `${year}-07-07` };
+      p.bird = { team: holder, n: 0 };
+      G.teams[holder].roster.push(p.id);
+    }
     D_.picks.push({ slot, team: holder, pid: p.id });
   }
   return null;
@@ -383,6 +388,26 @@ export function newLeagueYear(G, r, decide = {}) {
     T.tpes = T.tpes.filter((e) => e.expires >= `${s}-07-01`);
     T.hardCap = null; T.cashSent = 0; T.cashRecv = 0;
     T.exc = C.freshExceptions(T, F);
+  }
+  // second-round picks and the men a club keeps abroad, once every club's free agents are on the
+  // market: a two-year deal for a man worth more over three seasons than the marginal free agent
+  // (the one the league's last open roster spot would go to), else a two-way deal for one worth more
+  // than the marginal young man for the open two-way spots, else he plays abroad another season,
+  // his club holding his rights, for up to four summers (decide.second for the user: 'deal',
+  // 'twoWay' or null)
+  const R = Object.values(G.teams).flatMap((T) => T.rights ?? []), all = Object.values(G.teams), v = (id) => v3(G, P[id]);
+  const std = all.reduce((a, T) => a + 15 - T.roster.filter((x) => !P[x].contract?.twoWay).length, 0), tw = all.reduce((a, T) => a + 3 - T.roster.filter((x) => P[x].contract?.twoWay).length, 0);
+  const bar = (ids, n) => ids.map(v).sort((a, b) => b - a)[Math.max(n - 1, 0)] ?? -Infinity;
+  const barStd = bar([...G.fa, ...R], std), barTw = bar([...G.fa.filter((x) => P[x].yos < 4), ...R], tw);
+  for (const [ab, T] of Object.entries(G.teams)) {
+    T.rights = (T.rights ?? []).filter((id) => {
+      const p = P[id], how = ab === G.user && decide.second ? decide.second(p) : v(id) > barStd ? 'deal' : v(id) > barTw ? 'twoWay' : null;
+      if (!how) { if (s - p.draft.year >= 3) p.retired = G.season; else p.abroad = s; return !p.retired; }
+      delete p.abroad;
+      p.contract = { ...(how === 'deal' ? D.rookieContract(p.draft.pick, s - 1, F.cap) : D.twoWayContract(s - 1, F.cap)), signed: `${s}-07-07` };
+      p.tm = ab; p.bird = { team: ab, n: 0 }; T.roster.push(id);
+      return false;
+    });
   }
   G.season = s; G.date = `${s}-07-01`; G.phase = 'freeagency';
   retire(G, r);
@@ -590,10 +615,11 @@ export function extensions(G, r, date, human = G.user) {
 // Every club reaches 14 standard contracts and 3 two-ways with the best men left -- best over the
 // next three seasons, so a club filling its bench takes the 22-year-old with a future over the
 // 35-year-old with a past: minimum deals, and two-ways for players with under four years of service.
+// a man's value to a club over the next three seasons, in wins
+const v3 = (G, p) => [0, 1, 2].reduce((a, h) => a + M.war(p, h, G.K), 0);
 export function fillRosters(G, clubs = Object.keys(G.teams), date = G.phase === 'season' ? G.date : `${G.season}-09-25`) {
   const s = G.season, F = fig(G, s), P = G.players, K = G.K;
-  const v3 = (id) => [0, 1, 2].reduce((a, h) => a + M.war(P[id], h, K), 0);
-  const byRate = () => G.fa.slice().sort((a, b) => v3(b) - v3(a));
+  const byRate = () => G.fa.slice().sort((a, b) => v3(G, P[b]) - v3(G, P[a]));
   for (const ab of clubs) {
     const T = G.teams[ab];
     while (T.roster.filter((id) => !P[id].contract?.twoWay).length < 14) {

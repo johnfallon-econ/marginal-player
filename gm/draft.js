@@ -9,7 +9,7 @@ import { rookieScale, minSalary, twoWaySalary } from './cba.js';
 export function generateClass(L, season, r, scoutSd) {
   const names = L.names, real = new Set(names.real), donors = L.draft.donors, pool = [];
   const name = () => { for (;;) { const n = `${r.pick(names.first)} ${r.pick(names.last)}`; if (!real.has(n)) return n; } };
-  for (let slot = 1; slot <= 75; slot++) {                 // 60 picks plus the undrafted market
+  for (let slot = 1; slot <= 60 + L.draft.undrafted; slot++) {   // 60 picks plus the undrafted market
     const near = donors.filter(([k]) => Math.abs(k - Math.min(slot, 60)) <= 2);
     const [, age, talent, ht, wt, pos, lvl, line, lean, av] = r.pick(near);
     pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, board: talent + scoutSd * r.normal(), yos: 0, draftYear: season + 1, lean, av,

@@ -128,9 +128,10 @@ const ACT = {
   dto: () => step('The draft', () => { L.draftNext(G, r); }),
   enddraft: () => step('Wrapping up', () => { L.draftEnd(G); G.step = 'decisions'; G.choices = {}; view = 'decisions'; }),
   toggle: (k) => { G.choices[k] = !G.choices[k]; render(); },
+  second: (a) => { const [id, v] = a.split('|'); G.choices[`sr|${id}`] = v; render(); },
   newyear: () => step('The new league year', () => {
     const c = G.choices || {};
-    L.newLeagueYear(G, r, { teamOption: (p) => !!c[`opt|${p.id}`], qo: (p) => !!c[`qo|${p.id}`] });
+    L.newLeagueYear(G, r, { teamOption: (p) => !!c[`opt|${p.id}`], qo: (p) => !!c[`qo|${p.id}`], second: (p) => (c[`sr|${p.id}`] ?? (p.abroad ? '' : 'deal')) || null });
     delete G.step; G.choices = {}; G.offers = []; view = 'resign';
   }),
   market: () => step('Free agency opens', () => {
@@ -497,7 +498,10 @@ ${pool.slice(0, 60).map((p) => { const o = L.outlook(G, p), y4 = o.path[3], pk =
     const row = (k, p, what) => `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="${k}|${p.id}"${c[`${k}|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${what}</small></label>`;
     return `<div class="card"><h3>Team options for ${SEASON(s)}</h3>${opts.map((p) => row('opt', p, `pick up ${$M(C.yearOf(p.contract, s).sal)}`)).join('') || '<p>None.</p>'}
 <h3>Qualifying offers</h3><p class="note">Tendering one makes the player a restricted free agent: you may match any offer sheet.</p>
-${qos.map((p) => row('qo', p, 'tender')).join('') || '<p>None.</p>'}${btn('newyear', 'Start the new league year')}</div>`;
+${qos.map((p) => row('qo', p, 'tender')).join('') || '<p>None.</p>'}
+<h3>Second-round picks</h3><p class="note">You hold their rights: sign one to a two-year deal (the first year guaranteed, at the minimum), to a two-way deal, or leave him abroad another season, keeping his rights (for up to four summers).</p>
+${(T.rights ?? []).map(P).map((p) => { const v = c[`sr|${p.id}`] ?? (p.abroad ? '' : 'deal'); return `<div class="ck"><b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · pick ${p.draft.pick}, ${p.draft.year}${p.abroad ? ' · abroad' : ''}</small><div class="row">${[['deal', 'Two-year deal'], ['twoWay', 'Two-way'], ['', 'Abroad']].map(([k, l]) => btn('second', l, `${p.id}|${k}`, v === k ? '' : 'ghost')).join('')}</div></div>`; }).join('') || '<p>None.</p>'}
+${btn('newyear', 'Start the new league year')}</div>`;
   },
   resign: () => {
     if (G.fa_) return VIEWS.fa();
