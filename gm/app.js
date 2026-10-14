@@ -482,9 +482,12 @@ ${po.champion ? `<p><b>${esc(NAME(po.champion))}</b> are champions.</p>` : ''}</
     return `<div class="card"><p>${say}</p><div class="row">${onMe ? btn('autopick', 'Take the best available') : b.filter((x) => x && !x.includes('data-arg="draft"')).join('')}</div>
 ${c ? `<p class="note">On the clock, in order: ${next.map((e) => `${e.slot}. ${e.holder === G.user ? `<b>${e.holder}</b>` : e.holder}`).join(', ')}. You can trade picks and players between picks.</p>` : ''}
 <p class="note">Your roster: ${byPos('G')} guards, ${byPos('F')} forwards, ${byPos('C')} centers.</p></div>
-<table class="t"><thead><tr><th>Prospect</th><th class="n">Rtg</th><th class="n">WAR</th><th></th></tr></thead><tbody>
-${pool.slice(0, 60).map((p) => playerRow(p, `<td>${onMe ? btn('pick', 'Pick', p.id) : ''}</td>`)).join('')}</tbody></table>
-<p class="note">Rtg is the league's read of each prospect from the scouts' board; his line is his last season before the draft, per game.</p>
+<div class="scroll"><table class="t dft"><thead><tr><th>Prospect</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Rookie</th><th>Year 4 <small>(10–90%)</small></th><th class="n">Peak</th><th class="n">Star</th><th></th></tr></thead><tbody>
+${pool.slice(0, 60).map((p) => { const o = L.outlook(G, p), y4 = o.path[3], pk = o.path.reduce((a, x) => (x.p50 > a.p50 ? x : a));
+  const at = (x) => `${Math.min(Math.max((x + 4) * 10, 0), 100)}%`;
+  return playerRow(p, `<td class="n">${sg(o.path[0].p50)}</td><td class="rg"><div class="rb2"><span style="left:${at(y4.p10)};right:calc(100% - ${at(y4.p90)})"></span><i style="left:${at(y4.p50)}"></i><b style="left:${at(0)}"></b></div><small>${sg(y4.p50)} <span>(${sg(y4.p10)} to ${sg(y4.p90)})</span></small></td>
+<td class="n">${sg(pk.p50)} <small>at ${Math.floor(pk.age)}</small></td><td class="n">${Math.round(100 * o.star)}%</td><td>${onMe ? btn('pick', 'Pick', p.id) : ''}</td>`); }).join('')}</tbody></table></div>
+<p class="note">Rtg is the league's read of each prospect from the scouts' board; his line is his last season before the draft, per game. The outlook is the game's own: his talent is that read plus what boards like it miss (this class's misses, busts included), and then each year the league's age curve and his own trend. Rookie, Year 4 and Peak are medians (the bar spans the middle 80% of Year 4 outcomes, the tick at 0 is an average player); Star is his chance of a season at +3 or better.</p>
 <h3>Latest picks</h3><ul>${made.map((x) => `<li>${x.slot}. ${x.team}: ${nm(x.pid)}</li>`).join('')}</ul>`;
   },
   decisions: () => {

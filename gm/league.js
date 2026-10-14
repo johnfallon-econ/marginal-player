@@ -271,8 +271,29 @@ export function draftStart(G, r) {
     p.mpg = M.mpgFor(p.rate, G.K) * p.av;
     G.players[p.id] = p;
   }
-  G.draft = { year, order, avail: pool.map((p) => p.id), picks: [], lottery: lot };
+  // what the board misses: each prospect's talent less the league's read of him, over the class
+  const resid = G.hidden ? pool.map((p) => +(p.talent - p.rate).toFixed(3)) : [0];
+  G.draft = { year, order, avail: pool.map((p) => p.id), picks: [], lottery: lot, resid };
   G.phase = 'draft'; G.date = `${year}-06-24`;
+}
+// A prospect's outlook, as the game will play it out: his talent is the league's read plus what the
+// board misses (the class's own misses, busts and all), then each year the age curve and his
+// personal trend (K.dev, its yearly persistence rho). Returns season k = 1 (rookie) .. 10: age and
+// the 10th, 50th and 90th percentiles of his rating, and his chance of reaching +3 by his peak.
+const Z = [-1.645, -1.036, -0.674, -0.385, -0.126, 0.126, 0.385, 0.674, 1.036, 1.645];   // a normal's deciles' midpoints
+export function outlook(G, p) {
+  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = G.draft?.resid || [0];
+  const q = (a, x) => a[Math.min(a.length - 1, Math.floor(x * a.length))];
+  let mean = 0, star = 0;
+  const path = [];
+  for (let k = 1; k <= 10; k++) {
+    if (k > 1) mean += V.agingStep(K, p.age + k - 2);
+    let v = 0; for (let i = 0; i < k - 1; i++) for (let j = 0; j < k - 1; j++) v += rho ** Math.abs(i - j);
+    const sdk = sd * Math.sqrt(v), draws = res.flatMap((e) => Z.map((z) => p.rate + e + mean + sdk * z)).sort((a, b) => a - b);
+    path.push({ k, age: p.age + k - 1, p10: q(draws, 0.1), p50: q(draws, 0.5), p90: q(draws, 0.9) });
+    star = Math.max(star, draws.filter((x) => x >= 3).length / draws.length);
+  }
+  return { path, star };
 }
 // The pick on the clock, or null when the draft is done.
 export const onClock = (G) => G.draft.order[G.draft.picks.length] || null;
