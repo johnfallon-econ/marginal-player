@@ -6,6 +6,8 @@ import * as C from './cba.js';
 import * as M from './value.js';
 import * as X from './trades.js';
 import * as A from './awards.js';
+import * as B from './board.js';
+import * as O from './owner.js';
 
 let G = null, r = null, view = 'home', ui = {};
 const $ = (s) => document.querySelector(s), root = () => $('#gm');
@@ -105,10 +107,11 @@ const ACT = {
     const ai = Object.keys(G.teams).filter((ab) => ab !== G.user);
     L.fillRosters(G, ai); for (const ab of ai) L.cutdown(G, r, ab);
     L.seasonStart(G, r); G.cur.win = 0; G.offers = [];
+    G.ownerSay = O.opening(G);
   }),
   sim: () => step('Simulating', () => {
     const w = G.cur.win++, d = C.seasonDates(G.season), before = { ...G.cur.record[G.user], log: G.log.length };
-    if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; X.tradeWindow(G, r, G.date, L.TRADES); L.assignRoles(G); G.offers = X.offersFor(G); }
+    if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; X.tradeWindow(G, r, G.date, L.TRADES); L.assignRoles(G); G.offers = X.offersFor(G); if (w === 1) G.ownerSay = O.deadline(G); }
     else L.seasonTo(G, r, 1);
     G.news = news(before);
     if (w >= 2) { L.postseasonStart(G, r); G.offers = []; view = 'home'; }
@@ -120,6 +123,7 @@ const ACT = {
   todraft: () => step('The lottery', () => {
     const before = Object.fromEntries(me().roster.map((id) => [id, P(id).rate]));
     L.endSeason(G, r);
+    G.ownerSay = null; O.review(G, G.history.at(-1), r);
     G.dev = Object.entries(before).map(([id, b]) => [id, b, P(id).rate]).sort((a, b) => (b[2] - b[1]) - (a[2] - a[1]));
     X.tradeWindow(G, r, `${G.season + 1}-06-20`, L.TRADES);
     G.offers = X.offersFor(G);
@@ -138,7 +142,9 @@ const ACT = {
     delete G.step; G.choices = {}; G.offers = []; view = 'resign';
   }),
   market: () => step('Free agency opens', () => {
-    L.faStart(G, r, { resign: (p) => !!G.choices[`re|${p.id}`] }); G.myOffers = []; G.matchAns = {}; view = 'fa';
+    const no = [];
+    L.faStart(G, r, { resign: (p) => { if (!G.choices[`re|${p.id}`]) return false; const v = O.veto(G, L.resignTerms(G, G.user, p).sal); if (v) no.push(`${p.nm}: ${v}`); return !v; } }); G.myOffers = []; G.matchAns = {}; view = 'fa';
+    G.ownerSay = no.length ? no.join(' ') : null;
   }),
   faday: () => step('Free agency', faDay),
   farest: () => step('Free agency', () => { while (G.phase === 'freeagency' && !Object.keys(G.fa_.sheets).length) faDay(); }),
@@ -147,6 +153,7 @@ const ACT = {
     const p = P(ui.pid), how = $('#how').value, o = { pid: p.id, ab: G.user, how, sal: how === 'min' ? C.minSalary(p.yos, F().cap) : how === 'twoWay' ? C.twoWaySalary(F().cap) : Math.round(+$('#sal').value * 1e6), years: ['min', 'twoWay', 'bae', 'tpmle'].includes(how) ? Math.min(+$('#yrs').value, 2) : +$('#yrs').value };
     const v = C.validateSigning(G, { team: G.user, pid: p.id, how: o.how, date: G.date, years: L.years5(o.sal, o.years, 0.05), prior: (p.prior || 0) * 1e6 });
     if (!v.ok) { ui.err = v.errors.join('; '); return render(); }
+    const no = O.veto(G, o.sal); if (no) { ui.err = no; return render(); }
     if (G.phase !== 'freeagency') {
       if (o.how !== 'twoWay' && o.sal < 0.5 * L.askOf(G, p, F()).sal) { ui.err = `He wants at least ${$M(0.5 * L.askOf(G, p, F()).sal)}.`; return render(); }
       return step('Signing', () => { L.sign(G, G.user, p, o.how, o.sal, o.years, G.date, 0.05); if (G.phase === 'season') L.assignRoles(G); ui = {}; });
@@ -183,11 +190,14 @@ const ACT = {
       G.offers = G.offers.filter((o, k) => k !== +i && ![...o.moves.map((m) => m.pid), ...o.picks.map((x) => x.id)].some((x) => used.has(x))); }); },
   pass: (i) => { G.offers.splice(+i, 1); save(); render(); },
   propose: () => { ui.verdict = judgeTrade(tradeOf()); render(); },
-  accept: () => step('Trade', () => { const t = tradeOf(); if (!judgeTrade(t).accept) throw new Error('The deal fell through.'); X.complete(G, judgeTrade(t, G)); if (G.phase === 'season') L.assignRoles(G); ui = { partner: ui.partner, give: {}, get: {}, done: true }; }),
+  accept: () => step('Trade', () => { const t = tradeOf(); if (!judgeTrade(t).accept) throw new Error('The deal fell through.');
+    const yr = O.season(G), sal = (pid) => C.yearOf(P(pid).contract, yr)?.sal || 0, no = O.veto(G, t.moves.reduce((a, m) => a + (m.to === G.user ? sal(m.pid) : -sal(m.pid)), 0)); if (no) throw new Error(no); X.complete(G, judgeTrade(t, G)); if (G.phase === 'season') L.assignRoles(G); ui = { partner: ui.partner, give: {}, get: {}, done: true }; }),
   export: () => { G.rngState = r.state(); const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(G)], { type: 'application/json' }));
     a.download = `gm-${G.user}-${SEASON(G.season)}.json`; a.click(); },
   import: () => $('#importf').click(),
+  takejob: (ab) => { O.move(G, ab, r); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
+  retire: () => { G.fired.retired = true; save(); render(); },
   newgame: () => { if (!G || confirm('Start over? The current game is replaced.')) { G = null; view = 'new'; render(); } },
   renounce: (pid) => { const T = me(); T.holds = T.holds.filter((h) => h.pid !== pid); T.rfa = (T.rfa || []).filter((x) => x !== pid); ui = {}; save(); render(); },
 };
@@ -225,6 +235,7 @@ const judgeTrade = (t, g = structuredClone(G)) => { for (const [ab, pid] of t.sa
 const TABS = [['home', 'Home'], ['roster', 'Roster'], ['league', 'League'], ['trade', 'Trade'], ['log', 'Moves'], ['menu', 'Game']];
 function render() {
   if (!G) { root().innerHTML = newGame(); return; }
+  if (G.fired) { root().innerHTML = fired(); return; }
   const phase = { preseason: 'Preseason', season: 'Season', playoffs: 'Playoffs', offseason: 'Offseason', draft: 'Draft', freeagency: 'Free agency' }[G.phase];
   const extra = G.phase === 'draft' ? [['draft', 'Draft']] : G.phase === 'playoffs' ? [['playoffs', 'Playoffs']] : ['freeagency', 'preseason', 'season'].includes(G.phase) ? [['fa', 'Free agents']] : G.step === 'decisions' ? [['decisions', 'Decisions']] : [];
   root().innerHTML = `<div class="top"><strong>${esc(NAME(G.user))}</strong> <span>${SEASON(G.season)} · ${phase} · ${G.date}</span></div>
@@ -409,6 +420,53 @@ ${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}${done.length ? `<p>${done.m
 ${today.length ? `<div class="card"><h3>Signed today</h3><ul class="log">${today.sort((a, b) => b.sal - a.sal).map(line).join('')}</ul></div>` : ''}
 ${summer.length ? `<details class="card"><summary>Every signing this summer (${summer.length})</summary><ul class="log">${summer.map(line).join('')}</ul></details>` : ''}`;
 }
+// The draft board, as the site's draws it (board.js): ranked by his expected worth to the club that
+// drafts him, each prospect's value violin, quality fans and the game's own odds; open one for his
+// career arc and what his club keeps season by season.
+function board(pool, onMe, tn, th, c) {
+  const F_ = new Map(pool.map((p) => [p.id, L.fans(G, p)])), f = (p) => F_.get(p.id), list = pool.slice().sort((a, b) => f(b).EV - f(a).EV).slice(0, 60);
+  const all = [...F_.values()], VD = [Math.floor(Math.min(...all.map((x) => x.v[1]))), Math.ceil(Math.max(...all.map((x) => x.v[6])))];
+  const QD = [Math.floor(Math.min(...all.flatMap((x) => ['r', 'q', 'k', 'o', 'd'].map((k) => x[k][1])))), Math.ceil(Math.max(...all.flatMap((x) => ['r', 'q', 'k', 'o', 'd'].map((k) => x[k][5]))))];
+  const chip = (d) => `<span class="chip ${d > 0 ? 'up' : d < 0 ? 'dn' : 'na'}">${d > 0 ? '+' : ''}${d}</span>`;
+  return `<div class="dftb"><div class="bhead"><span>Rk</span><span>Prospect</span><span>Value · outcome curve</span><span>Quality R/4/P · off/def</span><span class="r">Odds</span><span></span></div>
+${list.map((p, i) => { const o = f(p), pj = G.draft.proj[p.id], open = ui.pid === p.id;
+  return `<div class="brow${open ? ' open' : ''}" data-act="sel" data-arg="${p.id}"><div class="rk">${i + 1}</div>
+<div class="who"><b>${esc(p.nm)}</b><div class="meta">${[p.pre?.lvl, Math.floor(p.age) + 'y', p.pos, p.ht, `P(NBA) ${Math.round(100 * o.pp)}%`].filter(Boolean).join(' · ')}</div><div class="meta">read ${sg(p.rate)} · healthy ${Math.round(100 * p.av)}%</div></div>
+<div class="vcell">${B.violin(o.v, VD)}<div class="ev"><b>${B.$M(o.EV)}</b> to his club <small>p10–p90 ${B.$M(o.V10)} – ${B.$M(o.V90)}</small></div></div>
+<div>${B.qhz(o, QD)}</div>
+<div class="cap">${chip(pj - (i + 1))}<small>league's no. ${pj}</small><small>in NBA yr 5 ${Math.round(100 * o.stay[4])}%</small>${tn ? `<small>goes at ${c.slot}: <b>${Math.round(100 * (tn[p.id] || 0))}%</b></small>` : ''}${th ? `<small>there at ${th.slot}: <b>${Math.round(100 * (th.p[p.id] || 0))}%</b></small>` : ''}</div>
+<div>${onMe ? btn('pick', 'Pick', p.id) : ''}</div>
+${open ? `<div class="bdet">${p.pre ? `<p class="note">${pre(p)}</p>` : ''}${B.arc(o.vs, G.draft.proj[p.id] <= 30 ? 4 : 2)}${B.bars(o.mkt, o.kept)}<p class="note">Star: a ${Math.round(100 * o.star)}% chance of a season at +3 or better by his seventh.</p></div>` : ''}</div>`; }).join('')}</div>
+<p class="note">The board as the site's draft model draws it, from the game's own development: 400 careers each, his talent the league's read (the scouts' board) plus what boards like it miss (this class's misses, busts included), then the age curve, his own trend and the season-to-season noise. The violin is his value over his first four seasons, in wins a season (p5–p99, the tick the median); R, 4 and P are his quality as a rookie, over four seasons and at his peak, in wins a season at full health, and O and D split the four-year figure. The dollars are his worth to the club that drafts him at this summer's cap, on the board's contract model: his rookie deal at market while the club holds him, then at each deal's end it keeps him or not and pays him the max or what a player like him signs for. The chip is the league's rank of him (where the scouts' board would take him) less this board's. Goes at is his chance the club on the clock takes him now, There at his chance he is still there at your next pick.</p>
+`;
+}
+// The owner: who he is, his confidence in you, and the books, this season's projection and the past
+const $m = (v) => `${v < 0 ? '−' : ''}$${Math.abs(v).toFixed(0)}M`;
+function ownerBooks() {
+  const b = G.owner.books;
+  return b.length ? `<table class="t"><thead><tr><th>Season</th><th class="n">W</th><th class="n">Revenue</th><th class="n">Payroll</th><th class="n">Tax</th><th class="n">Other</th><th class="n">Profit</th></tr></thead><tbody>${b.slice().reverse().map((x) => `<tr><td>${SEASON(x.s)}</td><td class="n">${x.w}</td><td class="n">${$m(x.rev)}${x.n ? ` <small>(${x.n} home playoff games)</small>` : ''}</td><td class="n">${$m(x.pay)}</td><td class="n">${$m(x.tax)}</td><td class="n">${$m(x.other)}</td><td class="n ${x.profit < 0 ? 'bad' : ''}">${$m(x.profit)}</td></tr>`).join('')}</tbody></table>` : '';
+}
+// fired: the owner's verdict, the clubs that call, and the career so far
+function career() {
+  const c = G.career || [];
+  return c.length ? `<table class="t"><thead><tr><th>Season</th><th>Club</th><th class="n">W-L</th><th>Playoffs</th></tr></thead><tbody>${c.slice().reverse().map((x) => `<tr><td>${SEASON(x.s)}</td><td>${esc(NAME(x.ab))}</td><td class="n">${x.w}-${x.l}</td><td>${x.champ ? '<b>Champions</b>' : x.won ? `won ${x.won} round${x.won > 1 ? 's' : ''}` : ''}</td></tr>`).join('')}</tbody></table>` : '';
+}
+function fired() {
+  const f = G.fired, rec = G.history.at(-1).record;
+  if (f.retired) return `<div class="card"><h2>Career over</h2>${career()}<div class="row">${btn('newgame', 'New game')}${btn('export', 'Export the save')}</div></div>`;
+  return `<div class="card"><h2>You're fired</h2><p>After the ${SEASON(f.s)} season the ${esc(NAME(G.user))}' owner's confidence fell to ${Math.round(f.conf)} of 100, and he let you go.</p>${ownerBooks()}
+<h3>Clubs that want you</h3>${f.offers.length ? f.offers.map((ab) => `<div class="off"><b>${esc(NAME(ab))}</b> <small>${rec[ab][0]}-${rec[ab][1]} last season · payroll ${$m(O.payroll(G, ab) / 1e6)}</small> ${btn('takejob', 'Take the job', ab)}</div>`).join('') : '<p>No one calls.</p>'}
+<p class="note">Jobs open at the foot of the standings; a record that wins reaches clubs further up and brings a third offer. Your new owner is the kind you asked for when you started.</p>
+<h3>Your career</h3>${career()}<div class="row">${btn('retire', 'Retire', '', 'warn')}${btn('export', 'Export the save')}</div></div>`;
+}
+function ownerCard() {
+  if (!G.owner) return '';
+  const o = O.OWNERS[G.owner.type], b = O.projected(G), c = Math.round(G.owner.conf), l = O.line(G, b.s);
+  return `<div class="card"><h3>The owner</h3><p>${o.label}: he ${o.say}. Confidence in you: <b class="${c < 40 ? 'bad' : 'good'}">${c}</b> of 100${c < 40 ? ' — he is losing patience; below 20 at a season\'s end you are fired' : ''}.</p>
+<p>${SEASON(b.s)} as it stands: revenue ${$m(b.rev)}, payroll ${$m(b.pay)}, tax ${$m(b.tax)}, other costs ${$m(b.other)}: <b class="${b.profit < l ? 'bad' : 'good'}">${$m(b.profit)}</b> against his line of ${$m(l)}. ${G.owner.order ? `<b class="bad">He has ordered payroll down to ${$m(G.owner.order.target / 1e6)} by the trade deadline.</b>` : ''}</p>
+${G.ownerSay ? `<p class="note">${esc(G.ownerSay)}</p>` : ''}${ownerBooks()}
+<p class="note">Revenue is the club's (Forbes, 2024-25, net of revenue sharing) growing with the cap, plus about $6M a home playoff game; regular-season wins don't measurably move it. Other costs are 28% of revenue.</p></div>`;
+}
 const VIEWS = {
   home: () => {
     const [say, ...b] = NEXT[G.phase]();
@@ -419,6 +477,7 @@ ${G.phase === 'season' ? standings() : G.phase === 'playoffs' ? VIEWS.playoffs()
 ${['offseason', 'draft'].includes(G.phase) && last?.season === G.season ? `<div class="card"><h3>The ${SEASON(last.season)} season</h3><p><b>${esc(NAME(last.champion))}</b> are champions${finals(last) ? `, over the ${esc(NAME(finals(last).lo))}` : ''}. ${last.awards ? `MVP: ${who(last.awards.mvp[0][0])}.` : ''}</p>${awardsCard(last).replace(/<h3>.*?<\/h3>/, '')}</div>` : ''}
 <div class="card"><h3>${esc(NAME(G.user))}</h3><p>${rec ? `Record ${rec.w}-${rec.l}. ` : ''}Projected wins ${L.projWins(G, G.user).toFixed(1)}; ${std(T).length} standard contracts, ${T.roster.length - std(T).length} two-way.
 ${last ? `<br>Last season: ${summary(last)}` : ''}</p>${payroll()}</div>
+${ownerCard()}
 ${(() => { const gone = G.log.filter((x) => x.type === 'retire' && x.team === G.user && x.date >= `${G.season}-06-01`); return gone.length && G.phase === 'freeagency' ? `<div class="card"><p>Retired this summer: ${gone.map((x) => nm(x.pid)).join(', ')}.</p></div>` : ''; })()}
 ${G.dev?.length && ['draft', 'offseason'].includes(G.phase) ? `<div class="card"><h3>How your players developed</h3><p class="note">Rating at the end of the season against the start${G.hidden ? ', as the league now sees it' : ''}.</p>
 ${G.dev.map(([id, b, a]) => `<div>${nm(id)} <small>${Math.floor(P(id).age)}</small>: ${sg(b)} → ${sg(a)} <b class="${a >= b ? 'good' : 'bad'}">(${sg(a - b)})</b></div>`).join('')}</div>` : ''}
@@ -479,19 +538,14 @@ ${po.champion ? `<p><b>${esc(NAME(po.champion))}</b> are champions.</p>` : ''}</
   draft: () => {
     if (!G.draft) return '<p>No draft under way.</p>';
     const c = L.onClock(G), onMe = c?.holder === G.user, made = G.draft.picks.slice(-8).reverse();
-    const pool = G.draft.avail.map(P).sort((a, b) => b.rate - a.rate);
+    const pool = G.draft.avail.map(P);
     const next = G.draft.order.slice(G.draft.picks.length, G.draft.picks.length + 8);
     const roster = me().roster.map(P).filter((p) => !p.contract?.twoWay), byPos = (k) => roster.filter((p) => (p.pos || '').startsWith(k)).length;
     const [say, ...b] = NEXT.draft(), th = onMe ? null : L.there(G), tn = c && !onMe ? L.takenNow(G) : null;
     return `<div class="card"><p>${say}</p><div class="row">${onMe ? btn('autopick', 'Take the best available') : b.filter((x) => x && !x.includes('data-arg="draft"')).join('')}</div>
 ${c ? `<p class="note">On the clock, in order: ${next.map((e) => `${e.slot}. ${e.holder === G.user ? `<b>${e.holder}</b>` : e.holder}`).join(', ')}. You can trade picks and players between picks.</p>` : ''}
 <p class="note">Your roster: ${byPos('G')} guards, ${byPos('F')} forwards, ${byPos('C')} centers.</p></div>
-<div class="scroll"><table class="t dft"><thead><tr><th>Prospect</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Rookie</th><th>Year 4 <small>(10–90%)</small></th><th class="n">Peak</th><th class="n">Star</th><th class="n">Healthy</th><th class="n">In NBA <small>yr 5</small></th>${tn ? `<th class="n">Goes at ${c.slot}</th>` : ''}${th ? `<th class="n">There at ${th.slot}</th>` : ''}<th></th></tr></thead><tbody>
-${pool.slice(0, 60).map((p) => { const o = L.outlook(G, p), y4 = o.path[3], pk = o.path.reduce((a, x) => (x.p50 > a.p50 ? x : a));
-  const at = (x) => `${Math.min(Math.max((x + 4) * 10, 0), 100)}%`;
-  return playerRow(p, `<td class="n">${sg(o.path[0].p50)}</td><td class="rg"><div class="rb2"><span style="left:${at(y4.p10)};right:calc(100% - ${at(y4.p90)})"></span><i style="left:${at(y4.p50)}"></i><b style="left:${at(0)}"></b></div><small>${sg(y4.p50)} <span>(${sg(y4.p10)} to ${sg(y4.p90)})</span></small></td>
-<td class="n">${sg(pk.p50)} <small>at ${Math.floor(pk.age)}</small></td><td class="n">${Math.round(100 * o.star)}%</td><td class="n">${Math.round(100 * p.av)}%</td><td class="n">${Math.round(100 * o.stay[4])}%</td>${tn ? `<td class="n">${Math.round(100 * (tn[p.id] || 0))}%</td>` : ''}${th ? `<td class="n">${Math.round(100 * (th.p[p.id] || 0))}%</td>` : ''}<td>${onMe ? btn('pick', 'Pick', p.id) : ''}</td>`); }).join('')}</tbody></table></div>
-<p class="note">Rtg is the league's read of each prospect from the scouts' board; his line is his last season before the draft, per game. The outlook is the game's own: his talent is that read plus what boards like it miss (this class's misses, busts included), and then each year the league's age curve and his own trend. Rookie, Year 4 and Peak are medians (the bar spans the middle 80% of Year 4 outcomes, the tick at 0 is an average player); Star is his chance of a season at +3 or better. Healthy is the share of games he is expected to be fit for (a coach's choice to sit him is not counted against it). In NBA is his chance of being on a roster in his fifth season, past his rookie deal, as the game's own leagues have kept men of his rating, health and age. Goes at is his chance the club on the clock takes him now, and There at his chance he's still on the board at your next pick, with the clubs ahead picking as they will: trade up for a man you want who is unlikely to last.</p>
+${board(pool, onMe, tn, th, c)}
 <h3>Latest picks</h3><ul>${made.map((x) => `<li>${x.slot}. ${x.team}: ${nm(x.pid)}</li>`).join('')}</ul>`;
   },
   decisions: () => {
@@ -549,6 +603,7 @@ Every rule of the collective bargaining agreement applies; the other 29 clubs ar
 <label>Club <select id="team">${Object.entries(TEAMS).sort((a, b) => a[1].localeCompare(b[1])).map(([ab, n]) => `<option value="${ab}">${esc(n)}</option>`).join('')}</select></label>
 <fieldset><legend>Talent</legend><label class="ck"><input type="radio" name="mode" value="hidden" checked> Hidden: ratings are estimates, and players turn out better or worse</label>
 <label class="ck"><input type="radio" name="mode" value="truth"> The truth: every player is exactly his projection</label></fieldset>
+<label>Owner <select id="owner"><option value="random">Random</option>${Object.entries(O.OWNERS).map(([k, o]) => `<option value="${k}">${o.label}</option>`).join('')}</select></label>
 <div class="row"><button class="b" id="create">Start</button>${btn('import', 'Import a save')}</div></div>`;
 }
 let TEAMS = {};
@@ -567,6 +622,7 @@ async function create() {
   root().insertAdjacentHTML('beforeend', '<div class="busy" role="status">Building the league…</div>');
   const d = await data(), seed = Math.floor(Math.random() * 2 ** 31);
   adopt(L.newGame(d.league, d.cal, { team, hidden, seed }));
+  O.hire(G, $('#owner').value, r);
   view = 'home'; await save(); render();
 }
 async function boot() {

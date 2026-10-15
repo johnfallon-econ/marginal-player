@@ -276,26 +276,65 @@ export function draftStart(G, r) {
   G.draft = { year, order, avail: pool.map((p) => p.id), picks: [], lottery: lot, resid };
   G.phase = 'draft'; G.date = `${year}-06-24`;
 }
-// A prospect's outlook, as the game will play it out: his talent is the league's read plus what the
-// board misses (the class's own misses, busts and all), then each year the age curve and his
-// personal trend (K.dev, its yearly persistence rho). Returns season k = 1 (rookie) .. 10: age and
-// the 10th, 50th and 90th percentiles of his rating, and his chance of reaching +3 by his peak.
-const Z = [-1.645, -1.036, -0.674, -0.385, -0.126, 0.126, 0.385, 0.674, 1.036, 1.645];   // a normal's deciles' midpoints
-export function outlook(G, p) {
-  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = G.draft?.resid || [0];
-  const q = (a, x) => a[Math.min(a.length - 1, Math.floor(x * a.length))];
-  let mean = 0, star = 0;
-  const path = [];
-  for (let k = 1; k <= 10; k++) {
-    if (k > 1) mean += V.agingStep(K, p.age + k - 2);
-    let v = 0; for (let i = 0; i < k - 1; i++) for (let j = 0; j < k - 1; j++) v += rho ** Math.abs(i - j);
-    const sdk = sd * Math.sqrt(v), draws = res.flatMap((e) => Z.map((z) => p.rate + e + mean + sdk * z)).sort((a, b) => a - b);
-    path.push({ k, age: p.age + k - 1, p10: q(draws, 0.1), p50: q(draws, 0.5), p90: q(draws, 0.9) });
-    star = Math.max(star, draws.filter((x) => x >= 3).length / draws.length);
+// A prospect as the draft board draws him (9_board.py), from the game's own development: n careers
+// of 20 seasons, his talent the league's read plus a miss drawn from this class's (busts and all),
+// then each year the age curve, his fading personal trend and a random walk, and his offense-minus-
+// defense lean drifting as the league's do. A season's quality is his wins at full health in the
+// minutes the game gives a man of that rating, its value his wins at his availability. The board's
+// fans, at its eight levels: value over his first four seasons; quality as a rookie, over four
+// seasons and at his peak (seasons 1-7); offense and defense over four; each season's value. His
+// worth to the club that drafts him, at the draft's cap as the board prices a class, on the board's
+// contract model (K.boardMkt, its viewer's clubPath): the rookie deal at market while the club holds
+// him (four seasons from the first round, two from the second, by where the league's read would have
+// him go), then at each deal's end it keeps him or not and pays him the max or a non-max share of
+// the cap, value less pay. And his chance of being in the league in
+// seasons 1-6, as the game's own leagues have kept such men (K.stick).
+export const QL = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99];
+const FANS = new Map();
+export function fans(G, p, n = 400) {
+  const key = `${G.draft.year}|${p.id}`;
+  if (FANS.has(key)) return FANS.get(key);
+  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = G.draft.resid, cap = capAt(G, G.draft.year);
+  const r = S.rng([...p.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7));
+  const mins = (x) => K.beta * 82 * M.mpgFor(x, K) / 48;
+  // the board's contract model at a season's wins w (its keepP, holdP, dealMax)
+  const B = K.boardMkt, lg = (z) => 1 / (1 + Math.exp(-z)), sw = (w) => Math.sqrt(Math.max(w, 0));
+  G.draft.proj ??= Object.fromEntries(G.draft.avail.map((id) => G.players[id]).sort((a, b) => b.rate - a.rate).map((q, i) => [q.id, i + 1]));
+  const pick = G.draft.proj[p.id] ?? 61, Lr = pick <= 30 ? 4 : 2;
+  const holdP = (w, k) => { const c = B.rookie, r2 = +(pick > 30); return lg(c.a + c.war * w + c.sqrt_war * sw(w) + c.round2 * r2 + c.ln_pick * Math.log(Math.min(pick, 61)) + c.k3 * (k === 3) + c.k4 * (k === 4) + c.r2_k3 * r2 * (k === 3) + c.r2_k4 * r2 * (k === 4)); };
+  const keepP = (first, w, age) => { const c = first ? B.first : B.later;
+    return lg(first ? c.a + c.war * w + c.sqrt_war * sw(w) + c.age_25 * (age - 25) : c.a + c.war * w + c.sqrt_war * sw(w) + c.age_28 * (age - 28) + c.age_over_32 * Math.max(age - 32, 0)); };
+  const deal = (first, w, svc, age) => { const mx = Math.max(...Object.entries(B.max_pct).filter(([y]) => svc >= +y).map(([, v]) => v)) / 100, c = B.max_deal, N = B.nonmax;
+    const z = (c_) => c_.a + c_.war * w + c_.sqrt_war * sw(w) + c_.first * first + c_.age_28 * (age - 28) + c_.age_over_32 * Math.max(age - 32, 0);
+    return { mx, pmax: lg(z(c)), nm: Math.min(Math.max(z(N), N.min_share), mx) }; };
+  const fan = (a) => { a.sort((x, y) => x - y); return QL.map((u) => +a[Math.floor(u * (a.length - 1))].toFixed(2)); };
+  const A_ = { v: [], r: [], q: [], k: [], o: [], d: [], V: [], vs: Array.from({ length: 20 }, () => []), kept: Array(20).fill(0), mkt: Array(20).fill(0) };
+  let star = 0;
+  for (let t = 0; t < n; t++) {
+    let x = p.rate + res[Math.floor(r() * res.length)], tr = sd * r.normal(), lean = p.lean ?? 0, sum = 0, sq = 0, so = 0, sdf = 0, pk = -Infinity, val = 0, st = false;
+    let surv = 1, wp = 0, mx = 0, pmax = 0, nm = 0;
+    for (let k = 1; k <= 20; k++) {
+      const age = p.age + k - 1, m = mins(x), q = m * (x - K.repl), w = q * p.av, pr = M.price(w, cap, K) / 1e6;
+      if (k <= 4) { sum += w; sq += q; so += m * ((x + lean) / 2 - K.repl / 2); sdf += m * ((x - lean) / 2 - K.repl / 2); }
+      if (k === 1) A_.r.push(q);
+      if (k <= 7) { pk = Math.max(pk, q); st ||= x >= 3; }
+      A_.vs[k - 1].push(w);
+      // the club's season: held through the rookie deal, then kept or not at each deal's end
+      if (k <= Lr) { if (k >= 2) surv *= holdP(wp, k); }
+      else if ((k - 1 - Lr) % 4 === 0) { const first = k - 1 === Lr; surv *= keepP(first, wp, age - 0.4); ({ mx, pmax, nm } = deal(first, wp, k - 1, age - 0.4)); }
+      const keep = surv * (k <= Lr ? pr : pmax * (pr - mx * cap / 1e6) + (1 - pmax) * (pr - nm * cap / 1e6));
+      val += keep; A_.kept[k - 1] += keep / n; A_.mkt[k - 1] += pr / n; wp = w;
+      x += V.agingStep(K, age) + tr + K.dev.walk * r.normal();
+      tr = rho * tr + Math.sqrt(1 - rho * rho) * sd * r.normal();
+      lean += V.interp(K.od.drift, age) + K.od.rho * lean + K.od.sd * r.normal();
+    }
+    A_.v.push(sum / 4); A_.q.push(sq / 4); A_.k.push(pk); A_.o.push(so / 4); A_.d.push(sdf / 4); A_.V.push(val); star += st / n;
   }
-  // his chance of being in the league in seasons 1-6, as the game's own leagues have kept such men
   const stay = Object.values(K.stick).map((c) => 1 / (1 + Math.exp(-(c.const + c.rate * p.rate + c.av * p.av + c.age * p.age))));
-  return { path, star, stay };
+  const Vs = A_.V.slice().sort((a, b) => a - b), out = { v: fan(A_.v), r: fan(A_.r), q: fan(A_.q), k: fan(A_.k), o: fan(A_.o), d: fan(A_.d), vs: A_.vs.map(fan),
+    EV: A_.V.reduce((a, b) => a + b) / n, V10: Vs[Math.floor(0.1 * n)], V90: Vs[Math.floor(0.9 * n)], kept: A_.kept, mkt: A_.mkt, star, stay, pp: stay[0] };
+  FANS.set(key, out);
+  return out;
 }
 // The pick on the clock, or null when the draft is done.
 export const onClock = (G) => G.draft.order[G.draft.picks.length] || null;
