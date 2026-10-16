@@ -151,7 +151,38 @@ export function seasonStart(G, r) {
   grantDPE(G);
   G.phase = 'season'; G.date = C.seasonDates(G.season).opening;
 }
-export const seasonTo = (G, r, frac) => { S.simDays(lg(G), G.cur, r, Math.floor(G.cur.days.length * frac)); if (frac <= WINDOWS[0].frac) grantDPE(G); };   // applications close Jan 15: by the Dec 15 stop
+// a week at a time, so clubs short of bodies can sign help between weeks (shorthanded)
+export const seasonTo = (G, r, frac) => {
+  const to = Math.floor(G.cur.days.length * frac);
+  while (G.cur.d < to) { S.simDays(lg(G), G.cur, r, Math.min(G.cur.d + 7, to)); shorthanded(G, r); }
+  if (frac <= WINDOWS[0].frac) grantDPE(G);                         // applications close Jan 15: by the Dec 15 stop
+};
+// In-season help, as real clubs sign it: a club down to fewer than 13 healthy men on standard deals
+// signs the best young free agent it can (under three seasons in, as real 10-day men mostly come up
+// from the G League) on a 10-day contract (about five games, the minimum prorated),
+// past 15 under the hardship exception once four or more are out. A 10-day runs out and the man
+// is a free agent again; a club still short signs again, him or another. The fringe players this
+// brings in for a handful of games are a sixth of a real league's player-seasons. The user's
+// staff does it for him unless he turns it off (G.staffSigns).
+const TEN = 5;
+export function shorthanded(G, r) {
+  const st = G.cur, s = G.season, F = fig(G, s), P = G.players;
+  for (const [ab, T] of Object.entries(G.teams)) {
+    const g = st.played[ab];
+    for (const id of T.roster.slice()) if (P[id].contract?.tenDay && g >= P[id].contract.tenDay) {
+      T.roster = T.roster.filter((x) => x !== id); P[id].contract = null; P[id].tm = null; G.fa.push(id);
+    }
+    if (ab === G.user && !G.autoUser && G.staffSigns === false) continue;
+    const std = () => T.roster.filter((id) => !P[id].contract?.twoWay), out = std().filter((id) => st.hurt[id]?.[g]).length;
+    while (std().length - out < 13 && std().length < 15 + (out >= 4)) {
+      const young = G.fa.filter((x) => P[x].yos < 3), id = (young.length ? young : G.fa).slice().sort((a, b) => v3(G, P[b]) - v3(G, P[a]))[0]; if (!id) break;
+      const p = P[id], sal = Math.round(C.minSalary(p.yos, F.cap) * TEN / 82);
+      p.play = p.talent;                                  // his form, for the games he plays
+      sign(G, ab, p, 'min', sal, 1, G.date, 0);
+      p.contract.tenDay = g + TEN; p.contract.how = 'tenDay';
+    }
+  }
+}
 // A disabled player exception (CBA_REFERENCE.md): a man out for the rest of the season, as the league's
 // physician would rule by Jan 15, gives his club the lesser of half his salary or the mid-level for a
 // one-season signing until March 10 (trades into one are not modelled). One per man.
@@ -263,7 +294,9 @@ export function draftStart(G, r) {
   const first = [...lot, ...byRec.filter((ab) => playoff.has(ab))];
   const { order, created } = D.resolvePicks([first, byRec], year, G.picks);
   Object.assign(G.picks, created);
-  const pool = D.generateClass({ names: G.names, draft: G.draftData }, s, r, G.scoutSd);
+  const cls = D.generateClass({ names: G.names, draft: G.draftData }, s, r, G.scoutSd), pool = cls.filter((p) => !p.undrafted);
+  // the undrafted, journeymen from the G League and abroad, go straight to the summer's market
+  for (const p of cls.filter((q) => q.undrafted)) { p.rate = G.hidden ? p.board : p.talent; p.se = 1.0; p.prior = 0; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal(); p.mpg = M.mpgFor(p.rate, G.K) * p.av; p.tm = null; p.contract = null; G.players[p.id] = p; G.fa.push(p.id); }
   for (const p of pool) {
     // hidden talent: the league sees the scouts' board, shrunk to what it predicts; else the truth
     p.rate = G.hidden ? shrinkBoard(p, pool) : p.talent;
@@ -383,6 +416,13 @@ export function takenNow(G, n = 400) {
   for (let t = 0; t < n; t++) { const p = D.aiPick(pool, r, G.teams[c.holder].gm.noise * 3); out[p.id] = (out[p.id] || 0) + 1 / n; }
   return out;
 }
+// Draft and stash: a club leaves a first-round pick abroad before his rookie deal begins, keeping his
+// rights; he signs the scale for his slot whenever it brings him over (newLeagueYear's rights).
+export function stash(G, ab, id) {
+  const T = G.teams[ab], p = G.players[id];
+  T.roster = T.roster.filter((x) => x !== id); p.contract = null; p.tm = null; p.abroad = G.season + 1;
+  (T.rights ||= []).push(id);
+}
 export function draftEnd(G) {
   for (const id of G.draft.avail) { const p = G.players[id]; p.tm = null; p.contract = null; G.fa.push(id); }
   G.history.at(-1).draft = G.draft.picks; G.lastDraft = G.draft.year;
@@ -439,15 +479,16 @@ export function newLeagueYear(G, r, decide = {}) {
   // market: a two-year deal for a man worth more over three seasons than the marginal free agent
   // (the one the league's last open roster spot would go to), else a two-way deal for one worth more
   // than the marginal young man for the open two-way spots, else he plays abroad another season,
-  // his club holding his rights, for up to four summers (decide.second for the user: 'deal',
-  // 'twoWay' or null)
+  // his club holding his rights, for up to four summers, as he does when the two-way deal he would
+  // take finds his club's three two-way spots full (decide.second for the user: 'deal', 'twoWay' or null)
   const R = Object.values(G.teams).flatMap((T) => T.rights ?? []), all = Object.values(G.teams), v = (id) => v3(G, P[id]);
   const std = all.reduce((a, T) => a + 15 - T.roster.filter((x) => !P[x].contract?.twoWay).length, 0), tw = all.reduce((a, T) => a + 3 - T.roster.filter((x) => P[x].contract?.twoWay).length, 0);
   const bar = (ids, n) => ids.map(v).sort((a, b) => b - a)[Math.max(n - 1, 0)] ?? -Infinity;
   const barStd = bar([...G.fa, ...R], std), barTw = bar([...G.fa.filter((x) => P[x].yos < 4), ...R], tw);
   for (const [ab, T] of Object.entries(G.teams)) {
     T.rights = (T.rights ?? []).filter((id) => {
-      const p = P[id], how = ab === G.user && decide.second ? decide.second(p) : v(id) > barStd ? 'deal' : v(id) > barTw ? 'twoWay' : null;
+      const p = P[id], want = ab === G.user && decide.second ? decide.second(p) : v(id) > barStd ? 'deal' : v(id) > barTw ? 'twoWay' : null;
+      const how = want === 'twoWay' && T.roster.filter((x) => P[x].contract?.twoWay).length >= 3 ? null : want;   // his club's three two-way spots full: abroad
       if (!how) { if (s - p.draft.year >= 3) p.retired = G.season; else p.abroad = s; return !p.retired; }
       delete p.abroad;
       p.contract = { ...(how === 'deal' ? D.rookieContract(p.draft.pick, s - 1, F.cap) : D.twoWayContract(s - 1, F.cap)), signed: `${s}-07-07` };

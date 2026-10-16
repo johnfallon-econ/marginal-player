@@ -10,10 +10,10 @@ export function generateClass(L, season, r, scoutSd) {
   const names = L.names, real = new Set(names.real), donors = L.draft.donors, pool = [];
   const name = () => { for (;;) { const n = `${r.pick(names.first)} ${r.pick(names.last)}`; if (!real.has(n)) return n; } };
   for (let slot = 1; slot <= 60 + L.draft.undrafted; slot++) {   // 60 picks plus the undrafted market
-    const near = donors.filter(([k]) => Math.abs(k - Math.min(slot, 60)) <= 2);
-    const [, age, talent, ht, wt, pos, lvl, line, lean, av] = r.pick(near);
-    pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, board: talent + scoutSd * r.normal(), yos: 0, draftYear: season + 1, lean, av,
-      pos, ht: ht && `${Math.floor(ht / 12)}-${ht % 12}`, wt, pre: lvl && { lvl, line } });
+    const near = slot > 60 ? L.draft.udonors : donors.filter(([k]) => Math.abs(k - slot) <= 2);   // the undrafted: real undrafted entrants
+    const [, age, talent, ht, wt, pos, lvl, line, lean, av, from] = r.pick(near);
+    pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, board: talent + scoutSd * r.normal(), yos: 0, draftYear: season + 1, lean, av, undrafted: slot > 60 || undefined,
+      pos, ht: ht && `${Math.floor(ht / 12)}-${ht % 12}`, wt, from, pre: lvl && { lvl, line } });
   }
   return pool;
 }
@@ -31,7 +31,7 @@ export function solveScoutSd(L, r, target = L.draft.sp) {
     const sd = (lo + hi) / 2;
     let rho = 0;
     for (let k = 0; k < 30; k++) {
-      const c = generateClass(L, 2026, r, sd).sort((a, b) => b.board - a.board).slice(0, 60);
+      const c = generateClass(L, 2026, r, sd).filter((p) => !p.undrafted).sort((a, b) => b.board - a.board).slice(0, 60);
       rho += spearman(c.map((p) => p.board), c.map((p) => p.talent)) / 30;
     }
     (rho > target ? (lo = sd) : (hi = sd));

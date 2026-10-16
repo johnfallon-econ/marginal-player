@@ -5,7 +5,7 @@ import * as C from './cba.js';
 import * as M from './value.js';
 import { teamValue, projWins, capAt, cutdown, fillRosters } from './league.js';
 
-export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.055, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
+export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.045, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
 // how a club weighs a season h ahead, and a pick, by what it is trying to do
 const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
@@ -64,7 +64,7 @@ export function tradeWindow(G, r, date, maxTrades = 6, userAb = G.user) {
     const x = market(G), { s, F, modes, tax } = x, P = G.players, clubs = Object.keys(G.teams).filter((ab) => ab !== userAb);
     // the shortlist: (seller, player, buyer) by how much more the buyer makes of him, tax included
     const cands = clubs.flatMap((S) => { const L = G.teams[S].roster.map((id) => P[id])
-      .filter((p) => !p.contract?.twoWay && C.yearOf(p.contract, s))
+      .filter((p) => !p.contract?.twoWay && !p.contract?.tenDay && C.yearOf(p.contract, s))
       .flatMap((p) => { const sal = C.charge(p, s, F.cap), own = playerWorth(G, S, p, modes[S]) + tax(S, -sal);
         return clubs.filter((B) => B !== S).map((B) => [S, p, B, playerWorth(G, B, p, modes[B]) - tax(B, sal) - own, own]); })
       .sort((a, b) => b[3] - a[3]);
@@ -119,7 +119,7 @@ function gain(G, x, ab, tr) {
 // salaries match; then the side coming out behind is paid in picks while the other stays ahead.
 export function buildOffer(G, x, B, S, p, date) {
   const P = G.players, mine = G.teams[B].roster
-    .filter((id) => id !== p.id && !P[id].contract?.twoWay && C.charge(P[id], x.s, x.F.cap) > 0)
+    .filter((id) => id !== p.id && !P[id].contract?.twoWay && !P[id].contract?.tenDay && C.charge(P[id], x.s, x.F.cap) > 0)
     .sort((a, b) => playerWorth(G, B, P[a], x.modes[B]) - playerWorth(G, B, P[b], x.modes[B]));
   const trade = { date, moves: [{ pid: p.id, from: S, to: B }], picks: [], cash: [] }, league = { ...G, picks: x.pv };
   // as few men as match the salaries: one, else two, each time the ones it values least; else

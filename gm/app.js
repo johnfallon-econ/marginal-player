@@ -135,9 +135,11 @@ const ACT = {
   dto: () => step('The draft', () => { L.draftNext(G, r); }),
   enddraft: () => step('Wrapping up', () => { L.draftEnd(G); G.step = 'decisions'; G.choices = {}; view = 'decisions'; }),
   toggle: (k) => { G.choices[k] = !G.choices[k]; render(); },
+  stash: (a) => { const [id, v] = a.split('|'); G.choices[`st|${id}`] = !!v; render(); },
   second: (a) => { const [id, v] = a.split('|'); G.choices[`sr|${id}`] = v; render(); },
   newyear: () => step('The new league year', () => {
     const c = G.choices || {};
+    for (const id of me().roster.filter((x) => c[`st|${x}`])) L.stash(G, G.user, id);
     L.newLeagueYear(G, r, { teamOption: (p) => !!c[`opt|${p.id}`], qo: (p) => !!c[`qo|${p.id}`], second: (p) => (c[`sr|${p.id}`] ?? (p.abroad ? '' : 'deal')) || null });
     delete G.step; G.choices = {}; G.offers = []; view = 'resign';
   }),
@@ -198,6 +200,7 @@ const ACT = {
   import: () => $('#importf').click(),
   takejob: (ab) => { O.move(G, ab, r); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
   retire: () => { G.fired.retired = true; save(); render(); },
+  staff: () => { G.staffSigns = G.staffSigns === false; save(); render(); },
   newgame: () => { if (!G || confirm('Start over? The current game is replaced.')) { G = null; view = 'new'; render(); } },
   renounce: (pid) => { const T = me(); T.holds = T.holds.filter((h) => h.pid !== pid); T.rfa = (T.rfa || []).filter((x) => x !== pid); ui = {}; save(); render(); },
 };
@@ -273,13 +276,13 @@ const usage = (p) => { const gp = G.cur?.gp[p.id], l = p.log?.at(-1);
 const statLine = (p) => { const l = A.line(G, p);
   return l ? `${SEASON(l.s)}: ${l.gp} gp, ${l.mpg.toFixed(1)} mpg${l.pg ? ` · ${l.pg[0].toFixed(1)} pts, ${l.pg[1].toFixed(1)} reb, ${l.pg[2].toFixed(1)} ast` : ''}` : ''; };
 const playerRow = (p, extra = '') => { const l = statLine(p);
-  return `<tr data-act="sel" data-arg="${p.id}" class="${ui.pid === p.id ? 'on' : ''}"><td><b>${esc(p.nm)}</b><small>${[p.pos, p.ht, Math.floor(p.age), p.contract?.twoWay && 'two-way', l].filter(Boolean).join(' · ')}</small>${p.pre && !l ? pre(p) : ''}</td>
+  return `<tr data-act="sel" data-arg="${p.id}" class="${ui.pid === p.id ? 'on' : ''}"><td><b>${esc(p.nm)}</b><small>${[p.pos, p.ht, Math.floor(p.age), p.contract?.twoWay && 'two-way', p.contract?.tenDay && '10-day', l].filter(Boolean).join(' · ')}</small>${p.pre && !l ? pre(p) : ''}</td>
 <td class="n">${sg(p.rate)}<small> ${od(p.rate, p.lean)}</small></td><td class="n">${M.war(p, 0, G.K).toFixed(1)}</td>${extra}</tr>`; };
 // offense and defense: the net rating split by his lean (offense minus defense)
 const od = (r, lean = 0) => `O ${sg((r + lean) / 2)} D ${sg((r - lean) / 2)}`;
 // a prospect's last season before the draft, per game
 const pre = (p) => { const [pts, trb, ast, stl, blk, fg, fg3, ft, g, mp] = p.pre.line, pc = (x) => (x == null ? '–' : (100 * x).toFixed(0));
-  return `<small>${p.pre.lvl}${p.wt ? ` · ${p.wt} lb` : ''}: ${pts} pts, ${trb} reb, ${ast} ast, ${stl} stl, ${blk} blk; ${pc(fg)}/${pc(fg3)}/${pc(ft)} shooting; ${mp} mpg in ${g} g</small>`; };
+  return `<small>${p.from ? `${esc(p.from)}, ${p.pre.lvl}` : p.pre.lvl}${p.wt ? ` · ${p.wt} lb` : ''}: ${pts} pts, ${trb} reb, ${ast} ast, ${stl} stl, ${blk} blk; ${pc(fg)}/${pc(fg3)}/${pc(ft)} shooting; ${mp} mpg in ${g} g</small>`; };
 // a player's name, opening his card
 const nm = (id) => `<a class="pl" data-act="card" data-arg="${id}">${esc(P(id).nm)}</a>`;
 // what he has won, from the league's history
@@ -431,7 +434,7 @@ function board(pool, onMe, tn, th, c) {
   return `<div class="dftb"><div class="bhead"><span>Rk</span><span>Prospect</span><span>Value · outcome curve</span><span>Quality R/4/P · off/def</span><span class="r">Odds</span><span></span></div>
 ${list.map((p, i) => { const o = f(p), pj = G.draft.proj[p.id], open = ui.pid === p.id;
   return `<div class="brow${open ? ' open' : ''}" data-act="sel" data-arg="${p.id}"><div class="rk">${i + 1}</div>
-<div class="who"><b>${esc(p.nm)}</b><div class="meta">${[p.pre?.lvl, Math.floor(p.age) + 'y', p.pos, p.ht, `P(NBA) ${Math.round(100 * o.pp)}%`].filter(Boolean).join(' · ')}</div><div class="meta">read ${sg(p.rate)} · healthy ${Math.round(100 * p.av)}%</div></div>
+<div class="who"><b>${esc(p.nm)}</b><div class="meta">${[esc(p.from || p.pre?.lvl || ''), Math.floor(p.age) + 'y', p.pos, p.ht, `P(NBA) ${Math.round(100 * o.pp)}%`].filter(Boolean).join(' · ')}</div><div class="meta">read ${sg(p.rate)} · healthy ${Math.round(100 * p.av)}%</div></div>
 <div class="vcell">${B.violin(o.v, VD)}<div class="ev"><b>${B.$M(o.EV)}</b> to his club <small>p10–p90 ${B.$M(o.V10)} – ${B.$M(o.V90)}</small></div></div>
 <div>${B.qhz(o, QD)}</div>
 <div class="cap">${chip(pj - (i + 1))}<small>league's no. ${pj}</small><small>in NBA yr 5 ${Math.round(100 * o.stay[4])}%</small>${tn ? `<small>goes at ${c.slot}: <b>${Math.round(100 * (tn[p.id] || 0))}%</b></small>` : ''}${th ? `<small>there at ${th.slot}: <b>${Math.round(100 * (th.p[p.id] || 0))}%</b></small>` : ''}</div>
@@ -556,8 +559,10 @@ ${board(pool, onMe, tn, th, c)}
     return `<div class="card"><h3>Team options for ${SEASON(s)}</h3>${opts.map((p) => row('opt', p, `pick up ${$M(C.yearOf(p.contract, s).sal)}`)).join('') || '<p>None.</p>'}
 <h3>Qualifying offers</h3><p class="note">Tendering one makes the player a restricted free agent: you may match any offer sheet.</p>
 ${qos.map((p) => row('qo', p, 'tender')).join('') || '<p>None.</p>'}
-<h3>Second-round picks</h3><p class="note">You hold their rights: sign one to a two-year deal (the first year guaranteed, at the minimum), to a two-way deal, or leave him abroad another season, keeping his rights (for up to four summers).</p>
-${(T.rights ?? []).map(P).map((p) => { const v = c[`sr|${p.id}`] ?? (p.abroad ? '' : 'deal'); return `<div class="ck"><b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · pick ${p.draft.pick}, ${p.draft.year}${p.abroad ? ' · abroad' : ''}</small><div class="row">${[['deal', 'Two-year deal'], ['twoWay', 'Two-way'], ['', 'Abroad']].map(([k, l]) => btn('second', l, `${p.id}|${k}`, v === k ? '' : 'ghost')).join('')}</div></div>`; }).join('') || '<p>None.</p>'}
+<h3>First-round picks</h3><p class="note">Sign one to his rookie-scale deal, or stash him abroad: you keep his rights and can bring him over in a later summer on the scale for his slot (for up to four summers).</p>
+${T.roster.map(P).filter((p) => p.draft?.year === s && p.draft.round === 1 && p.contract?.rookie).map((p) => `<div class="ck"><b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · pick ${p.draft.pick}${p.from || p.pre?.lvl ? ` · ${esc(p.from || p.pre.lvl)}` : ''}</small><div class="row">${[['', 'Sign him'], ['1', 'Stash abroad']].map(([k, l]) => btn('stash', l, `${p.id}|${k}`, (c[`st|${p.id}`] ? '1' : '') === k ? '' : 'ghost')).join('')}</div></div>`).join('') || '<p>None.</p>'}
+<h3>Second-round picks and men abroad</h3><p class="note">You hold their rights: sign one to a two-year deal (the first year guaranteed, at the minimum), to a two-way deal, or leave him abroad another season, keeping his rights (for up to four summers).</p>
+${(T.rights ?? []).map(P).map((p, _, R) => { const v = c[`sr|${p.id}`] ?? (p.abroad ? '' : 'deal'), full = v !== 'twoWay' && T.roster.map(P).filter((q) => q.contract?.twoWay && C.yearOf(q.contract, s)).length + R.filter((q) => c[`sr|${q.id}`] === 'twoWay').length >= 3; return `<div class="ck"><b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · pick ${p.draft.pick}, ${p.draft.year}${p.abroad ? ' · abroad' : ''}</small><div class="row">${[['deal', p.draft.round === 1 ? 'Rookie-scale deal' : 'Two-year deal'], ...(p.draft.round === 1 ? [] : [['twoWay', 'Two-way']]), ['', 'Abroad']].map(([k, l]) => btn('second', l, `${p.id}|${k}`, v === k ? '' : 'ghost').replace('<button', k === 'twoWay' && full ? '<button disabled title="Your three two-way spots are full"' : '<button')).join('')}</div></div>`; }).join('') || '<p>None.</p>'}
 ${btn('newyear', 'Start the new league year')}</div>`;
   },
   resign: () => {
@@ -592,7 +597,8 @@ ${all.length > pool.length ? `<div class="row">${btn('famore', `Show more (${all
     return `<div class="row">${btn('logall', ui.all ? 'Your club only' : 'Every club')}</div><ul class="log">${mine.slice(-150).reverse().map((x) => `<li><small>${x.date}</small> ${logLine(x)}</li>`).join('')}</ul>`;
   },
   menu: () => `<div class="card"><h3>This game</h3><p>${esc(NAME(G.user))}, ${G.hidden ? 'hidden talent' : 'projections as the truth'}, started ${SEASON(G.history[0]?.season ?? G.season)}. Saved in this browser after every step.</p>
-<div class="row">${btn('export', 'Export the save')}${btn('import', 'Import a save')}${btn('newgame', 'New game', '', 'warn')}</div></div>`,
+<div class="row">${btn('export', 'Export the save')}${btn('import', 'Import a save')}${btn('newgame', 'New game', '', 'warn')}</div>
+<p class="note">Injury help: ${G.staffSigns === false ? 'off. Your club plays short when injuries pile up.' : 'on. When fewer than 13 of your men on standard deals are healthy, your staff signs the best free agent to a 10-day contract (past 15 under the hardship exception once four are out).'}</p>${btn('staff', G.staffSigns === false ? 'Let the staff sign injury help' : 'Stop the staff signing injury help', '', 'ghost')}</div>`,
 };
 ACT.logall = () => { ui.all = !ui.all; render(); };
 ACT.famore = () => { ui.more = true; render(); };
