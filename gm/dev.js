@@ -26,6 +26,16 @@ export function initTalent(p, K, r, hidden) {
   p.talent = p.rate + (hidden ? K.devScale * K.dev.persist * r.normal() : 0);
   p.trend = (p.tp ?? 0) + trendSd(K, hidden, p) * r.normal();     // tp: the draft model's expected trend
 }
+// A draftee's growth (K.grow, 12_gm_data.py): from his rookie season to his third a real one grew
+// past the league's aging by a + b x his rookie level, give or take sd, by his pick's range. As the
+// game's trend: tp, the mean it starts at (two seasons of a trend that keeps rho of itself carry
+// 1 + rho of it), and dsd, his trend's spread over the league's (two seasons of it spread
+// sqrt((1 + rho)^2 + 1 - rho^2) of one season's; with hidden talent the league's trend is
+// K.trendHidden, larger so ratings that learn late spread as real ones do, and this scales it alike).
+export function growth(K, slot, x) {
+  const [, , a, b, sd] = K.grow.find(([lo, hi]) => slot >= lo && slot <= hi), rho = K.dev.rho;
+  return { tp: (a + b * x) / (1 + rho), dsd: sd / (Math.sqrt((1 + rho) ** 2 + 1 - rho * rho) * K.dev.trend) };
+}
 // dsd: a recent draftee's own spread, from the draft model's range for him (12_gm_data.py)
 const trendSd = (K, hidden, p) => (hidden ? K.trendHidden : K.dev.trend) * (p.dsd ?? 1);
 // a year of the fading trend: keeps rho of itself, refreshed so its spread stays put

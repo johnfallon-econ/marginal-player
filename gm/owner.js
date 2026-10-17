@@ -3,12 +3,13 @@
 // within a club, regular-season wins move revenue by nothing measurable, a home playoff game by about
 // $6M. Other costs are 28% of a club's revenue (the clubs that paid no tax, 2023-25). Profit is
 // revenue less payroll, luxury tax and other costs, the operating income Forbes reports.
+// Projected books count the home playoff games the club can expect from its projected wins.
 // An owner has a line, the least profit he will stand for a season, and weighs winning against it:
 // he blocks moves that take the projected season below his line, orders payroll cut by the trade
 // deadline when the season opens below it, and grades each season; his confidence falls with bad
 // ones, he warns below 40 and fires below 20.
 import * as C from './cba.js';
-import { capAt } from './league.js';
+import { capAt, projWins } from './league.js';
 
 export const OWNERS = {
   cheap: { label: 'Cheap', line: 50, money: 0.7, say: 'wants a profit of at least $50M a season (in 2024-25 dollars) and cares more for money than for winning' },
@@ -33,12 +34,24 @@ export const payroll = (G, ab) => { const s = season(G); G.f[s] ??= C.figures(s,
 export function projected(G, extra = 0) {
   const s = season(G), T = G.teams[G.user], F = (G.f[s] ??= C.figures(s, capAt(G, s))), rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[s - k]).length >= 3;
   const pay = C.teamSalary(T, G, s) + extra;
-  return books(G, s, pay / 1e6, C.taxBill(pay, F, rep) / 1e6);
+  return books(G, s, pay / 1e6, C.taxBill(pay, F, rep) / 1e6, homeGames(G, s));
 }
-// null if the owner approves a move adding `extra` to this season's payroll, else his reason
+// The home playoff games he counts on: a real club's at each win total (K.fin.poHome, 1996-2025),
+// over what his club might win -- its record so far and its projection for the rest, which misses a
+// season by K.pickSim.miss (eleven points of a normal, evenly spaced in probability)
+const Z = [-1.69, -1.10, -0.75, -0.47, -0.23, 0, 0.23, 0.47, 0.75, 1.10, 1.69];
+export function homeGames(G, s) {
+  const cur = s === G.season && G.cur && !G.seasonOver ? G.cur : null, done = s === G.season && G.seasonOver;
+  const left = done ? 0 : cur ? 1 - cur.played[G.user] / 82 : 1;
+  const w0 = done ? G.lastRecord[G.user].w : (cur ? cur.record[G.user].w : 0) + left * projWins(G, G.user), sd = G.K.pickSim.miss * Math.sqrt(left);
+  return Z.reduce((a, z) => a + G.K.fin.poHome[Math.round(Math.min(82, Math.max(0, w0 + sd * z)))], 0) / Z.length;
+}
+// null if the owner approves a move adding `extra` to this season's payroll, else his reason. In
+// the season he pays only for the days left: the move's salary, and its tax, prorated.
+const left = (G) => (G.phase === 'season' && G.cur ? 1 - G.cur.d / G.cur.days.length : 1);
 export function veto(G, extra) {
   if (!G.owner || extra <= 0) return null;
-  const b = projected(G, extra), l = line(G, b.s);
+  const b = projected(G, extra * left(G)), l = line(G, b.s);
   return b.profit >= l ? null : `The owner won't approve it: it would take this season to a ${$(b.profit)} profit, below his line of ${$(l)}.`;
 }
 const $ = (v) => `${v < 0 ? '−' : ''}$${Math.abs(v).toFixed(0)}M`;
@@ -48,7 +61,7 @@ export function opening(G) {
   if (b.profit >= l) return null;
   const T = G.teams[G.user], F = G.f[b.s], rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[b.s - k]).length >= 3;
   let target = C.teamSalary(T, G, b.s);
-  while (target > 0 && books(G, b.s, target / 1e6, C.taxBill(target, F, rep) / 1e6).profit < l) target -= 1e6;
+  while (target > 0 && books(G, b.s, target / 1e6, C.taxBill(target, F, rep) / 1e6, b.n).profit < l) target -= 1e6;
   G.owner.order = { s: b.s, target };
   return `The owner projects a ${$(b.profit)} season against his line of ${$(l)}: get payroll down to ${$(target / 1e6)} by the trade deadline.`;
 }

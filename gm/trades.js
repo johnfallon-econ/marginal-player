@@ -4,8 +4,9 @@
 import * as C from './cba.js';
 import * as M from './value.js';
 import { teamValue, projWins, capAt, cutdown, fillRosters } from './league.js';
+import * as P from './picks.js';
 
-export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.045, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
+export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.075, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
 // how a club weighs a season h ahead, and a pick, by what it is trying to do
 const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
@@ -22,33 +23,15 @@ export function playerWorth(G, ab, p, m) {
   return v;
 }
 
-// A pick's worth, $: the board's surplus for the slot its team is headed for (next draft: by its
-// projected wins; later drafts: blurring to an average first), at that draft's cap.
-export function pickWorth(G, ab, pick, m) {
-  const K = G.K, ahead = pick.year - (G.season + 1), cap = capAt(G, pick.year - 1);
-  const avg = (lo, hi) => K.slotSurplus.slice(lo - 1, hi).reduce((a, x) => a + x, 0) / (hi - lo + 1);
-  let v;
-  if (pick.round === 2) v = avg(31, 60);
-  else {
-    const w = G._wins?.[pick.origin] ?? projWins(G, pick.origin), slot = Math.min(Math.max(Math.round(30 * (w - 15) / 50), 1), 30);
-    const near = avg(Math.max(slot - 3, 1), Math.min(slot + 3, 30)), far = avg(1, 30), k = Math.min(ahead / 3, 1);
-    v = (1 - k) * near + k * far;
-  }
-  if (pick.protect) v *= 0.7;
-  return WEIGHT[m].pick * Math.max(v, 0) * cap / (K.slotCap * 1e6) * 1e6 / 1.1 ** ahead;
-}
-
-// Every pick a club holds in the next seven drafts, in the shape the rules engine reads.
-export function picksView(G) {
-  const out = {};
-  const D = G.draft, used = new Set(D ? D.order.slice(0, D.picks.length).map((e) => `${e.origin}|${D.year}|${e.slot <= 30 ? 1 : 2}`) : []);
-  for (let y = Math.max(G.season + 1, (G.lastDraft || 0) + 1); y <= G.season + 8; y++) for (const o of Object.keys(G.teams)) for (const rd of [1, 2]) {
-    const id = `${o}|${y}|${rd}`, e = G.picks[id];
-    if ((e?.t === 'gone' && !e.h) || used.has(id)) continue;
-    out[id] = { id, origin: o, year: y, round: rd, holder: e?.h || o, protect: !!e?.p, swapOwed: !!e?.s, frozen: !!e?.frozen };
-  }
-  return out;
-}
+// A pick's worth, $: the board's surplus for the slots it brings over simulated drafts (picks.js
+// worth: the lottery, every protection and swap), at that draft's cap, weighted by what the club
+// is after and discounted. prot: a protection the sender adds.
+const scale = (G, y, m, v) => WEIGHT[m].pick * v * capAt(G, y - 1) / (G.K.slotCap * 1e6) * 1e6 / 1.1 ** (y - (G.season + 1));
+export const pickWorth = (G, ab, pick, m, prot) => scale(G, pick.year, m, P.worth(G, pick, prot, ab));
+// a new swap right (picks.js after), $, to the club given it
+export const swapWorth = (G, s, m) => scale(G, s.y, m, P.swapWorth(G, s));
+// Every pick and claim in play, in the shape the rules engine reads.
+export const picksView = (G) => P.assets(G);
 
 // One trade window. Every pairing of clubs is in play: a player goes where he is worth more than
 // where he is (a veteran to a contender, a prospect to a rebuilder, a GM's favorite anywhere), a
@@ -84,7 +67,7 @@ export function tradeWindow(G, r, date, maxTrades = 6, userAb = G.user) {
   G.log.push(...done);
   return done;
 }
-const logEntry = (tr) => ({ type: 'trade', date: tr.date, teams: [...new Set(tr.moves.flatMap((m) => [m.from, m.to]).concat(tr.picks.flatMap((p) => [p.from, p.to])))],
+const logEntry = (tr) => ({ type: 'trade', date: tr.date, swaps: tr.swaps?.length ? tr.swaps : undefined, prot: tr.picks.some((p) => p.prot) ? tr.picks.filter((p) => p.prot).map((p) => [p.id, p.prot]) : undefined, teams: [...new Set(tr.moves.flatMap((m) => [m.from, m.to]).concat(tr.picks.flatMap((p) => [p.from, p.to])))],
   players: tr.moves.map((m) => m.pid), moves: tr.moves, picks: tr.picks.map((p) => p.id), pickTo: tr.picks.map((p) => p.to) });
 // the season whose salaries a deal moves: after the season ends, next season's
 const taxSeason = (G) => G.season + (G.phase === 'offseason' || G.phase === 'draft' ? 1 : 0);
@@ -110,8 +93,12 @@ function gain(G, x, ab, tr) {
     if (m.to === ab) { v += w; d += sal; } else if (m.from === ab) { v -= give(w); d -= sal; }
   }
   for (const p of tr.picks) {
-    const w = pickWorth(G, ab, x.pv[p.id], x.modes[ab]);
+    const w = pickWorth(G, ab, x.pv[p.id], x.modes[ab], p.prot);
     if (p.to === ab) v += w; else if (p.from === ab) v -= give(w);
+  }
+  for (const sw of tr.swaps || []) {
+    const w = swapWorth(G, sw, x.modes[ab]);
+    if (sw.to === ab) v += w; else if (sw.from === ab) v -= give(w);
   }
   return v - x.tax(ab, d);
 }
@@ -121,7 +108,7 @@ export function buildOffer(G, x, B, S, p, date) {
   const P = G.players, mine = G.teams[B].roster
     .filter((id) => id !== p.id && !P[id].contract?.twoWay && !P[id].contract?.tenDay && C.charge(P[id], x.s, x.F.cap) > 0)
     .sort((a, b) => playerWorth(G, B, P[a], x.modes[B]) - playerWorth(G, B, P[b], x.modes[B]));
-  const trade = { date, moves: [{ pid: p.id, from: S, to: B }], picks: [], cash: [] }, league = { ...G, picks: x.pv };
+  const trade = { date, moves: [{ pid: p.id, from: S, to: B }], picks: [], cash: [] }, league = { ...G, picks: x.pv, ledger: G.picks };
   // as few men as match the salaries: one, else two, each time the ones it values least; else
   // its least valued, one after another until the rules allow
   const send = (ids) => { trade.moves = [trade.moves[0], ...ids.map((id) => ({ pid: id, from: B, to: S }))]; return C.validateTrade(league, trade); };
@@ -134,12 +121,21 @@ export function buildOffer(G, x, B, S, p, date) {
   // the side behind pays in picks, up to MAX_PICKS: the cheapest one that closes the gap, else its best and go on
   const [payer, payee] = g(S) < 0 ? [B, S] : g(B) < 0 ? [S, B] : [];
   if (payer) {
-    const pool = Object.values(x.pv).filter((k) => k.holder === payer && !k.frozen && k.year > G.season)
-      .map((k) => [k, pickWorth(G, payee, k, x.modes[payee])]).sort((a, b) => a[1] - b[1]);
-    while (g(payee) <= 0 && trade.picks.length < MAX_PICKS && pool.length) {
-      const i = pool.findIndex(([, v]) => v > -g(payee)), [k] = pool.splice(i < 0 ? pool.length - 1 : i, 1)[0];
-      trade.picks.push({ id: k.id, from: payer, to: payee });
-      if (g(payer) <= 0 || !C.validateTrade(league, trade).ok) trade.picks.pop();
+    // what it can pay in: its picks and claims; a first of its own it may protect (top 4 or top
+    // 10); or the right to swap firsts with the payee in a year both hold their own
+    const own = (ab, k) => k.kind === 'pick' && k.round === 1 && k.origin === ab && k.holder === ab && !k.prot && !k.terms.length;
+    const pool = Object.values(x.pv).filter((k) => k.holder === payer && !k.frozen && k.year > G.season).flatMap((k) => [
+      { id: k.id, pk: { id: k.id, from: payer, to: payee }, v: pickWorth(G, payee, k, x.modes[payee]) },
+      ...(own(payer, k) ? [[1, 4], [1, 10]].map((p) => ({ id: k.id, pk: { id: k.id, from: payer, to: payee, prot: p }, v: pickWorth(G, payee, k, x.modes[payee], p) })) : []),
+      ...(own(payer, k) && own(payee, x.pv[`${payee}|${k.year}|1`] || {}) ? [{ id: k.id, sw: { y: k.year, r: 1, from: payer, to: payee }, v: swapWorth(G, { y: k.year, r: 1, from: payer, to: payee }, x.modes[payee]) }] : []),
+    ]).filter((c) => c.v > 0).sort((a, b) => a.v - b.v);
+    // paid up to what a deal must leave each side ahead by (MIN_GAIN), not merely to even
+    trade.swaps = []; const need = x.F.cap * MIN_GAIN;
+    while (g(payee) <= need && trade.picks.length + trade.swaps.length < MAX_PICKS && pool.length) {
+      const i = pool.findIndex((c) => c.v > need - g(payee)), c = pool.splice(i < 0 ? pool.length - 1 : i, 1)[0], into = c.pk ? trade.picks : trade.swaps;
+      into.push(c.pk || c.sw);
+      if (g(payer) <= 0 || !C.validateTrade(league, trade).ok) into.pop();
+      else for (let j = pool.length - 1; j >= 0; j--) if (pool[j].id === c.id) pool.splice(j, 1);   // one use of each pick
     }
   }
   res = C.validateTrade(league, trade);
@@ -149,9 +145,9 @@ export function buildOffer(G, x, B, S, p, date) {
 // The user's offer, put to the other clubs: legal, and does every computer GM in it come out ahead
 // by as much as it would ask of a deal among themselves? tr: { moves, picks, cash }, dated today.
 export function judge(G, tr, human = G.user) {
-  tr = { date: G.date, cash: [], picks: [], ...tr };
-  const x = market(G), res = C.validateTrade({ ...G, picks: x.pv }, tr);
-  const clubs = [...new Set(tr.moves.flatMap((m) => [m.from, m.to]).concat(tr.picks.flatMap((p) => [p.from, p.to])))];
+  tr = { date: G.date, cash: [], picks: [], swaps: [], ...tr };
+  const x = market(G), res = C.validateTrade({ ...G, picks: x.pv, ledger: G.picks }, tr);
+  const clubs = [...new Set(tr.moves.flatMap((m) => [m.from, m.to]).concat([...tr.picks, ...tr.swaps].flatMap((p) => [p.from, p.to])))];
   const gains = Object.fromEntries(clubs.map((ab) => [ab, gain(G, x, ab, tr)]));
   const ok = res.ok && !res.errors.length;
   return { ok, errors: res.errors, gains, accept: ok && clubs.every((ab) => ab === human || gains[ab] > x.F.cap * MIN_GAIN), res, trade: tr };
@@ -186,8 +182,9 @@ export function execute(G, trade, res) {
     if (p.bird) p.bird.team = m.to;                            // Bird rights travel with a trade
     if (p.contract) p.contract.acquired = trade.date;
   }
+  Object.assign(G, P.after(G, trade));
   for (const pk of trade.picks || []) {
-    G.picks[pk.id] = { ...(G.picks[pk.id] || {}), t: 'gone', h: pk.to };
+    if (pk.id.startsWith('op|')) continue;
     // a pick in the draft under way changes hands in the draft order too
     const [o, y, rd] = pk.id.split('|');
     for (const e of G.draft?.year === +y ? G.draft.order.slice(G.draft.picks.length) : [])

@@ -1,3 +1,4 @@
+import * as Pk from './picks.js';
 // The 2023 NBA CBA as code, for the GM simulator. Pure functions, dollars as integers.
 //
 // Every amount is DERIVED from the season's cap by the CBA's own formula (Art. VII §2, §5,
@@ -205,8 +206,9 @@ export function maxIncoming(out, nOut, post, f) {
   return exp > std ? { amt: exp, rule: 'expanded' } : { amt: std, rule: 'standard' };
 }
 
-// trade: { date, moves: [{ pid, from, to }], picks: [{ id, from, to }], cash: [{ from, to, amt }],
+// trade: { date, moves: [{ pid, from, to }], picks: [{ id, from, to, prot? }], swaps: [{ y, r, from, to }], cash: [{ from, to, amt }],
 //          tpe: { [team]: [{ pid, tpeIndex }] } }   -- absorb an incoming player into a TPE
+// league: the game, its picks the assets in play (picks.js assets) and its ledger the pick ledger.
 // Returns { ok, errors: [...], hardCaps: { team: 'apron1'|'apron2' }, newTpes: { team: [...] }, waive: { team: n } }
 // (waive: men a club must let go to get back under the roster limit)
 export function validateTrade(league, tr) {
@@ -215,7 +217,7 @@ export function validateTrade(league, tr) {
   if (tr.date > d.deadline && tr.date <= d.end && !league.seasonOver)
     errors.push('the trade deadline has passed');
   const teams = [...new Set([...tr.moves.flatMap((m) => [m.from, m.to]),
-    ...(tr.picks || []).flatMap((m) => [m.from, m.to]), ...(tr.cash || []).flatMap((m) => [m.from, m.to])])];
+    ...(tr.picks || []).flatMap((m) => [m.from, m.to]), ...(tr.swaps || []).flatMap((m) => [m.from, m.to]), ...(tr.cash || []).flatMap((m) => [m.from, m.to])])];
   for (const ab of teams) {
     const T = league.teams[ab], out = tr.moves.filter((m) => m.from === ab), inn = tr.moves.filter((m) => m.to === ab);
     for (const m of out) {
@@ -286,36 +288,46 @@ export function validateTrade(league, tr) {
     else hardCaps[c.from] ||= 'apron2';
   }
   for (const pk of tr.picks || []) errors.push(...pickTradeErrors(league, pk, s));
-  if ((tr.picks || []).length) for (const ab of teams) errors.push(...stepien(league, ab, tr.picks, s));
+  for (const sw of tr.swaps || []) errors.push(...swapErrors(league, sw, s));
+  if ((tr.picks || []).length) for (const ab of teams) errors.push(...stepien(league, ab, tr, s));
   return { ok: errors.length === 0, errors, hardCaps, newTpes, waive };
 }
 
 // Picks: no further than seven drafts out; a second-apron team's frozen first stays put
-// (Art. VII §2(f)). Draft year y is the draft held in June of season y-1.
+// (Art. VII §2(f)). Draft year y is the draft held in June of season y-1. league.picks: the
+// assets in play (picks.js assets); a pick may take a new protection from the top of its round,
+// if it carries no terms already, and not top-12 to top-15 on a first (the 2027 lottery reform).
 function pickTradeErrors(league, pk, s) {
   const p = league.picks[pk.id], e = [];
   if (!p) return [`unknown pick ${pk.id}`];
-  if (p.holder !== pk.from) e.push(`${pk.from} does not hold ${p.year} ${p.origin} ${p.round === 1 ? '1st' : '2nd'}`);
+  const name = p.kind === 'claim' ? `the ${p.year} claim to ${p.terms[0]}` : `${p.year} ${p.origin} ${p.round === 1 ? '1st' : '2nd'}`;
+  if (p.holder !== pk.from) e.push(`${pk.from} does not hold ${name}`);
   if (p.year > s + 1 + 7) e.push(`the ${p.year} draft is more than seven drafts out`);
   if (p.frozen) e.push(`${p.origin}'s ${p.year} first is frozen by the second apron`);
+  if (pk.prot) {
+    const [lo, hi] = pk.prot, top = 30 * (p.round - 1);
+    if (p.kind !== 'pick' || p.prot || p.terms.length) e.push(`${name} already carries terms: it cannot take a new protection`);
+    if (lo !== top + 1 || hi < lo || hi >= top + 30) e.push('a protection runs from the top of the round');
+    if (p.round === 1 && hi >= 12 && hi <= 15) e.push('a traded first can no longer be protected top-12 to top-15');
+  }
   return e;
 }
-// Stepien rule: never without a first-round pick in two consecutive future drafts. A pick
-// that is protected or owed on a swap could fail, so only a clean first counts as held. A
-// trade is refused only for a gap it CREATES: real clubs start in tangles the rule allows.
-function stepien(league, ab, moves, s) {
-  const firsts = Object.values(league.picks).filter((p) => p.round === 1 && !p.protect && !p.swapOwed);
-  const gaps = (holder) => {
-    const held = (y) => firsts.some((p) => p.year === y && holder(p.id) === ab);
-    const g = [];
-    // future drafts: from the next one not yet under way or held
-    const y0 = Math.max(s + 1, (league.draft?.year || league.lastDraft || 0) + 1);
-    for (let y = y0; y < s + 1 + 7; y++) if (!held(y) && !held(y + 1)) g.push(y);
-    return g;
-  };
-  const before = gaps((id) => league.picks[id].holder);
-  const after = gaps((id) => moves.find((m) => m.id === id)?.to ?? league.picks[id].holder);
-  const y = after.find((x) => !before.includes(x));
+// A swap right: `from` gives `to` the right to swap `to`'s pick for its own, both their own and
+// carrying no terms, within seven drafts.
+function swapErrors(league, sw, s) {
+  const e = [], clean = (ab) => { const p = league.picks[`${ab}|${sw.y}|${sw.r}`]; return p && p.holder === ab && !p.prot && !p.terms.length; };
+  if (sw.y > s + 1 + 7) e.push(`the ${sw.y} draft is more than seven drafts out`);
+  for (const ab of [sw.from, sw.to]) if (!clean(ab)) e.push(`${ab} does not hold its own ${sw.y} ${sw.r === 1 ? '1st' : '2nd'} free of terms, so it cannot be in a new swap`);
+  return e;
+}
+// Stepien rule: never without a first-round pick in two consecutive future drafts. A first counts
+// when nothing can take it away (picks.js sureFirst: a protection or cascade can, a swap cannot).
+// A trade is refused only for a gap it CREATES: real clubs start in tangles the rule allows.
+function stepien(league, ab, tr, s) {
+  const L0 = { teams: league.teams, picks: league.ledger, swaps: league.swaps || {} }, L1 = Pk.after(L0, tr);
+  const y0 = Math.max(s + 1, (league.draft?.year || league.lastDraft || 0) + 1);
+  const gaps = (L) => { const g = []; for (let y = y0; y < s + 1 + 7; y++) if (!Pk.sureFirst(L0, L.picks, L.swaps, ab, y) && !Pk.sureFirst(L0, L.picks, L.swaps, ab, y + 1)) g.push(y); return g; };
+  const before = gaps(L0), y = gaps(L1).find((x) => !before.includes(x));
   return y ? [`${ab} would have no first-round pick in ${y} and ${y + 1} (Stepien rule)`] : [];
 }
 

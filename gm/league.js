@@ -18,7 +18,7 @@ export function newGame(L, cal, opts) {
   const r = S.rng(opts.seed ?? Date.now() % 2 ** 31);
   const K = { ...L.const, ...cal };
   const G = { season: L.season, phase: 'preseason', date: L.date, user: opts.team, hidden: !!opts.hidden,
-    K, caps: { [L.season]: C.figures(L.season, 0).cap }, f: {}, teams: {}, players: {}, fa: [], picks: clone(L.picks),
+    K, caps: { [L.season]: C.figures(L.season, 0).cap }, f: {}, teams: {}, players: {}, fa: [], picks: clone(L.picks), swaps: clone(L.swaps),
     history: [], log: [], lotteryHist: {}, seed: opts.seed };
   G.f[L.season] = C.figures(L.season, G.caps[L.season]);
   for (const [ab, t] of Object.entries(L.teams)) {
@@ -292,7 +292,7 @@ export function draftStart(G, r) {
     h.no1 = slot === 0; h.top5.push(slot >= 0 && slot < 5); h.top5 = h.top5.slice(-2); h.top5x2 = h.top5.length === 2 && h.top5.every(Boolean);
   }
   const first = [...lot, ...byRec.filter((ab) => playoff.has(ab))];
-  const { order, created } = D.resolvePicks([first, byRec], year, G.picks);
+  const { order, created } = D.resolvePicks([first, byRec], year, G.picks, G.swaps);
   Object.assign(G.picks, created);
   const cls = D.generateClass({ names: G.names, draft: G.draftData }, s, r, G.scoutSd), pool = cls.filter((p) => !p.undrafted);
   // the undrafted, journeymen from the G League and abroad, go straight to the summer's market
@@ -300,7 +300,9 @@ export function draftStart(G, r) {
   for (const p of pool) {
     // hidden talent: the league sees the scouts' board, shrunk to what it predicts; else the truth
     p.rate = G.hidden ? shrinkBoard(p, pool) : p.talent;
-    p.se = 1.0; p.prior = 0; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal();
+    // his growth by where the class had him (the slot his talent was drawn for) and his talent
+    Object.assign(p, V.growth(G.K, +p.id.split('-')[1], p.talent));
+    p.se = 1.0; p.prior = 0; p.trend = p.tp + (G.hidden ? G.K.trendHidden : G.K.dev.trend) * p.dsd * r.normal();
     p.mpg = M.mpgFor(p.rate, G.K) * p.av;
     G.players[p.id] = p;
   }
@@ -344,7 +346,7 @@ export function fans(G, p, n = 400) {
   const A_ = { v: [], r: [], q: [], k: [], o: [], d: [], V: [], vs: Array.from({ length: 20 }, () => []), kept: Array(20).fill(0), mkt: Array(20).fill(0) };
   let star = 0;
   for (let t = 0; t < n; t++) {
-    let x = p.rate + res[Math.floor(r() * res.length)], tr = sd * r.normal(), lean = p.lean ?? 0, sum = 0, sq = 0, so = 0, sdf = 0, pk = -Infinity, val = 0, st = false;
+    let x = p.rate + res[Math.floor(r() * res.length)], gr = V.growth(K, Math.min(pick, 60), x), tr = gr.tp + sd * gr.dsd * r.normal(), lean = p.lean ?? 0, sum = 0, sq = 0, so = 0, sdf = 0, pk = -Infinity, val = 0, st = false;
     let surv = 1, wp = 0, mx = 0, pmax = 0, nm = 0;
     for (let k = 1; k <= 20; k++) {
       const age = p.age + k - 1, m = mins(x), q = m * (x - K.repl), w = q * p.av, pr = M.price(w, cap, K) / 1e6;
@@ -358,7 +360,7 @@ export function fans(G, p, n = 400) {
       const keep = surv * (k <= Lr ? pr : pmax * (pr - mx * cap / 1e6) + (1 - pmax) * (pr - nm * cap / 1e6));
       val += keep; A_.kept[k - 1] += keep / n; A_.mkt[k - 1] += pr / n; wp = w;
       x += V.agingStep(K, age) + tr + K.dev.walk * r.normal();
-      tr = rho * tr + Math.sqrt(1 - rho * rho) * sd * r.normal();
+      tr = rho * tr + Math.sqrt(1 - rho * rho) * sd * gr.dsd * r.normal();
       lean += V.interp(K.od.drift, age) + K.od.rho * lean + K.od.sd * r.normal();
     }
     A_.v.push(sum / 4); A_.q.push(sq / 4); A_.k.push(pk); A_.o.push(so / 4); A_.d.push(sdf / 4); A_.V.push(val); star += st / n;

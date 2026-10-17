@@ -60,37 +60,63 @@ export function lottery(teams, r, hist = {}) {
 }
 
 // ---- who holds which pick -------------------------------------------------------------------
-// picks: the ledger, keyed "ORIGIN|YEAR|ROUND": { t: 'gone'|'encumbered', h: holder, p: [lo, hi]
-// protected range, f: on protection 'extinguish'|'convey_other'|'convert_to_swap', fb: [owner,
-// year, round] the fallback owed instead, sch: [[year, lo, hi]...] later years' protection,
-// s: a swap right }. A pick absent from the ledger belongs to its own team.
-// Returns [{ slot, origin, holder }] and the ledger entries the conveyance creates.
-export function resolvePicks(orderByRound, year, picks) {
-  const out = [], created = {};
+// picks: the ledger, keyed "ORIGIN|YEAR|ROUND": { t: 'gone'|'encumbered'|'swap', h: holder, p: [lo, hi]
+// protected range (overall slots: a second-rounder's are 31-60), k: who keeps it when protected
+// (its origin unless a protection was added by a club that held it), f: on protection
+// 'extinguish'|'convey_other', fb: [owner, year, round] the fallback owed instead, sch: [[year, lo,
+// hi]...] later years' protection }. A pick absent from the ledger belongs to its own team.
+// swaps: { "YEAR|ROUND": { ops } }, the swaps and cascades (_gm_swaps.py, and those made in trades),
+// applied once the protections are settled (applyOps). Returns [{ slot, origin, holder }] and the
+// ledger entries the conveyance creates.
+export function resolvePicks(orderByRound, year, picks, swaps = {}) {
+  const out = [], created = {}, view = Object.create(picks);
+  const owe = (k, e) => { created[k] = e; view[k] = e; };
   orderByRound.forEach((origins, rd) => {
-    const slotOf = Object.fromEntries(origins.map((o, i) => [o, i + 1 + 30 * rd]));
-    const holder = {};
+    const slot = Object.fromEntries(origins.map((o, i) => [o, i + 1 + 30 * rd])), h = {};
     for (const o of origins) {
-      const e = picks[`${o}|${year}|${rd + 1}`];
-      let h = o;
-      if (e?.h && e.p && slotOf[o] - 30 * rd >= e.p[0] && slotOf[o] - 30 * rd <= e.p[1]) {
-        // protected: the origin keeps it; something else is owed
-        if (e.f === 'convey_other' && e.fb) created[`${e.fb[0] || o}|${e.fb[1]}|${e.fb[2]}`] = { t: 'gone', h: e.h };
+      const e = view[`${o}|${year}|${rd + 1}`];
+      h[o] = e?.h || o;
+      if (e?.h && e.p && slot[o] >= e.p[0] && slot[o] <= e.p[1]) {
+        // protected: its keeper keeps it; something else is owed
+        h[o] = e.k || o;
+        if (e.f === 'convey_other' && e.fb) owe(`${e.fb[0] || o}|${e.fb[1]}|${e.fb[2]}`, { t: 'gone', h: e.h });
         const nxt = (e.sch || []).find((x) => x[0] > year);
-        if (nxt) created[`${o}|${nxt[0]}|${rd + 1}`] = { t: 'encumbered', h: e.h, ...(nxt[1] ? { p: [nxt[1], nxt[2]] } : {}), f: e.f, fb: e.fb, sch: e.sch.filter((x) => x[0] > nxt[0]) };
-      } else if (e?.h && !e.s) h = e.h;
-      holder[o] = { h, swap: e?.s && e.h ? e.h : null };
-    }
-    // swaps: the right's holder takes the better of his own pick and the origin's
-    for (const o of origins) {
-      const sw = holder[o].swap;
-      if (sw && holder[sw] && slotOf[o] < slotOf[sw] && holder[sw].h === sw) {
-        [holder[o].h, holder[sw].h] = [sw, holder[o].h];
+        if (nxt) owe(`${o}|${nxt[0]}|${rd + 1}`, { t: 'encumbered', h: e.h, ...(nxt[1] ? { p: [nxt[1], nxt[2]] } : {}), f: e.f, fb: e.fb, sch: e.sch.filter((x) => x[0] > nxt[0]) });
       }
     }
-    for (const o of origins) out.push({ slot: slotOf[o], origin: o, holder: holder[o].h });
+    const sw = swaps[`${year}|${rd + 1}`];
+    if (sw) applyOps(sw.ops, slot, h, (fb, to, p) => owe(`${fb[0]}|${fb[1]}|${fb[2]}`, { t: 'gone', h: to, ...(p ? { p } : {}) }));
+    for (const o of origins) out.push({ slot: slot[o], origin: o, holder: h[o] });
   });
   return { order: out.sort((a, b) => a.slot - b.slot), created };
+}
+// The ops of one round, in order, on h (origin -> holder) given each pick's slot (_gm_swaps.py
+// says what each does). A swap is exercised by `by`, else by whoever held its first `give` pick
+// when the ops began: a swap right travels with the pick it is written on. owe(fb, to, p) conveys
+// a fallback when a protection stops an op.
+export function applyOps(ops, slot, h, owe = () => {}) {
+  const at = { ...h }, by = (a, b) => slot[a] - slot[b], inR = (o, r) => !!r && slot[o] >= r[0] && slot[o] <= r[1];
+  const nth = (xs, n) => (n > 0 ? xs[n - 1] : xs[xs.length + n]);
+  for (const op of ops) {
+    if (op.when && !op.when.every(([o, lo, hi]) => inR(o, [lo, hi]))) continue;
+    let barred = false;
+    const ok = (o) => { if (!(o in slot)) return false; if (inR(o, op.ex?.[o])) { barred = true; return false; } return true; };
+    if (op.k === 'give') {
+      if (!(op.pick in slot)) continue;
+      if (inR(op.pick, op.pr)) { if (op.fb) owe(op.fb, op.to, op.fbp); } else h[op.pick] = op.to;
+    } else if (op.k === 'nth') {
+      const o = nth(op.of.filter(ok).filter((x) => !op.frm || h[x] === op.frm).sort(by), op.n);
+      if (!o) continue;
+      if (inR(o, op.pr)) { if (op.fb) owe(op.fb, op.by, op.fbp); } else h[o] = op.by;
+    } else {
+      const who = op.by ?? at[op.give[0]];
+      const g = op.give.filter(ok).filter((x) => h[x] === who).sort(by).at(-1);
+      const t = nth(op.take.filter(ok).filter((x) => h[x] !== who && (!op.frm || h[x] === op.frm)).sort(by), op.tn ?? 1);
+      if (!g || !t) { if (barred && op.fb) owe(op.fb, who, op.fbp); continue; }
+      if (slot[t] < slot[g]) [h[g], h[t]] = [h[t], who];
+    }
+  }
+  return h;
 }
 
 // ---- picking ----------------------------------------------------------------------------------
