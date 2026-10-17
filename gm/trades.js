@@ -6,10 +6,10 @@ import * as M from './value.js';
 import { teamValue, projWins, capAt, cutdown, fillRosters } from './league.js';
 import * as P from './picks.js';
 
-export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.095, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
+export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.085, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
 // how a club weighs a season h ahead, and a pick, by what it is trying to do
-const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
+export const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
 
 // A player's worth to club `ab`, $: each season left on his deal, his value to this GM less his
 // salary, weighted by what the club is after, discounted.
@@ -79,8 +79,7 @@ function market(G) {
   const wins = G._wins || Object.fromEntries(Object.keys(G.teams).map((ab) => [ab, projWins(G, ab)]));
   const modes = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab, mode(wins[ab])]));
   const pay = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab, C.teamSalary(G.teams[ab], Lg, s)]));
-  const tax = (ab, d) => { const T = G.teams[ab], rep = [1, 2, 3, 4].filter((j) => T.taxpaid?.[s - j]).length >= 3;
-    return (1 - T.gm.taxTol) * (C.taxBill(pay[ab] + d, F, rep) - C.taxBill(pay[ab], F, rep)); };
+  const share = C.taxShare(G, s), tax = (ab, d) => (1 - G.teams[ab].gm.taxTol) * C.taxCost(G.teams[ab], pay[ab], d, F, s, share);
   return { s, F, modes, tax, pv: picksView(G) };
 }
 // What a trade is worth to club ab, $, by its own lights: what comes in, less what goes out (which
@@ -156,9 +155,9 @@ export function buildOffer(G, x, B, S, p, date) {
     }
   }
   // the surplus split: the side further ahead hands the other seconds of its own, the least it values
-  // first, up to two, while it stays past the threshold and at least as far ahead
+  // first, one at most, while it stays past the threshold and at least as far ahead
   const need = x.F.cap * MIN_GAIN;
-  for (let k = 0; k < 2; k++) {
+  for (let k = 0; k < 1; k++) {
     const [rich, poor] = g(S) >= g(B) ? [S, B] : [B, S], used = new Set(trade.picks.map((q) => q.id));
     const sec = Object.values(x.pv).filter((q) => q.holder === rich && q.kind === 'pick' && q.round === 2 && !q.frozen && q.year > G.season && !used.has(q.id))
       .sort((a, b) => pickWorth(G, rich, a, x.modes[rich]) - pickWorth(G, rich, b, x.modes[rich]))[0];

@@ -51,6 +51,9 @@ export function teamValue(G, ab, p, h = 0) {
   return base * lean * (1 + g.noise * hashNoise(`${ab}|${p.id}|${G.season}`));
 }
 const hashNoise = V.hashNoise;
+// How much a club makes of a man's coming season when it pays him, by what it is trying to do, as its
+// trade GM weighs it (X.WEIGHT): a contender pays to keep and add, into the tax, a rebuilder holds back.
+const nowWeight = (G, ab) => X.WEIGHT[X.mode(projWins(G, ab))].now;
 // A player's ask this summer, with his max-or-not draw fixed for the summer (hashed, so asking twice
 // gives the same answer)
 export const askOf = (G, p, F, ext = 0) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)), ext);
@@ -533,10 +536,9 @@ export function faStart(G, r, user = {}, human = G.user) {
       if (!G.fa.includes(p.id)) continue;
       const a = askOf(G, p, F), lvl = C.birdLevel(p, ab);
       // an owner weighs the tax a re-signing brings as far as his tolerance for it lets him
-      const pay = C.teamSalary(T, G, s), rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[s - k]).length >= 3;
-      const taxUp = C.taxBill(pay + a.sal, F, rep) - C.taxBill(pay, F, rep);
+      const pay = C.teamSalary(T, G, s), taxUp = C.taxCost(T, pay, a.sal, F, s, C.taxShare(G, s));
       const wants = ab === human ? user.resign?.(p, a)
-        : (teamValue(G, ab, p) >= 0.85 * a.sal + (1 - T.gm.taxTol) * taxUp && pay + a.sal <= F.apron2 + T.gm.taxTol * 0.1 * F.cap && r() < M.pResign(p, K));
+        : (nowWeight(G, ab) * teamValue(G, ab, p) >= 0.85 * a.sal + (1 - T.gm.taxTol) * taxUp && r() < M.pResign(p, K));
       if (!wants) continue;
       const o = resignTerms(G, ab, p, a);
       if (C.validateSigning(G, { team: ab, pid: p.id, how: o.how, date: faDate(s, 0), years: years5(o.sal, o.years, o.raise), prior: (p.prior || 0) * 1e6 }).ok)
@@ -626,12 +628,12 @@ function bestTarget(G, ab, day) {
   const std = T.roster.filter((id) => !P[id].contract?.twoWay).length;
   if (std >= 15) return null;
   const pay = C.teamSalary(T, G, s), capPay = C.teamSalary(T, G, s, { holds: true, offseason: true });
-  const ceiling = F.tax + T.gm.taxTol * (F.apron2 - F.tax);         // how far into the tax this owner goes
+  const share = C.taxShare(G, s), w = nowWeight(G, ab);
   let best = null;
   for (const id of G.fa) {
     const p = P[id];
     if (p.qo && T.rfa?.includes(id)) continue;
-    const a = askOf(G, p, F), v = teamValue(G, ab, p);
+    const a = askOf(G, p, F), v = w * teamValue(G, ab, p);
     if (v < a.sal * (1 - 0.03 * day)) continue;
     // the most this club can offer him, and under which rule
     const room = F.cap - capPay;
@@ -640,11 +642,12 @@ function bestTarget(G, ab, day) {
       if (lim <= 0) continue;
       const sal = Math.min(a.sal, v, lim, how === 'min' ? lim : Infinity);
       if (how === 'min' && a.sal > lim * 1.2) continue;
-      if (pay + sal > Math.max(ceiling, F.tax) && how !== 'min') continue;
       const o = { pid: id, how, sal: how === 'min' ? C.minSalary(p.yos, F.cap) : Math.round(sal), years: how === 'min' ? 1 : Math.min(a.years, how === 'bae' || how === 'tpmle' ? 2 : how === 'roomMle' ? 3 : 4) };
       const ok = C.validateSigning(G, { team: ab, pid: id, how, date: `${s}-07-10`, years: years5(o.sal, o.years, 0.05), prior: p.prior * 1e6 }).ok;
       if (!ok) continue;
-      const gain = v - o.sal;
+      // what he is worth to it less his salary and the tax he brings, as far as its owner minds
+      const gain = v - o.sal - (1 - T.gm.taxTol) * C.taxCost(T, pay, o.sal, F, s, share);
+      if (gain <= 0) continue;
       if (!best || gain > best.gain) best = { ...o, gain };
       break;
     }
@@ -687,7 +690,8 @@ export function extend(G, ab, p, sal, years, date) {
 // What p asks to extend: the ask in the first new season, as an extension (they pay more than free
 // agency at a rating: the club chose him).
 export const extensionAsk = (G, p) => askOf(G, p, fig(G, p.contract.years.at(-1).s + 1), 1);
-// Computer GMs extend the players they value at their ask, as often as such players re-sign.
+// Computer GMs extend the players they value at their ask (a contender more, a rebuilder less), as
+// often as such players re-sign.
 export function extensions(G, r, date, human = G.user) {
   for (const [ab, T] of Object.entries(G.teams)) {
     if (ab === human) continue;
@@ -697,7 +701,7 @@ export function extensions(G, r, date, human = G.user) {
       const start = c.years.at(-1).s + 1, t = C.extensionTerms(p, date, fig(G, start));
       if (t.errors.length) continue;
       const a = extensionAsk(G, p), sal = Math.min(a.sal, t.maxY1);
-      if (teamValue(G, ab, p, start - G.season) >= sal && r() < M.pResign(p, G.K)) extend(G, ab, p, sal, Math.min(a.years, t.maxNew), date);
+      if (nowWeight(G, ab) * teamValue(G, ab, p, start - G.season) >= sal && r() < M.pResign(p, G.K)) extend(G, ab, p, sal, Math.min(a.years, t.maxNew), date);
     }
   }
 }

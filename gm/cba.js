@@ -96,6 +96,18 @@ export function taxBill(taxSalary, f, repeater = false) {
   }
   return Math.round(bill);
 }
+// Half the tax a season brings in goes in equal shares to the clubs that paid none (Art. VII
+// §2(d)): a club's share in season s, by what season s-1 brought in.
+export function taxShare(league, s) {
+  const ts = Object.values(league.teams);
+  return 0.5 * ts.reduce((a, T) => a + (T.tax?.[s - 1] || 0), 0) / ts.filter((T) => !T.taxpaid?.[s - 1]).length;
+}
+// What d more salary on a payroll of pay costs club T in season s: the tax it adds (a repeater's
+// if it paid in three of the four seasons before) and the share it gives up by crossing the line.
+export function taxCost(T, pay, d, f, s, share) {
+  const rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[s - k]).length >= 3;
+  return taxBill(pay + d, f, rep) - taxBill(pay, f, rep) + share * ((pay + d > f.tax) - (pay > f.tax));
+}
 
 // ---- dates ------------------------------------------------------------------------------
 // Season `s` runs from July 1 of year s. Key dates follow the CBA's fixed rules and the
