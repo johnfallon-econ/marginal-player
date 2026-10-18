@@ -207,8 +207,8 @@ const ACT = {
   newgame: () => { if (!G || confirm('Start over? The current game is replaced.')) { G = null; view = 'new'; render(); } },
   renounce: (pid) => { const T = me(); T.holds = T.holds.filter((h) => h.pid !== pid); T.rfa = (T.rfa || []).filter((x) => x !== pid); ui = {}; save(); render(); },
 };
-// what a free agent takes today: his ask, falling 3% a day through the summer
-const need = (p) => Math.ceil(L.askOf(G, p, F()).sal * (1 - 0.03 * G.fa_.day) / 1e5) * 1e5;
+// what a free agent takes today: his ask, falling 2.5% a day through the summer
+const need = (p) => Math.ceil(L.askOf(G, p, F()).sal * (1 - 0.025 * G.fa_.day) / 1e5) * 1e5;
 function reoffer(pid, salOf) {
   const o = G.myOffers.find((x) => x.pid === pid), sal = salOf(o), p = P(pid);
   const v = C.validateSigning(G, { team: G.user, pid, how: o.how, date: G.date, years: L.years5(sal, o.years, 0.05), prior: (p.prior || 0) * 1e6 });
@@ -428,7 +428,7 @@ function faCards() {
   const line = (x) => `<li>${nm(x.pid)} <small>${Math.floor(P(x.pid).age)} · ${sg(P(x.pid).rate)}</small> to <b>${x.team}</b>, ${$M(x.sal)} × ${x.years}</li>`;
   return `<div class="card"><h3>Your offers · day ${st.day}</h3>${G.myOffers.map((o) => `<div class="off"><b>${nm(o.pid)}</b>: ${$M(o.sal)} × ${o.years} (${o.how}) ${btn('unoffer', 'Withdraw', o.pid, 'ghost')}<br><small>${say(o)}</small></div>`).join('') || '<p>None out. Open a player below to make one.</p>'}
 ${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}${done.length ? `<p>${done.map(([pid, x]) => x.status === 'signed' ? `<span class="good">${nm(pid)} signed with you.</span>` : `<span class="bad">${nm(pid)} took the ${esc(NAME(x.top.ab))}' offer, ${$M(x.top.sal)} × ${x.top.years}.</span>`).join(' ')}</p>` : ''}
-<p class="note">A player takes the richest offer that meets his ask; asks fall about 3% a day. When a rival tops an offer of yours that meets his ask, his agent gives you a day to beat it.</p>
+<p class="note">A player takes the richest offer that meets his ask; asks fall about 2.5% a day. When a rival tops an offer of yours that meets his ask, his agent gives you a day to beat it.</p>
 <div class="row">${btn('faday', 'Next day')}${btn('farest', 'Sim to the end')}</div></div>
 ${today.length ? `<div class="card"><h3>Signed today</h3><ul class="log">${today.sort((a, b) => b.sal - a.sal).map(line).join('')}</ul></div>` : ''}
 ${summer.length ? `<details class="card"><summary>Every signing this summer (${summer.length})</summary><ul class="log">${summer.map(line).join('')}</ul></details>` : ''}`;

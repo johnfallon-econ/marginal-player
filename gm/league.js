@@ -602,7 +602,7 @@ export function faDay(G, r, user = {}, human = G.user) {
   for (const [pid, o] of Object.entries(st.calls))
     if (G.fa.includes(pid) && C.validateSigning(G, { team: o.ab, pid, how: o.how, date: G.date, years: years5(o.sal, o.years, 0.05), prior: (P[pid].prior || 0) * 1e6 }).ok) (offers[pid] ||= []).push(o);
   for (const [pid, os] of Object.entries(offers)) {
-    const p = P[pid], need = askOf(G, p, F).sal * (1 - 0.03 * day);
+    const p = P[pid], need = askOf(G, p, F).sal * (1 - 0.025 * day);
     const top = os.filter((o) => o.sal >= need).sort((a, b) => b.sal * b.years - a.sal * a.years)[0];
     const mine = os.find((o) => o.ab === human);
     // the agent answers the user: short of the ask he counters; topped by a rival, he waits a day
@@ -646,7 +646,7 @@ function bestTarget(G, ab, day) {
     const p = P[id];
     if (p.qo && T.rfa?.includes(id)) continue;
     const a = askOf(G, p, F), v = w * teamValue(G, ab, p);
-    if (v < a.sal * (1 - 0.03 * day)) continue;
+    if (v < a.sal * (1 - 0.025 * day)) continue;
     // the most this club can offer him, and under which rule
     const room = F.cap - capPay;
     const ways = [['room', room], ['ntmle', T.exc.ntmle], ['bae', T.exc.bae], ['tpmle', T.exc.tpmle], ['roomMle', T.exc.roomMle], ['min', C.minSalary(p.yos, F.cap)]];
@@ -655,6 +655,9 @@ function bestTarget(G, ab, day) {
       const sal = Math.min(a.sal, v, lim, how === 'min' ? lim : Infinity);
       if (how === 'min' && a.sal > lim * 1.2) continue;
       const o = { pid: id, how, sal: how === 'min' ? C.minSalary(p.yos, F.cap) : Math.round(sal), years: how === 'min' ? 1 : Math.min(a.years, how === 'bae' || how === 'tpmle' ? 2 : how === 'roomMle' ? 3 : 4) };
+      // a club this signing takes into the tax uses the taxpayer MLE: the non-taxpayer MLE and the
+      // bi-annual would hard-cap it at the first apron, a taxpayer's ceiling it would not choose
+      if ((how === 'ntmle' || how === 'bae') && pay + o.sal > F.tax) continue;
       const ok = C.validateSigning(G, { team: ab, pid: id, how, date: `${s}-07-10`, years: years5(o.sal, o.years, 0.05), prior: p.prior * 1e6 }).ok;
       if (!ok) continue;
       // what he is worth to it less his salary and the tax he brings, as far as its owner minds
