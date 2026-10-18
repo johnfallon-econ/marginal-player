@@ -643,7 +643,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ui.card)
 document.addEventListener('change', (e) => { if (e.target.dataset.chg) ACT[e.target.dataset.chg](e.target); });
 async function data() { return (await fetch('gm/league.json')).json(); }
 // a save keeps its league; the model's constants (K) are the site's current ones, which the code expects
-const current = async (g) => { const d = await data(); return { ...g, K: { ...d.league.const, ...d.cal } }; };
+const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.league.const, ...d.cal } }; if (G_.draft) L.settleDraft(G_); return G_; };
 async function create() {
   const team = $('#team').value, hidden = document.querySelector('input[name=mode]:checked').value === 'hidden';
   root().insertAdjacentHTML('beforeend', '<div class="busy" role="status">Building the league…</div>');

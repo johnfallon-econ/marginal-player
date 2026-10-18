@@ -313,7 +313,18 @@ export function draftStart(G, r) {
   // what the board misses: each prospect's talent less the league's read of him, over the class
   const resid = G.hidden ? pool.map((p) => +(p.talent - p.rate).toFixed(3)) : [0];
   G.draft = { year, order, avail: pool.map((p) => p.id), picks: [], lottery: lot, resid };
+  settleDraft(G);
   G.phase = 'draft'; G.date = `${year}-06-24`;
+}
+// The draft settles its picks: the ledger shows who holds each slot, protections and swaps spent,
+// so a pick trades from the club the order says holds it. Idempotent (trades keep the two in step).
+export function settleDraft(G) {
+  const y = G.draft.year;
+  for (const e of G.draft.order) {
+    const id = `${e.origin}|${y}|${e.slot <= 30 ? 1 : 2}`, fr = G.picks[id]?.frozen;
+    if (e.holder === e.origin && !fr) delete G.picks[id]; else G.picks[id] = { t: 'gone', h: e.holder, ...(fr ? { frozen: true } : {}) };
+  }
+  if (G.swaps) { delete G.swaps[`${y}|1`]; delete G.swaps[`${y}|2`]; }
 }
 // A prospect as the draft board draws him (9_board.py), from the game's own development: n careers
 // of 20 seasons, his talent the league's read plus a miss drawn from this class's (busts and all),
