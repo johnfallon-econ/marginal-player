@@ -2,7 +2,7 @@
 // 2024-25, net of revenue sharing), growing with the cap, plus a gate for each home playoff game:
 // within a club, regular-season wins move revenue by nothing measurable, a home playoff game by about
 // $6M. Other costs are 28% of a club's revenue (the clubs that paid no tax, 2023-25). Profit is
-// revenue less payroll, luxury tax and other costs, the operating income Forbes reports.
+// revenue less payroll (never under the salary floor: a club below it pays its players the shortfall), luxury tax and other costs, the operating income Forbes reports.
 // Projected books count the home playoff games the club can expect from its projected wins.
 // An owner has a line, the least profit he will stand for a season, and weighs winning against it:
 // he blocks moves that take the projected season below his line, orders payroll cut by the trade
@@ -34,7 +34,7 @@ export const payroll = (G, ab) => { const s = season(G); G.f[s] ??= C.figures(s,
 export function projected(G, extra = 0) {
   const s = season(G), T = G.teams[G.user], F = (G.f[s] ??= C.figures(s, capAt(G, s))), rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[s - k]).length >= 3;
   const pay = C.teamSalary(T, G, s) + extra;
-  return books(G, s, pay / 1e6, C.taxBill(pay, F, rep) / 1e6, homeGames(G, s));
+  return books(G, s, Math.max(pay, F.minTeam) / 1e6, C.taxBill(pay, F, rep) / 1e6, homeGames(G, s));   // below the floor he pays the shortfall
 }
 // The home playoff games he counts on: a real club's at each win total (K.fin.poHome, 1996-2025),
 // over what his club might win -- its record so far and its projection for the rest, which misses a
@@ -61,7 +61,7 @@ export function opening(G) {
   if (b.profit >= l) return null;
   const T = G.teams[G.user], F = G.f[b.s], rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[b.s - k]).length >= 3;
   let target = C.teamSalary(T, G, b.s);
-  while (target > 0 && books(G, b.s, target / 1e6, C.taxBill(target, F, rep) / 1e6, b.n).profit < l) target -= 1e6;
+  while (target > F.minTeam && books(G, b.s, target / 1e6, C.taxBill(target, F, rep) / 1e6, b.n).profit < l) target -= 1e6;
   G.owner.order = { s: b.s, target };
   return `The owner projects a ${$(b.profit)} season against his line of ${$(l)}: get payroll down to ${$(target / 1e6)} by the trade deadline.`;
 }
@@ -80,7 +80,7 @@ export function review(G, h, r) {
   const s = h.season, T = G.teams[G.user], [w] = h.record[G.user];
   const games = Object.entries(Object.assign({}, ...h.rounds)).filter(([k]) => k.split('-').includes(G.user)).map(([, v]) => v.games.split('-').map(Number).reduce((a, b) => a + b));
   const won = Object.values(Object.assign({}, ...h.rounds)).filter((v) => v.winner === G.user).length;
-  const b = books(G, s, C.teamSalary(T, G, s) / 1e6, (T.tax?.[s] || 0) / 1e6, games.reduce((a, n) => a + Math.round(n / 2), 0));
+  const b = books(G, s, (C.teamSalary(T, G, s) + (T.short?.[s] || 0)) / 1e6, (T.tax?.[s] || 0) / 1e6, games.reduce((a, n) => a + Math.round(n / 2), 0));
   const O = OWNERS[G.owner.type], win = Math.max(-1, Math.min(1, (w - 41) / 20 + won / 4)), money = Math.max(-1, Math.min(1, (b.profit - line(G, s)) / (50 * scale(G, s))));
   const grade = (1 - O.money) * win + O.money * money;
   G.owner.conf = Math.max(0, Math.min(100, G.owner.conf + 20 * grade));

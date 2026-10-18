@@ -243,6 +243,7 @@ export function endSeason(G, r) {
     const pay = C.teamSalary(T, G, s), rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[s - k]).length >= 3;
     T.tax = T.tax || {}; T.tax[s] = C.taxBill(pay, f, rep);
     (T.taxpaid ||= {})[s] = pay > f.tax;
+    (T.short ||= {})[s] = Math.max(0, f.minTeam - pay);   // below the floor, a club pays its players the shortfall (Art. VII §2(b))
     if (pay > f.apron2) freezePick(G, ab, s);
     for (const id of T.roster) { P[id].yos += 1; if (P[id].bird?.team === ab) P[id].bird.n += 1; else P[id].bird = { team: ab, n: 1 }; }
   }
@@ -716,7 +717,8 @@ export function fillRosters(G, clubs = Object.keys(G.teams), date = G.phase === 
   for (const ab of clubs) {
     const T = G.teams[ab];
     while (T.roster.filter((id) => !P[id].contract?.twoWay).length < 14) {
-      const id = byRate()[0]; if (!id) break;
+      // the best man a minimum deal can bring in: a hard-capped club can't pass its apron even for him
+      const id = byRate().find((x) => C.validateSigning(G, { team: ab, pid: x, how: 'min', date, years: years5(C.minSalary(P[x].yos, F.cap), 1, 0), prior: (P[x].prior || 0) * 1e6 }).ok); if (!id) break;
       sign(G, ab, P[id], 'min', C.minSalary(P[id].yos, F.cap), 1, date, 0);
     }
     while (T.roster.filter((id) => P[id].contract?.twoWay).length < 3) {
