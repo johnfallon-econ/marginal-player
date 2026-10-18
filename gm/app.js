@@ -14,6 +14,8 @@ let G = null, r = null, view = 'home', ui = {};
 const $ = (s) => document.querySelector(s), root = () => $('#gm');
 const P = (id) => G.players[id], me = () => G.teams[G.user], F = () => G.f[G.season];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// a man's wins above replacement this season, at the minutes and availability he is projected for
+const wr = (p) => `${M.war(p, 0, G.K).toFixed(1)} mWAR`;
 const $M = (x) => `$${(x / 1e6).toFixed(1)}M`, sg = (x) => { x = Math.round(x * 10) / 10 || 0; return (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1); };
 const std = (T) => T.roster.filter((id) => !P(id).contract?.twoWay);
 const NAME = (ab) => G.teams[ab].name;
@@ -228,7 +230,7 @@ const pickName = (k, prot) => { const a = X.picksView(G)[k];
   const [o, y, rd] = k.split('|'), n = slotOf(k);
   return `${y} ${RD(rd)} (${o}${n ? `, no. ${n}` : ''}${prot ? `, ${top(prot, +rd)}` : ''})${a?.terms.length ? ` <small>${esc(a.terms.join('; '))}</small>` : ''}`; };
 const swapName = (s, to) => `the right to swap ${s.y} ${RD(s.r)}s with ${to === G.user ? s.from : 'you'}`;
-const tradeText = (t) => { const side = (to) => [...t.moves.filter((m) => m.to === to).map((m) => { const p = P(m.pid); return `${nm(p.id)} <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`; }),
+const tradeText = (t) => { const side = (to) => [...t.moves.filter((m) => m.to === to).map((m) => { const p = P(m.pid); return `${nm(p.id)} <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`; }),
   ...t.picks.filter((k) => k.to === to).map((k) => pickName(k.id, k.prot)), ...(t.swaps || []).filter((x) => x.to === to).map((x) => swapName(x, to))].join('<br>') || 'nothing';
   return `<div class="two"><div><small>You get</small><br>${side(G.user)}</div><div><small>You send</small><br>${side(t.moves[0].to === G.user ? t.moves[0].from : t.moves[0].to)}</div></div>`; };
 const tradeOf = () => {
@@ -302,7 +304,7 @@ const honors = (id) => G.history.flatMap((h) => { const a = h.awards; if (!a) re
 const card = (id) => { const p = P(id), h = honors(id);
   return `<div class="ov" data-act="closecard"><div class="ovc" data-act="noop" role="dialog" aria-label="${esc(p.nm)}"><button class="x" data-act="closecard" aria-label="Close">&times;</button>
 <h3>${esc(p.nm)}</h3><p>${[p.pos, p.ht, `${Math.floor(p.age)} years old`, p.tm ? esc(NAME(p.tm)) : p.retired ? `retired ${SEASON(p.retired)}` : 'free agent'].filter(Boolean).join(' · ')}</p>
-<p>Rating <b>${sg(p.rate)}</b> <small>${od(p.rate, p.lean)}</small> · WAR ${M.war(p, 0, G.K).toFixed(1)}${p.tm ? ` · ${usage(p)}` : ''}</p>
+<p>mPM <b>${sg(p.rate)}</b> <small>${od(p.rate, p.lean)}</small> · ${wr(p)}${p.tm ? ` · ${usage(p)}` : ''}</p>
 <p class="sub">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.</p>
 ${p.contract ? `<p>${contract(p)}</p>` : ''}${h.length ? `<p><b>Honors</b><br>${h.join('<br>')}</p>` : ''}${logTable(p)}</div></div>`; };
 const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Off / Def</th><th class="n">Pts/Reb/Ast/Stl/Blk per game</th></tr></thead><tbody>
@@ -425,7 +427,7 @@ function faCards() {
     if (o.sal < n) return `His agent wants ${$M(n)} a year. ${btn('meet', 'Meet it', o.pid)}`;
     return `<span class="good">That meets his ask.</span> He decides tomorrow, unless someone offers more.`; };
   const done = Object.entries(resp).filter(([, x]) => ['signed', 'lost'].includes(x.status));
-  const line = (x) => `<li>${nm(x.pid)} <small>${Math.floor(P(x.pid).age)} · ${sg(P(x.pid).rate)}</small> to <b>${x.team}</b>, ${$M(x.sal)} × ${x.years}</li>`;
+  const line = (x) => `<li>${nm(x.pid)} <small>${Math.floor(P(x.pid).age)} · ${sg(P(x.pid).rate)} · ${wr(P(x.pid))}</small> to <b>${x.team}</b>, ${$M(x.sal)} × ${x.years}</li>`;
   return `<div class="card"><h3>Your offers · day ${st.day}</h3>${G.myOffers.map((o) => `<div class="off"><b>${nm(o.pid)}</b>: ${$M(o.sal)} × ${o.years} (${o.how}) ${btn('unoffer', 'Withdraw', o.pid, 'ghost')}<br><small>${say(o)}</small></div>`).join('') || '<p>None out. Open a player below to make one.</p>'}
 ${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}${done.length ? `<p>${done.map(([pid, x]) => x.status === 'signed' ? `<span class="good">${nm(pid)} signed with you.</span>` : `<span class="bad">${nm(pid)} took the ${esc(NAME(x.top.ab))}' offer, ${$M(x.top.sal)} × ${x.top.years}.</span>`).join(' ')}</p>` : ''}
 <p class="note">A player takes the richest offer that meets his ask; asks fall about 2.5% a day. When a rival tops an offer of yours that meets his ask, his agent gives you a day to beat it.</p>
@@ -495,12 +497,12 @@ ${(() => { const gone = G.log.filter((x) => x.type === 'retire' && x.team === G.
 ${G.dev?.length && ['draft', 'offseason'].includes(G.phase) ? `<div class="card"><h3>How your players developed</h3><p class="note">Rating at the end of the season against the start${G.hidden ? ', as the league now sees it' : ''}.</p>
 ${G.dev.map(([id, b, a]) => `<div>${nm(id)} <small>${Math.floor(P(id).age)}</small>: ${sg(b)} → ${sg(a)} <b class="${a >= b ? 'good' : 'bad'}">(${sg(a - b)})</b></div>`).join('')}</div>` : ''}
 <p class="note">${G.hidden ? 'Ratings are what the league can see: each player\'s true talent is hidden and shows itself as he plays.' : 'Ratings are the truth: each player is exactly as good as his projection.'}
-Ratings are points per 100 possessions against an average player, split into offense (O) and defense (D); WAR is wins above a replacement player this season.</p>`;
+Ratings (mPM) are points per 100 possessions against an average player, split into offense (O) and defense (D); mWAR is wins above a replacement player this season, at the minutes and share of games he is projected to play.</p>`;
   },
   roster: () => {
     const T = me(), ps = T.roster.map(P).sort((a, b) => !!a.contract?.twoWay - !!b.contract?.twoWay || b.rate - a.rate);
     const canWaive = G.phase !== 'draft';
-    return `${rotationCard()}<table class="t"><thead><tr><th>Player</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Salary</th><th class="n">Yrs</th></tr></thead><tbody>
+    return `${rotationCard()}<table class="t"><thead><tr><th>Player</th><th class="n">mPM</th><th class="n">mWAR</th><th class="n">Salary</th><th class="n">Yrs</th></tr></thead><tbody>
 ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?.sal || 0)}</td><td class="n">${yrs(p).length}</td>`)
       + (ui.pid === p.id ? detail(p, extForm(p) + (canWaive ? `<div class="row"><label><input type="checkbox" id="stretch"> stretch</label>${btn('waive', 'Waive', p.id, 'warn')}</div>` : '')) : '')).join('')}</tbody></table>${payroll()}`;
   },
@@ -517,8 +519,8 @@ ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?
       const pk = Object.values(pv).filter((k) => k.holder === ab && k.year > G.season).sort((a, b) => a.year - b.year || a.round - b.round);
       const ck = (k, label) => `<label class="ck"><input type="checkbox" data-act="tk" data-arg="${side}#${k}"${ui[side][k] ? ' checked' : ''}> ${label}</label>`;
       const sat = G.phase === 'freeagency' ? G.teams[ab].holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id) && !G.teams[ab].rfa?.includes(p.id)) : [];
-      return sat.map((p) => { const o = L.satTerms(G, ab, p); return ck(`sat:${p.id}`, `<b>${esc(p.nm)}</b> <small>sign-and-trade · ${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(o.sal)} × ${o.years}</small>`); }).join('')
-        + ps.map((p) => ck(p.id, `<b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`)).join('')
+      return sat.map((p) => { const o = L.satTerms(G, ab, p); return ck(`sat:${p.id}`, `<b>${esc(p.nm)}</b> <small>sign-and-trade · ${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${$M(o.sal)} × ${o.years}</small>`); }).join('')
+        + ps.map((p) => ck(p.id, `<b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`)).join('')
         + (pk.length ? `<details${pk.some((k) => ui[side][k.id]) ? ' open' : ''}><summary>Draft picks (${pk.length})</summary>${pk.map((k) => ck(k.id, pickName(k.id, ui.prot[k.id])) + (ui[side][k.id] && k.kind === 'pick' && !k.prot && !k.terms.length ? protSel(side, k) : '')).join('')}</details>` : '')
         + swapsOf(ab, side);
     };
@@ -574,7 +576,7 @@ ${board(pool, onMe, tn, th, c)}
     const T = me(), s = G.season + 1, c = G.choices ||= {};
     const opts = T.roster.map(P).filter((p) => C.yearOf(p.contract, s)?.opt === 'tm');
     const qos = T.roster.map(P).filter((p) => p.contract?.rookie && p.draft?.round === 1 && !C.yearOf(p.contract, s));
-    const row = (k, p, what) => `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="${k}|${p.id}"${c[`${k}|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${what}</small></label>`;
+    const row = (k, p, what) => `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="${k}|${p.id}"${c[`${k}|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${what}</small></label>`;
     return `<div class="card"><h3>Team options for ${SEASON(s)}</h3>${opts.map((p) => row('opt', p, `pick up ${$M(C.yearOf(p.contract, s).sal)}`)).join('') || '<p>None.</p>'}
 <h3>Qualifying offers</h3><p class="note">Tendering one makes the player a restricted free agent: you may match any offer sheet.</p>
 ${qos.map((p) => row('qo', p, 'tender')).join('') || '<p>None.</p>'}
@@ -589,7 +591,7 @@ ${btn('newyear', 'Start the new league year')}</div>`;
     const T = me(), c = G.choices ||= {};
     const mine = T.holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id));
     return `<div class="card"><h3>Your free agents</h3><p class="note">Each one's terms: his ask, as far as his Bird rights let you pay it.</p>
-${mine.map((p) => { const o = L.resignTerms(G, G.user, p); return `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="re|${p.id}"${c[`re|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${$M(o.sal)} × ${o.years} (${o.how})${T.rfa?.includes(p.id) ? ' · restricted' : ''}</small></label>`; }).join('') || '<p>None.</p>'}
+${mine.map((p) => { const o = L.resignTerms(G, G.user, p); return `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="re|${p.id}"${c[`re|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${$M(o.sal)} × ${o.years} (${o.how})${T.rfa?.includes(p.id) ? ' · restricted' : ''}</small></label>`; }).join('') || '<p>None.</p>'}
 ${btn('market', 'Open the market')}</div>`;
   },
   fa: () => {
@@ -607,7 +609,7 @@ ${btn('market', 'Open the market')}</div>`;
 <label>Years <input id="yrs" type="number" min="1" max="5" value="${ask(p).years}"></label>${btn('offer', 'Make the offer')}${lvl(p) ? btn('renounce', 'Renounce his rights', p.id, 'warn') : ''}${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}</div>`; };
     return `${sheets.map(([pid, o]) => `<div class="card"><p>${esc(NAME(o.ab))} offer ${esc(P(pid).nm)} ${$M(o.sal)} × ${o.years}.</p>${btn('match', 'Match', `${pid}|1`)}${btn('match', 'Let him go', `${pid}|0`)}${pid in G.matchAns ? ` <small>${G.matchAns[pid] ? 'matching' : 'declining'}</small>` : ''}</div>`).join('')}
 ${open ? `<div class="card"><p class="note">The market has closed: whoever is left signs on the spot for an offer at half his summer ask or better.</p></div>` : faCards()}${spendCard()}
-<table class="t"><thead><tr><th>Free agent</th><th class="n">Rtg</th><th class="n">WAR</th><th class="n">Ask</th></tr></thead><tbody>
+<table class="t"><thead><tr><th>Free agent</th><th class="n">mPM</th><th class="n">mWAR</th><th class="n">Ask</th></tr></thead><tbody>
 ${pool.map((p) => playerRow(p, `<td class="n">${$M(ask(p).sal)} × ${ask(p).years}</td>`) + (ui.pid === p.id ? detail(p, form(p)) : '')).join('')}</tbody></table>
 ${all.length > pool.length ? `<div class="row">${btn('famore', `Show more (${all.length - pool.length} left)`, '', 'ghost')}</div>` : ''}${payroll()}`;
   },
