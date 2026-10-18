@@ -31,6 +31,7 @@ export function assets(G) {
       const id = `${o}|${y}|${r}`, e = G.picks[id];
       if ((e?.t === 'gone' && !e.h) || used.has(id)) continue;
       const terms = [];
+      if (e?.frozen) terms.push(e.end ? 'frozen by the second apron for good: it goes last in the first round' : 'frozen by the second apron');
       if (e?.p) terms.push(`${e.p[0] === 1 + 30 * (r - 1) ? `top-${e.p[1] - 30 * (r - 1)}` : rg(e.p)} protected${e.k && e.k !== o ? ` (to ${e.k})` : ''}`);
       for (const op of ops) {
         if (op.k === 'swap' && op.take.includes(o)) terms.push(`${op.by ?? op.give.map((g) => G.picks[`${g}|${y}|${r}`]?.h || g)[0]} may swap for it${op.ex?.[o] ? ` (unless ${rg(op.ex[o])})` : ''}`);
@@ -78,7 +79,7 @@ export function draws(G) {
       // the lottery: the 16 worst, 2 balls for the three worst, 3 for the next seven, 2 for the
       // four 9/10 teams and 1 for the two 7/8 losers (the play-in, by record)
       const lot = D.lottery(byRec.slice(0, 16).map((t, i) => ({ ab: t, balls: i < 3 ? 2 : i < 10 ? 3 : i < 14 ? 2 : 1 })), r);
-      out[y] = [[...lot, ...byRec.slice(16)], byRec];
+      out[y] = [D.frozenLast([...lot, ...byRec.slice(16)], y, G.picks), byRec];
     }
     out.slot = {};
     d.push(out);

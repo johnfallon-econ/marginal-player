@@ -244,7 +244,9 @@ export function endSeason(G, r) {
     T.tax = T.tax || {}; T.tax[s] = C.taxBill(pay, f, rep);
     (T.taxpaid ||= {})[s] = pay > f.tax;
     (T.short ||= {})[s] = Math.max(0, f.minTeam - pay);   // below the floor, a club pays its players the shortfall (Art. VII §2(b))
+    (T.over2 ||= {})[s] = pay > f.apron2;
     if (pay > f.apron2) freezePick(G, ab, s);
+    settleFrozen(G, ab, s);
     for (const id of T.roster) { P[id].yos += 1; if (P[id].bird?.team === ab) P[id].bird.n += 1; else P[id].bird = { team: ab, n: 1 }; }
   }
   // each man's line for the season just played, kept for the page: club, games, minutes, and the
@@ -269,6 +271,18 @@ export function endSeason(G, r) {
 }
 // a second-apron team's first-round pick seven drafts out is frozen (Art. VII §2(f))
 function freezePick(G, ab, s) { const k = `${ab}|${s + 8}|1`; G.picks[k] = { ...(G.picks[k] || { t: 'clear' }), frozen: true }; }
+// over the four seasons after the freeze, three below the second apron thaw the pick; two above it
+// freeze it for good and send it to the end of the first round
+export function settleFrozen(G, ab, s) {
+  const T = G.teams[ab];
+  for (let fs = s - 4; fs < s; fs++) {
+    const k = `${ab}|${fs + 8}|1`, e = G.picks[k];
+    if (!e?.frozen || e.end) continue;
+    const after = [1, 2, 3, 4].map((j) => fs + j).filter((t) => t <= s && t in (T.over2 || {})), over = after.filter((t) => T.over2[t]).length;
+    if (over >= 2) e.end = true;
+    else if (after.length - over >= 3) { delete e.frozen; if (e.t === 'clear' && Object.keys(e).length === 1) delete G.picks[k]; }
+  }
+}
 
 // ---- the draft ---------------------------------------------------------------------------------
 // Lottery balls from the play-in: 2 for the three worst, 3 for the rest who missed it, 2 for the
@@ -296,7 +310,7 @@ export function draftStart(G, r) {
     h.no1 = slot === 0; h.top5.push(slot >= 0 && slot < 5); h.top5 = h.top5.slice(-2); h.top5x2 = h.top5.length === 2 && h.top5.every(Boolean);
   }
   const first = [...lot, ...byRec.filter((ab) => playoff.has(ab))];
-  const { order, created } = D.resolvePicks([first, byRec], year, G.picks, G.swaps);
+  const { order, created } = D.resolvePicks([D.frozenLast(first, year, G.picks), byRec], year, G.picks, G.swaps);
   Object.assign(G.picks, created);
   const cls = D.generateClass({ names: G.names, draft: G.draftData }, s, r, G.scoutSd), pool = cls.filter((p) => !p.undrafted);
   // the undrafted, journeymen from the G League and abroad, go straight to the summer's market

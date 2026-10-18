@@ -39,6 +39,13 @@ export function solveScoutSd(L, r, target = L.draft.sp) {
   return (lo + hi) / 2;
 }
 
+// A first frozen for good by the second apron goes to the end of the first round (Art. VII §2(f)):
+// the round's order, origins, with those picks moved last in the order they held.
+export const frozenLast = (first, year, picks) => {
+  const end = (o) => !!picks[`${o}|${year}|1`]?.end;
+  return [...first.filter((o) => !end(o)), ...first.filter(end)];
+};
+
 // ---- the lottery (3-2-1, approved for the 2027-29 drafts; kept after that) -----------------
 // teams: the 16 lottery teams, worst record first, each { ab, balls } from the play-in results:
 // 2 for the three worst (relegated), 3 for the rest who missed the play-in, 2 for the 9/10
