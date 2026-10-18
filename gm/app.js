@@ -208,6 +208,7 @@ const ACT = {
   staff: () => { G.staffSigns = G.staffSigns === false; save(); render(); },
   newgame: () => { if (!G || confirm('Start over? The current game is replaced.')) { G = null; view = 'new'; render(); } },
   renounce: (pid) => { const T = me(); T.holds = T.holds.filter((h) => h.pid !== pid); T.rfa = (T.rfa || []).filter((x) => x !== pid); ui = {}; save(); render(); },
+  renounceall: () => { if (confirm('Renounce every one of your free agents? You lose their Bird rights.')) { const T = me(); T.rfa = (T.rfa || []).filter((x) => !T.holds.some((h) => h.pid === x)); T.holds = []; ui = {}; save(); render(); } },
 };
 // what a free agent takes today: his ask, falling 2.5% a day through the summer
 const need = (p) => Math.ceil(L.askOf(G, p, F()).sal * (1 - 0.025 * G.fa_.day) / 1e5) * 1e5;
@@ -415,7 +416,8 @@ function spendCard() {
   const rows = ways.map(([how, nm, amt]) => [nm, ...usable(how, amt)]);
   return `<div class="card"><h3>What you can spend</h3><div class="pay">${rows.map(([nm, a, w]) => `<div><span>${nm}</span><b class="${a ? '' : 'bad'}">${a ? `${w ? 'up to ' : ''}${$M(a)}` : '–'}</b></div>`).join('')}<div><span>Minimum contracts</span><b>any</b></div></div>
 ${rows.filter(([, , w]) => w && w !== 'used up' && w !== 'no room').map(([nm, a, w]) => `<p class="note">${nm}${a ? ', in full' : ''}: ${esc(w)}.</p>`).join('')}
-<p class="note">Payroll ${$M(pay)}${holds ? `, plus ${$M(holds)} in cap holds for ${T.holds.length} of your own free agents: the cap counts ${$M(capPay)}. Renounce a player's rights (open him below) to free his hold` : ''}. Your own free agents can be re-signed over the cap with their Bird rights.</p></div>`;
+<p class="note">Payroll ${$M(pay)}${holds ? `, plus ${$M(holds)} in cap holds for ${T.holds.length} of your own free agents: the cap counts ${$M(capPay)}. Renounce a player's rights to free his hold` : ''}. Your own free agents can be re-signed over the cap with their Bird rights.</p>
+${T.holds.map((h) => `<div class="ck">${nm(h.pid)} <small>hold ${$M(h.amt)}</small> ${btn('renounce', 'Renounce', h.pid, 'warn')}</div>`).join('')}${T.holds.length > 1 ? btn('renounceall', 'Renounce them all', '', 'warn') : ''}</div>`;
 }
 // Free agency in the summer: your offers and what each agent says, yesterday's answers, and who
 // signed where
