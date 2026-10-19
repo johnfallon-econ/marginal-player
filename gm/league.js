@@ -10,7 +10,10 @@ import * as X from './trades.js';
 import * as A from './awards.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
-export const TRADES = 30;                               // a window's ceiling on deals; value decides how many happen
+// a window's ceiling on deals, near the real league's count in it (2015-16 to 2024-25: the draft and
+// the first two weeks of free agency 26 a year, the rest of the summer 5, the season to the week
+// before the deadline 6, the deadline week 15); value decides how many happen under it
+export const TRADES = { draft: 26, summer: 6, dec15: 7, deadline: 18 };
 
 // ---- a new game ----------------------------------------------------------------------------
 // L: data/gm_league.json; cal: data/gm_calibration.json; opts: { team, hidden, seed }
@@ -229,10 +232,10 @@ export function postseasonEnd(G) {
   return G.history.at(-1);
 }
 export function postseason(G, r) { postseasonStart(G, r); while (!G.po.champion) playRound(G, r); return postseasonEnd(G); }
-export function playSeason(G, r, window = (date) => X.tradeWindow(G, r, date, TRADES, null)) {
+export function playSeason(G, r, window = (date, k) => X.tradeWindow(G, r, date, TRADES[k], null)) {
   seasonStart(G, r);
   const d = C.seasonDates(G.season);
-  for (const w of WINDOWS) { seasonTo(G, r, w.frac); G.date = d[w.date]; window(G.date); assignRoles(G); }
+  for (const w of WINDOWS) { seasonTo(G, r, w.frac); G.date = d[w.date]; window(G.date, w.date); assignRoles(G); }
   seasonTo(G, r, 1);
   return postseason(G, r);
 }
@@ -764,11 +767,11 @@ export function simYear(G, r) {
   for (const ab of Object.keys(G.teams)) cutdown(G, r, ab);
   const h = playSeason(G, r);
   endSeason(G, r);
-  X.tradeWindow(G, r, `${G.season + 1}-06-20`, TRADES, null);    // around the draft
+  X.tradeWindow(G, r, `${G.season + 1}-06-20`, TRADES.draft, null);    // around the draft
   runDraft(G, r);
   newLeagueYear(G, r);
   freeAgency(G, r);
-  X.tradeWindow(G, r, `${G.season}-09-20`, TRADES, null);
+  X.tradeWindow(G, r, `${G.season}-09-20`, TRADES.summer, null);
   delete G.autoUser;
   return h;
 }

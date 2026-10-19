@@ -114,7 +114,7 @@ const ACT = {
   }),
   sim: () => step('Simulating', () => {
     const w = G.cur.win++, d = C.seasonDates(G.season), before = { ...G.cur.record[G.user], log: G.log.length };
-    if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; X.tradeWindow(G, r, G.date, L.TRADES); L.assignRoles(G); G.offers = X.offersFor(G); if (w === 1) G.ownerSay = O.deadline(G); }
+    if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; X.tradeWindow(G, r, G.date, L.TRADES[L.WINDOWS[w].date]); L.assignRoles(G); G.offers = X.offersFor(G); if (w === 1) G.ownerSay = O.deadline(G); }
     else L.seasonTo(G, r, 1);
     G.news = news(before);
     if (w >= 2) { L.postseasonStart(G, r); G.offers = []; view = 'home'; }
@@ -128,7 +128,7 @@ const ACT = {
     L.endSeason(G, r);
     G.ownerSay = null; O.review(G, G.history.at(-1), r);
     G.dev = Object.entries(before).map(([id, b]) => [id, b, P(id).rate]).sort((a, b) => (b[2] - b[1]) - (a[2] - a[1]));
-    X.tradeWindow(G, r, `${G.season + 1}-06-20`, L.TRADES);
+    X.tradeWindow(G, r, `${G.season + 1}-06-20`, L.TRADES.draft);
     G.offers = X.offersFor(G);
     L.draftStart(G, r); view = 'draft';
   }),
@@ -222,7 +222,7 @@ function faDay() {
   const ok = G.myOffers.filter((o) => G.fa.includes(o.pid));
   const done = L.faDay(G, r, { offers: ok, match: G.matchAns });
   G.myOffers = G.myOffers.filter((o) => G.fa.includes(o.pid)); G.matchAns = {};
-  if (done) { L.faEnd(G, r); X.tradeWindow(G, r, `${G.season}-09-20`, L.TRADES); G.phase = 'preseason'; G.offers = X.offersFor(G); view = 'home'; }
+  if (done) { L.faEnd(G, r); X.tradeWindow(G, r, `${G.season}-09-20`, L.TRADES.summer); G.phase = 'preseason'; G.offers = X.offersFor(G); view = 'home'; }
 }
 const slotOf = (k) => { const [o, y, rd] = k.split('|'); return G.draft?.year === +y ? G.draft.order.find((e) => e.origin === o && (e.slot <= 30) === (rd === '1'))?.slot : null; };
 const RD = (r) => (+r === 1 ? '1st' : '2nd'), top = (p, r) => `top-${p[1] - 30 * (r - 1)} protected`;
