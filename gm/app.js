@@ -593,7 +593,9 @@ ${btn('newyear', 'Start the new league year')}</div>`;
     const T = me(), c = G.choices ||= {};
     const mine = T.holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id));
     return `<div class="card"><h3>Your free agents</h3><p class="note">Each one's terms: his ask, as far as his Bird rights let you pay it.</p>
-${mine.map((p) => { const o = L.resignTerms(G, G.user, p); return `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="re|${p.id}"${c[`re|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${$M(o.sal)} × ${o.years} (${o.how})${T.rfa?.includes(p.id) ? ' · restricted' : ''}</small></label>`; }).join('') || '<p>None.</p>'}
+${(() => { let ex = 0;   // the owner judges each re-signing on top of the ones ticked before it, as the market will
+  return mine.map((p) => { const o = L.resignTerms(G, G.user, p), on = !!c[`re|${p.id}`], v = O.veto(G, ex + o.sal); if (on && !v) ex += o.sal;
+    return `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="re|${p.id}"${on ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${$M(o.sal)} × ${o.years} (${o.how})${T.rfa?.includes(p.id) ? ' · restricted' : ''}</small>${v ? `<br><small class="bad">${on ? 'The owner will veto this' : 'The owner would veto this'}: ${esc(v.replace(/^The owner won't approve it: /, ''))}</small>` : ''}</label>`; }).join('') || '<p>None.</p>'; })()}
 ${btn('market', 'Open the market')}</div>`;
   },
   fa: () => {
