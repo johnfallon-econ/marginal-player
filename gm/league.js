@@ -753,8 +753,11 @@ export function fillRosters(G, clubs = Object.keys(G.teams), date = G.phase === 
       const id = byRate().find((x) => C.validateSigning(G, { team: ab, pid: x, how: 'min', date, years: years5(C.minSalary(P[x].yos, F.cap), 1, 0), prior: (P[x].prior || 0) * 1e6 }).ok); if (!id) break;
       sign(G, ab, P[id], 'min', C.minSalary(P[id].yos, F.cap), 1, date, 0);
     }
+    // its own two-way men first, whose deals ran out: a two-way qualifying offer keeps them restricted
+    // (up to three seasons on two-ways with one club)
+    const own = (x) => P[x].freeFrom === ab && P[x].log?.at(-1)?.tw && P[x].log.filter((l) => l.tw && l.tm === ab).length < 3;
     while (T.roster.filter((id) => P[id].contract?.twoWay).length < 3) {
-      const id = byRate().find((x) => P[x].yos < 4); if (!id) break;
+      const young = byRate().filter((x) => P[x].yos < 4), id = young.find(own) ?? young[0]; if (!id) break;
       sign(G, ab, P[id], 'twoWay', C.twoWaySalary(F.cap), 1, date, 0);
     }
   }

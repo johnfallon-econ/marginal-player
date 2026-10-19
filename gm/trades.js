@@ -13,15 +13,16 @@ export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle'
 export const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
 
 // A player's worth to club `ab`, $: each season left on his deal, his value to this GM less his
-// salary, weighted by what the club is after, discounted.
+// salary, weighted by what the club is after, discounted. In the season, only what is left of it: a
+// man traded at the deadline plays a third of it for his new club, who pays a third of his salary.
 export function playerWorth(G, ab, p, m) {
   const key = `${ab}|${p.id}|${m}`, c = G._worth;
   if (c && key in c) return c[key];
-  const W = WEIGHT[m], s = taxSeason(G);
+  const W = WEIGHT[m], s = taxSeason(G), left = G.cur ? 1 - G.cur.d / G.cur.days.length : 1;
   // a man whose draft rights it holds, unsigned: the deal his slot brings, which his club need not offer
   const deal = p.contract || D.rookieContract(p.draft.pick, s - 1, capAt(G, s));
   const v = deal.years.filter((y) => y.s >= s).reduce((a, y, i) =>
-    a + (i === 0 ? W.now : W.later) * (teamValue(G, ab, p, i) - y.sal) / 1.1 ** i, 0);
+    a + (i === 0 ? W.now * left : W.later) * (teamValue(G, ab, p, i) - y.sal) / 1.1 ** i, 0);
   const w = p.contract ? v : Math.max(v, 0);
   if (c) c[key] = w;
   return w;
