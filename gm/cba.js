@@ -233,7 +233,8 @@ export function validateTrade(league, tr) {
   for (const ab of teams) {
     const T = league.teams[ab], out = tr.moves.filter((m) => m.from === ab), inn = tr.moves.filter((m) => m.to === ab);
     for (const m of out) {
-      if (!T.roster.includes(m.pid)) errors.push(`${ab} does not hold ${P[m.pid].nm}`);
+      // a man under contract is on the roster; one unsigned, his draft rights held abroad or since the draft
+      if (!(P[m.pid].contract ? T.roster : T.rights ?? []).includes(m.pid)) errors.push(`${ab} does not hold ${P[m.pid].nm}`);
       const t = tradableFrom(P[m.pid]);
       // before signing, draft rights trade freely
       if (t && tr.date < t && tr.date >= P[m.pid].contract.signed) errors.push(`${P[m.pid].nm} cannot be traded until ${t}`);
@@ -244,7 +245,7 @@ export function validateTrade(league, tr) {
     const tpeIn = inn.filter((m) => absorbed.has(m.pid)).reduce((a, m) => a + charge(P[m.pid], s, f.cap), 0);
     const pre = teamSalary(T, league, s), post = pre - out.reduce((a, m) => a + charge(P[m.pid], s, f.cap), 0) + inSal + tpeIn;
     const capPost = teamSalary(T, league, s, { holds: true }) - (pre - post);
-    const nOut = out.filter((m) => !P[m.pid].contract.twoWay).length;
+    const nOut = out.filter((m) => P[m.pid].contract && !P[m.pid].contract.twoWay).length;
     const cap = (lvl, why) => {                               // a transaction that hard-caps
       const lim = f[lvl];
       if (post > lim) errors.push(`${ab}: ${why} is barred above the ${lvl === 'apron1' ? 'first' : 'second'} apron`);
@@ -280,7 +281,7 @@ export function validateTrade(league, tr) {
       else cap('apron2', 'aggregating salaries');
     }
     // roster limits after the trade
-    const roster = T.roster.filter((id) => !out.some((m) => m.pid === id)).concat(inn.map((m) => m.pid));
+    const roster = T.roster.filter((id) => !out.some((m) => m.pid === id)).concat(inn.filter((m) => P[m.pid].contract).map((m) => m.pid));
     const std = roster.filter((id) => !P[id].contract.twoWay).length, tw = roster.length - std;
     const inSeason = tr.date >= d.opening && tr.date <= d.seasonEnd;
     // over the limit is not a bar: the club waives men to get back under as the trade completes

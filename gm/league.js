@@ -79,12 +79,13 @@ export function capAt(G, s) {
 const fig = (G, s) => (G.f[s] ??= C.figures(s, capAt(G, s)));
 
 // ---- preseason: cut to 15 standard contracts and 3 two-way ---------------------------------
-// The rule the cutdown predictor uses: keep = value next season less non-guaranteed salary.
+// The rule the cutdown predictor uses: keep = value next season less non-guaranteed salary (a
+// draftee's, between the draft and the new league year, is his first season's).
 export function cutdown(G, r, ab, choose) {
   const T = G.teams[ab], P = G.players, s = G.season;
   const std = () => T.roster.filter((id) => !P[id].contract?.twoWay);
   while (std().length > 15) {
-    const ranked = std().map((id) => { const y = C.yearOf(P[id].contract, s); return [id, M.marketValue(P[id], 0, fig(G, s).cap, G.K) - (y.sal - y.gtd)]; })
+    const ranked = std().map((id) => { const y = C.yearOf(P[id].contract, s) || C.yearOf(P[id].contract, s + 1); return [id, M.marketValue(P[id], 0, fig(G, s).cap, G.K) - (y.sal - y.gtd)]; })
       .sort((a, b) => a[1] - b[1]);
     const id = choose ? choose(ranked.map((x) => x[0])) : ranked[0][0];
     release(G, ab, id, G.date, false);

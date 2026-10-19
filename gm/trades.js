@@ -5,6 +5,7 @@ import * as C from './cba.js';
 import * as M from './value.js';
 import { teamValue, projWins, capAt, cutdown, fillRosters } from './league.js';
 import * as P from './picks.js';
+import * as D from './draft.js';
 
 export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.085, PER_CLUB = 3;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
@@ -16,11 +17,14 @@ export const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { 
 export function playerWorth(G, ab, p, m) {
   const key = `${ab}|${p.id}|${m}`, c = G._worth;
   if (c && key in c) return c[key];
-  const W = WEIGHT[m];
-  const v = (p.contract?.years || []).filter((y) => y.s >= taxSeason(G)).reduce((a, y, i) =>
+  const W = WEIGHT[m], s = taxSeason(G);
+  // a man whose draft rights it holds, unsigned: the deal his slot brings, which his club need not offer
+  const deal = p.contract || D.rookieContract(p.draft.pick, s - 1, capAt(G, s));
+  const v = deal.years.filter((y) => y.s >= s).reduce((a, y, i) =>
     a + (i === 0 ? W.now : W.later) * (teamValue(G, ab, p, i) - y.sal) / 1.1 ** i, 0);
-  if (c) c[key] = v;
-  return v;
+  const w = p.contract ? v : Math.max(v, 0);
+  if (c) c[key] = w;
+  return w;
 }
 
 // A pick's worth, $: the board's surplus for the slots it brings over simulated drafts (picks.js
@@ -203,9 +207,10 @@ export function complete(G, j) { execute(G, j.trade, j.res); G.log.push(logEntry
 export function execute(G, trade, res) {
   for (const m of trade.moves) {
     const p = G.players[m.pid];
-    G.teams[m.from].roster = G.teams[m.from].roster.filter((id) => id !== m.pid);
-    G.teams[m.to].roster.push(m.pid);
-    p.tm = m.to;
+    const k = p.contract ? 'roster' : 'rights';                // draft rights change hands unsigned
+    G.teams[m.from][k] = G.teams[m.from][k].filter((id) => id !== m.pid);
+    (G.teams[m.to][k] ||= []).push(m.pid);
+    if (p.contract) p.tm = m.to;
     if (p.bird) p.bird.team = m.to;                            // Bird rights travel with a trade
     if (p.contract) p.contract.acquired = trade.date;
   }

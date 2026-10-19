@@ -523,6 +523,7 @@ ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?
       const sat = G.phase === 'freeagency' ? G.teams[ab].holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id) && !G.teams[ab].rfa?.includes(p.id)) : [];
       return sat.map((p) => { const o = L.satTerms(G, ab, p); return ck(`sat:${p.id}`, `<b>${esc(p.nm)}</b> <small>sign-and-trade · ${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${$M(o.sal)} × ${o.years}</small>`); }).join('')
         + ps.map((p) => ck(p.id, `<b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(p.rate)} · ${wr(p)} · ${$M(C.yearOf(p.contract, G.season)?.sal || 0)} × ${yrs(p).length}</small>`)).join('')
+        + (G.teams[ab].rights ?? []).map(P).map((p) => ck(p.id, `<b>${esc(p.nm)}</b> <small>draft rights · ${Math.floor(p.age)} · ${sg(p.rate)} · pick ${p.draft.pick}, ${p.draft.year}${p.abroad ? ' · abroad' : ''}</small>`)).join('')
         + (pk.length ? `<details${pk.some((k) => ui[side][k.id]) ? ' open' : ''}><summary>Draft picks (${pk.length})</summary>${pk.map((k) => ck(k.id, pickName(k.id, ui.prot[k.id])) + (ui[side][k.id] && k.kind === 'pick' && !k.prot && !k.terms.length ? protSel(side, k) : '')).join('')}</details>` : '')
         + swapsOf(ab, side);
     };
