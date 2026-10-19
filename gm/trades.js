@@ -52,6 +52,7 @@ export function tradeWindow(G, r, date, maxTrades = 6, userAb = G.user) {
     // the shortlist: (seller, player, buyer) by how much more the buyer makes of him, tax included
     const cands = clubs.flatMap((S) => { const L = G.teams[S].roster.map((id) => P[id])
       .filter((p) => !p.contract?.twoWay && !p.contract?.tenDay && C.yearOf(p.contract, s))
+      .concat((G.teams[S].rights ?? []).map((id) => P[id]))       // and the unsigned men whose draft rights it holds
       .flatMap((p) => { const sal = C.charge(p, s, F.cap), own = playerWorth(G, S, p, modes[S]) + tax(S, -sal);
         return clubs.filter((B) => B !== S).map((B) => [S, p, B, playerWorth(G, B, p, modes[B]) - tax(B, sal) - own, own]); })
       .sort((a, b) => b[3] - a[3]);
@@ -142,18 +143,20 @@ export function buildOffer(G, x, B, S, p, date) {
   const [payer, payee] = g(S) < 0 ? [B, S] : g(B) < 0 ? [S, B] : [];
   if (payer) {
     // what it can pay in: its picks and claims; a first of its own it may protect (top 4 or top
-    // 10); or the right to swap firsts with the payee in a year both hold their own
+    // 10); the right to swap firsts with the payee in a year both hold their own; or the draft
+    // rights of a man it holds unsigned
     const own = (ab, k) => k.kind === 'pick' && k.round === 1 && k.origin === ab && k.holder === ab && !k.prot && !k.terms.length;
     const pool = Object.values(x.pv).filter((k) => k.holder === payer && !k.frozen && k.year > G.season).flatMap((k) => [
       { id: k.id, pk: { id: k.id, from: payer, to: payee }, v: pickWorth(G, payee, k, x.modes[payee]) },
       ...(own(payer, k) ? [[1, 4], [1, 10]].map((p) => ({ id: k.id, pk: { id: k.id, from: payer, to: payee, prot: p }, v: pickWorth(G, payee, k, x.modes[payee], p) })) : []),
       ...(own(payer, k) && own(payee, x.pv[`${payee}|${k.year}|1`] || {}) ? [{ id: k.id, sw: { y: k.year, r: 1, from: payer, to: payee }, v: swapWorth(G, { y: k.year, r: 1, from: payer, to: payee }, x.modes[payee]) }] : []),
-    ]).filter((c) => c.v > 0).sort((a, b) => a.v - b.v);
+    ]).concat((G.teams[payer].rights ?? []).map((id) => ({ id, mv: { pid: id, from: payer, to: payee }, v: playerWorth(G, payee, P[id], x.modes[payee]) })))
+      .filter((c) => c.v > 0).sort((a, b) => a.v - b.v);
     // paid up to what a deal must leave each side ahead by (MIN_GAIN), not merely to even
     trade.swaps = []; const need = x.F.cap * MIN_GAIN;   // paid up to what a deal must leave it ahead by
     while (g(payee) <= need && trade.picks.length + trade.swaps.length < MAX_PICKS && pool.length) {
-      const i = pool.findIndex((c) => c.v > need - g(payee)), c = pool.splice(i < 0 ? pool.length - 1 : i, 1)[0], into = c.pk ? trade.picks : trade.swaps;
-      into.push(c.pk || c.sw);
+      const i = pool.findIndex((c) => c.v > need - g(payee)), c = pool.splice(i < 0 ? pool.length - 1 : i, 1)[0], into = c.pk ? trade.picks : c.sw ? trade.swaps : trade.moves;
+      into.push(c.pk || c.sw || c.mv);
       if (g(payer) <= 0 || !C.validateTrade(league, trade).ok) into.pop();
       else for (let j = pool.length - 1; j >= 0; j--) if (pool[j].id === c.id) pool.splice(j, 1);   // one use of each pick
     }
