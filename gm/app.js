@@ -196,6 +196,10 @@ const ACT = {
       const used = new Set([...j.trade.moves.map((m) => m.pid), ...j.trade.picks.map((k) => k.id)]);
       G.offers = G.offers.filter((o, k) => k !== +i && ![...o.moves.map((m) => m.pid), ...o.picks.map((x) => x.id)].some((x) => used.has(x))); }); },
   pass: (i) => { G.offers.splice(+i, 1); save(); render(); },
+  // the trading block: the men ticked to send, shopped to every club
+  shop: () => { const ids = Object.keys(ui.give).filter((k) => ui.give[k] && G.players[k]);
+    if (!ids.length) { alert('Tick the players you want to shop under "You send".'); return; }
+    step('Shopping them around', () => { G.offers = X.offersFor(G, G.user, 6, ids); view = 'home'; ui = {}; if (!G.offers.length) alert('No club made an offer.'); }); },
   propose: () => { ui.verdict = judgeTrade(tradeOf()); render(); },
   accept: () => step('Trade', () => { const t = tradeOf(); if (!judgeTrade(t).accept) throw new Error('The deal fell through.');
     const yr = O.season(G), sal = (pid) => C.yearOf(P(pid).contract, yr)?.sal || 0, no = O.veto(G, t.moves.reduce((a, m) => a + (m.to === G.user ? sal(m.pid) : -sal(m.pid)), 0)); if (no) throw new Error(no); X.complete(G, judgeTrade(t, G)); if (G.phase === 'season') L.assignRoles(G); ui = { partner: ui.partner, give: {}, get: {}, done: true }; }),
@@ -544,7 +548,8 @@ ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?
 ${capStrip(B)}<details><summary>Their cap sheet</summary>${payroll(B)}</details><p class="note">${esc(NAME(B))} are ${md}.${open ? '' : ' The deadline has passed.'}${ui.done ? ' Trade done.' : ''}</p></div>
 <div class="two"><div><h3>You send</h3>${assets(G.user, 'give')}</div><div><h3>You get</h3>${assets(B, 'get')}</div></div>
 <div class="card sticky">${(() => { const t = tradeOf(), sal = (to) => t.moves.filter((m) => m.to === to).reduce((a, m) => a + (C.yearOf(P(m.pid).contract, G.season)?.sal || (t.sat.some(([, id]) => id === m.pid) ? L.satTerms(G, m.from, P(m.pid)).sal : 0)), 0);
-  return `<p class="note">Salary out ${$M(sal(B))}, in ${$M(sal(G.user))}.</p>`; })()}${btn('propose', 'Propose')}${say}</div>`;
+  return `<p class="note">Salary out ${$M(sal(B))}, in ${$M(sal(G.user))}.</p>`; })()}${btn('propose', 'Propose')}${open ? btn('shop', 'Shop them to every club', '', 'ghost') : ''}${say}
+<p class="note">Trading block: tick players under "You send" and shop them; each club that wants one makes its best offer, and the best six land on your home page.</p></div>`;
   },
   playoffs: () => {
     const po = G.po;

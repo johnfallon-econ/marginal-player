@@ -126,7 +126,7 @@ export function fit(league, tr) {
 }
 // What buyer B sends for p: nothing if the rules allow (cap room or a trade exception), else its contracts worth least to it until
 // salaries match; then the side coming out behind is paid in picks while the other stays ahead.
-export function buildOffer(G, x, B, S, p, date) {
+export function buildOffer(G, x, B, S, p, date, asked = false) {
   const P = G.players, mine = G.teams[B].roster
     .filter((id) => id !== p.id && !P[id].contract?.twoWay && !P[id].contract?.tenDay && C.charge(P[id], x.s, x.F.cap) > 0)
     .sort((a, b) => playerWorth(G, B, P[a], x.modes[B]) - playerWorth(G, B, P[b], x.modes[B]));
@@ -174,7 +174,8 @@ export function buildOffer(G, x, B, S, p, date) {
     if (g(rich) <= need || g(rich) < g(poor) || !C.validateTrade(league, trade).ok) { trade.picks.pop(); break; }
   }
   res = fit(league, trade);
-  return res.ok && g(B) > 0 && g(S) > 0 ? { trade, res, score: Math.min(g(B), g(S)) } : null;
+  // asked (the seller shopping him): the buyer's best offer, whether the seller likes it is the seller's call
+  return res.ok && g(B) > 0 && (asked || g(S) > 0) ? { trade, res, score: Math.min(g(B), g(S)) } : null;
 }
 
 // The user's offer, put to the other clubs: legal, and does every computer GM in it come out ahead
@@ -190,19 +191,22 @@ export function judge(G, tr, human = G.user) {
 // Offers to the user: for each of the user's players, the clubs that make most more of him build
 // an offer as they would for each other (the user's club weighed by its own GM's leanings, so an
 // offer is one a fair-minded club might take); the best few, one per club.
-export function offersFor(G, human = G.user, n = 3) {
+// block: the men the user is shopping (the trading block): every club bids for them, one offer a club
+export function offersFor(G, human = G.user, n = 3, block = null) {
   const x = market(G), P = G.players, clubs = Object.keys(G.teams).filter((ab) => ab !== human);
-  const cands = G.teams[human].roster.map((id) => P[id]).filter((p) => !p.contract?.twoWay && C.yearOf(p.contract, x.s))
+  const cands = (block ? block.map((id) => P[id]) : G.teams[human].roster.map((id) => P[id]).filter((p) => !p.contract?.twoWay && C.yearOf(p.contract, x.s)))
     .flatMap((p) => clubs.map((B) => [p, B, playerWorth(G, B, p, x.modes[B]) - playerWorth(G, human, p, x.modes[human])]))
-    .sort((a, b) => b[2] - a[2]).slice(0, 40);
-  const got = new Set(), out = [];                               // one offer per club and per player
+    .sort((a, b) => b[2] - a[2]).slice(0, block ? Infinity : 40);
+  const got = new Set(), out = [];                               // one offer per club, and unasked per player
   for (const [p, B] of cands) {
-    if (got.has(B) || got.has(p.id)) continue;
-    const o = buildOffer(G, x, B, human, p, G.date);
-    if (o) { out.push(o.trade); got.add(B); got.add(p.id); }
-    if (out.length === n) break;
+    if (got.has(B) || (!block && got.has(p.id))) continue;
+    const o = buildOffer(G, x, B, human, p, G.date, !!block);
+    if (o) { out.push(o); got.add(B); got.add(p.id); }
+    if (!block && out.length === n) break;
   }
-  return out;
+  // shopped: every club's offer, the best for the seller first (by its own lights)
+  if (block) out.sort((a, b) => gain(G, x, human, b.trade) - gain(G, x, human, a.trade));
+  return out.slice(0, n).map((o) => o.trade);
 }
 // An accepted offer goes through.
 export function complete(G, j) { execute(G, j.trade, j.res); G.log.push(logEntry(j.trade)); }
