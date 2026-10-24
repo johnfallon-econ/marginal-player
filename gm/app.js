@@ -196,7 +196,6 @@ const ACT = {
       const used = new Set([...j.trade.moves.map((m) => m.pid), ...j.trade.picks.map((k) => k.id)]);
       G.offers = G.offers.filter((o, k) => k !== +i && ![...o.moves.map((m) => m.pid), ...o.picks.map((x) => x.id)].some((x) => used.has(x))); }); },
   pass: (i) => { G.offers.splice(+i, 1); save(); render(); },
-  uncheer: () => document.querySelector('.cheer')?.remove(),
   // the trading block: the men ticked to send, shopped to every club
   shop: () => { const ids = Object.keys(ui.give).filter((k) => ui.give[k] && G.players[k]);
     if (!ids.length) { alert('Tick the players you want to shop under "You send".'); return; }
@@ -263,22 +262,6 @@ function render() {
 ${capStrip()}
 <div class="tabs" role="navigation">${[...TABS.slice(0, 1), ...extra, ...TABS.slice(1)].map(([k, n]) => `<button data-act="go" data-arg="${k}"${view === k ? ' aria-current="page"' : ''}>${n}</button>`).join('')}</div>
 <section>${(VIEWS[view] || VIEWS.home)()}</section>${ui.card && P(ui.card) ? card(ui.card) : ''}`;
-  cheer();
-}
-// A series won, and the title (the Finals won): once each, a moment to enjoy it
-function cheer() {
-  const po = G.po, x = mySeries(), won = G.phase === 'playoffs' && x && S.seriesDone(x) && (x.hi === G.user ? x.w : x.l) === 4;
-  if (!won) return;
-  const title = po.round === 3, key = `${G.season}|${po.round}`;
-  if ((G.cheered ||= []).includes(key)) return;
-  G.cheered.push(key); save();
-  const opp = x.hi === G.user ? x.lo : x.hi, score = `${Math.max(x.w, x.l)}-${Math.min(x.w, x.l)}`;
-  const cols = ['#f5c542', '#FF6B00', '#1F6B4A', '#ffffff', '#C2410C', '#3b82f6'];
-  const bits = Array.from({ length: title ? 180 : 70 }, (_, i) => `<i class="cf" style="left:${(i * 37) % 100}%;background:${cols[i % cols.length]};animation-duration:${2.2 + (i % 7) * 0.35}s;animation-delay:${(i % 13) * 0.12}s"></i>`).join('');
-  const next = ['the conference semifinals', 'the conference finals', 'the Finals'][po.round];
-  root().insertAdjacentHTML('beforeend', `<div class="cheer${title ? ' title' : ''}" role="dialog" aria-label="${title ? 'Champions' : 'Series won'}">${bits}<div class="cheer-c">${title ? '<div class="trophy">🏆</div>' : ''}
-<small>${title ? `${SEASON(G.season)} NBA champions` : ROUND[po.round]}</small><h2>${title ? `The ${esc(NAME(G.user))} are champions` : `${esc(NAME(G.user))} win the series`}</h2>
-<p>${title ? `They beat the ${esc(NAME(opp))} ${score} in the Finals.` : `${score} over the ${esc(NAME(opp))}. On to ${next}.`}</p>${btn('uncheer', title ? 'Raise the banner' : 'On to the next round')}</div></div>`);
 }
 // The season whose books matter now: after the season ends, next season's commitments against its
 // projected cap (the cap is drawn July 1).

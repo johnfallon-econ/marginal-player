@@ -143,20 +143,6 @@
 .gm .log{list-style:none;padding:0}.gm .log li{padding:6px 0;border-bottom:1px solid var(--grey-100);font-size:14px}
 .gm .log small{color:var(--muted);margin-right:6px}
 .gm .busy{position:fixed;inset:0;background:rgba(247,246,242,.8);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px;z-index:50}
-.gm .cheer{position:fixed;inset:0;z-index:60;background:rgba(13,27,42,.6);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:16px}
-.gm .cheer-c{position:relative;z-index:1;background:#F7F6F2;border-radius:14px;padding:26px 28px;text-align:center;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:gm-pop .55s cubic-bezier(.2,1.5,.4,1)}
-.gm .cheer-c small{display:block;font:600 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:#5c6a7a}
-.gm .cheer h2{font-size:30px;line-height:1.1;margin:8px 0 10px;color:var(--ink)}
-.gm .cheer.title .cheer-c{background:linear-gradient(160deg,#1d2f48,#0D1B2A);color:#fff}
-.gm .cheer.title .cheer-c small{color:#f5c542}
-.gm .cheer.title h2{font-size:42px;color:#f5c542}
-.gm .cheer.title .b{background:#f5c542;color:#0D1B2A}
-.gm .trophy{font-size:76px;line-height:1;display:block;margin-bottom:6px;animation:gm-bob 1.6s ease-in-out infinite}
-.gm .cf{position:absolute;top:-16px;width:9px;height:14px;border-radius:2px;animation:gm-fall linear forwards}
-@keyframes gm-fall{to{transform:translateY(115vh) rotate(760deg)}}
-@keyframes gm-pop{from{transform:scale(.6);opacity:0}}
-@keyframes gm-bob{50%{transform:translateY(-8px)}}
-@media (prefers-reduced-motion:reduce){.gm .cf{display:none}.gm .cheer-c,.gm .trophy{animation:none}}
 .gm .cap{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;color:var(--muted);margin:0 0 6px;font-variant-numeric:tabular-nums}
 .gm .cap b{color:var(--ink);font-weight:600}
 .gm .log2{margin:8px 0;font-size:13px}.gm .log2 th,.gm .log2 td{padding:4px}
