@@ -825,6 +825,7 @@ function bestTarget(G, ab, day) {
       if (lim <= 0) continue;
       const sal = Math.min(a.sal, v, lim, how === 'min' ? lim : Infinity);
       if (how === 'min' && a.sal > lim * 1.2) continue;
+      if (how !== 'min' && sal < a.sal * (1 - 0.025 * day)) continue;   // short of what he takes today (faDay): he would say no
       const o = { pid: id, how, sal: how === 'min' ? C.minSalary(p.yos, F.cap) : Math.round(sal), years: how === 'min' ? 1 : Math.min(a.years, how === 'bae' || how === 'tpmle' ? 2 : how === 'roomMle' ? 3 : 4) };
       // a club this signing takes into the tax uses the taxpayer MLE: the non-taxpayer MLE and the
       // bi-annual would hard-cap it at the first apron, a taxpayer's ceiling it would not choose
