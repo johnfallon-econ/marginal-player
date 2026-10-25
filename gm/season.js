@@ -171,14 +171,18 @@ export function simDays(league, st, r, to = st.days.length) {
   };
   for (; st.d < Math.min(to, st.days.length); st.d++) for (const [h, a] of st.days[st.d]) {
     const rec = st.record, margin = K.netScale * (strength(h) - strength(a)) + K.hca + K.sigma * r.normal();
-    const [W, L] = margin > 0 ? [h, a] : [a, h];
-    rec[W].w++; rec[L].l++;
-    rec[W].h2h[L] = (rec[W].h2h[L] || 0) + 1;
-    if (teams[h].conf === teams[a].conf) { rec[W].confW++; rec[L].confL++; }
-    if (teams[h].div === teams[a].div) { rec[W].divW++; rec[L].divL++; }
+    tally(teams, rec, h, a, margin > 0);
     st.results.push({ d: st.d, h, a, m: Math.round(margin) || (margin > 0 ? 1 : -1) });
   }
   return st;
+}
+// a game into the standings: wins, losses, head to head, conference and division
+export function tally(teams, rec, h, a, homeWon) {
+  const [W, L] = homeWon ? [h, a] : [a, h];
+  rec[W].w++; rec[L].l++;
+  rec[W].h2h[L] = (rec[W].h2h[L] || 0) + 1;
+  if (teams[h].conf === teams[a].conf) { rec[W].confW++; rec[L].confL++; }
+  if (teams[h].div === teams[a].div) { rec[W].divW++; rec[L].divL++; }
 }
 // The whole season at once. hook: { frac, fn } or a list -- fn() runs before the day that share of
 // the schedule in (the trade deadline falls about two-thirds through).

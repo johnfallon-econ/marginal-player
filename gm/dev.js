@@ -71,16 +71,41 @@ export const interp = (t, x) => { const i = t.findIndex((c) => c[0] >= x);
 // his minutes, as a real season's rating is estimated from that season (the read itself when
 // talent is not hidden)
 export const seasonRate = (p, m, K, hidden) => (hidden ? p.rate + m / (m + K.learnMinutes) * ((p.play ?? p.talent) - p.rate) : p.rate);
-// A season's box line per 100 possessions (K.box, _gm_box.py): the fit on his offense, defense,
-// position and minutes, his own style (drawn once for a man with no real seasons) and season s's
-// noise, both hashed so the line read mid-season is the one the season ends with;
-// [pts, reb, ast, stl, blk], none for a man with no position. A count is never under zero.
-export function boxLine(p, mpg, K, s) {
+// A season's box line per 100 possessions (K.box, _gm_box.py): each count -- two- and three-point
+// makes, missed shots, free throws made and missed, rebounds at each end, assists, steals, blocks,
+// turnovers, fouls -- is the fit on his offense, defense, position and minutes times his own style
+// (drawn once for a man with no real seasons) and season s's noise, both hashed so the line read
+// mid-season grows into the one the season ends with. The noise is mostly sampling: its covariance
+// is A + B / sqrt(c c), c the counts the fit expects in his gp games so far, so it narrows as he
+// plays. Each draw is lognormal about the fit's mean (less half its variance on the log scale).
+// Attempts are makes plus misses and points come from makes, so the line adds up:
+// [pts, reb, ast, stl, blk, fgm, fga, fg3m, ftm, fta, oreb, dreb, tov, pf] (K.box.line); none for a
+// man with no position. A style kept from before the line had these parts is drawn again.
+export function boxLine(p, mpg, K, s, gp) {
   const B = K.box, ps = p.pos?.[0];
   if (!ps || !mpg) return null;
-  p.box ??= B.stats.map((k, i) => +(B.sd_player[k] * hashNoise(`style|${p.id}|${i}`)).toFixed(2));
+  // the counts move together: a draw is the covariance's Cholesky factor times independent normals
+  const draw = (L, key) => { const z = B.stats.map((k, i) => hashNoise(`${key}|${i}`)); return L.map((row) => row.reduce((a, c, j) => a + c * z[j], 0)); };
+  if (p.box?.length !== B.stats.length) p.box = draw(B.chol_player, `style|${p.id}`).map((y) => +y.toFixed(3));
   const x = { const: 1, off: (p.rate + (p.lean ?? 0)) / 2, def: (p.rate - (p.lean ?? 0)) / 2, F: +(ps === 'F'), C: +(ps === 'C'), log_mpg: Math.log(mpg) };
-  return B.stats.map((k, i) => +Math.max(0, Object.entries(B.coef[k]).reduce((a, [c, v]) => a + v * x[c], 0) + p.box[i] + B.sd_season[k] * hashNoise(`box|${p.id}|${s}|${i}`)).toFixed(1));
+  const eta = B.stats.map((k) => Object.entries(B.coef[k]).reduce((a, [c, b]) => a + b * x[c], 0));
+  const c = eta.map((y) => Math.exp(y) * gp * mpg / 48);            // per 100 times his possessions (100 a 48 minutes) / 100
+  const V = B.noise.A.map((row, i) => row.map((a, j) => a + B.noise.B[i][j] / Math.sqrt(c[i] * c[j]))), e = draw(cholesky(V), `box|${p.id}|${s}`);
+  const l = Object.fromEntries(B.stats.map((k, i) => [k, +Math.exp(eta[i] + p.box[i] + e[i] - (B.chol_player[i].reduce((a, y) => a + y * y, 0) + V[i][i]) / 2).toFixed(1)]));
+  const r1 = (y) => +y.toFixed(1);
+  l.fgm = r1(l.fg2m + l.fg3m); l.fga = r1(l.fgm + l.fgx); l.fta = r1(l.ftm + l.ftx);
+  l.pts = r1(2 * l.fgm + l.fg3m + l.ftm); l.reb = r1(l.oreb + l.dreb);
+  return B.line.map((k) => l[k]);
+}
+// the lower Cholesky factor of a covariance matrix
+function cholesky(V) {
+  const L = V.map((row) => row.map(() => 0));
+  for (let i = 0; i < V.length; i++)
+    for (let j = 0; j <= i; j++) {
+      const s = V[i][j] - L[i].slice(0, j).reduce((a, y, k) => a + y * L[j][k], 0);
+      L[i][j] = i === j ? Math.sqrt(s) : s / L[j][j];
+    }
+  return L;
 }
 export function endSeason(players, minutesPlayed, K, r, hidden) {
   for (const p of Object.values(players)) {

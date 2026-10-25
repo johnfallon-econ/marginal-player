@@ -12,29 +12,34 @@ export function lines(G, s) {
     const l = s === G.season && G.cur ? (G.cur.gp[p.id] ? { gp: G.cur.gp[p.id], mpg: G.cur.mins[p.id] / G.cur.gp[p.id], rate: V.seasonRate(p, G.cur.mins[p.id], G.K, G.hidden), lean: p.lean, tm: team[p.id] } : null)
       : p.log?.find((x) => x.s === s);
     if (!l || !l.gp) continue;
-    const p100 = l.p100 ?? (s === G.season && G.cur ? V.boxLine(p, l.mpg, G.K, s) : null);
-    const pg = p100 ? p100.map((x) => x * l.mpg / 48) : null;         // per game: about 100 possessions a 48 minutes
-    out.push({ p, tm: l.tm, gp: l.gp, mpg: l.mpg, rate: l.rate, off: (l.rate + (l.lean ?? 0)) / 2, def: (l.rate - (l.lean ?? 0)) / 2, pg });
+    const p100 = l.p100 ?? (s === G.season && G.cur ? V.boxLine(p, l.mpg, G.K, s, l.gp) : null);
+    out.push({ p, tm: l.tm, gp: l.gp, mpg: l.mpg, rate: l.rate, off: (l.rate + (l.lean ?? 0)) / 2, def: (l.rate - (l.lean ?? 0)) / 2, pg: perGame(G, p100, l.mpg) });
   }
   return out;
 }
-// One man's line: the season under way, else his last; null before his first NBA game
+// A per-100 line per game (about 100 possessions a 48 minutes), by name (K.box.line), with the
+// shooting shares and true shooting (points over two shots, a free throw 0.44 of one)
+export function perGame(G, p100, mpg) {
+  if (!p100) return null;
+  const l = Object.fromEntries(G.K.box.line.map((k, i) => [k, p100[i] * mpg / 48]));
+  return { ...l, fg_pct: l.fgm / l.fga, ft_pct: l.ftm / l.fta, ts_pct: l.pts / (2 * (l.fga + 0.44 * l.fta)) };
+}
+// One man's line, per game: the season under way, else his last; null before his first NBA game
 export function line(G, p) {
   const live = G.cur?.gp[p.id], l = live ? { s: G.season, gp: live, mpg: G.cur.mins[p.id] / live } : p.log?.findLast((x) => x.gp);
   if (!l) return null;
-  const p100 = live ? V.boxLine(p, l.mpg, G.K, G.season) : l.p100;
-  return { s: l.s, gp: l.gp, mpg: l.mpg, pg: p100 && p100.map((x) => x * l.mpg / 48) };
+  return { s: l.s, gp: l.gp, mpg: l.mpg, pg: perGame(G, live ? V.boxLine(p, l.mpg, G.K, G.season, l.gp) : l.p100, l.mpg) };
 }
 // The top five in each per-game line, among men in 70% of their club's games, in the season under way
 export function leaders(G, s) {
   const L = lines(G, s), rec = G.cur.record;
   const ok = L.filter((x) => x.pg && rec?.[x.tm] && x.gp >= 0.7 * (rec[x.tm].w + rec[x.tm].l));
   const top = (f) => ok.slice().sort((a, b) => f(b) - f(a)).slice(0, 5).map((x) => [x.p.id, f(x)]);
-  return { pts: top((x) => x.pg[0]), reb: top((x) => x.pg[1]), ast: top((x) => x.pg[2]), stl: top((x) => x.pg[3]), blk: top((x) => x.pg[4]), rating: top((x) => x.rate) };
+  return { pts: top((x) => x.pg.pts), reb: top((x) => x.pg.reb), ast: top((x) => x.pg.ast), stl: top((x) => x.pg.stl), blk: top((x) => x.pg.blk), rating: top((x) => x.rate) };
 }
 // 100 voters rank the field; shares of the possible points, best first
 function vote(field, rec, M, pts, seed) {
-  const u = field.map((x) => M.coef.rating * x.rate + M.coef.ppg * x.pg[0] + M.coef.win_pct * rec[x.tm].w / (rec[x.tm].w + rec[x.tm].l) + M.coef.g_82 * x.gp / 82);
+  const u = field.map((x) => M.coef.rating * x.rate + M.coef.ppg * x.pg.pts + M.coef.win_pct * rec[x.tm].w / (rec[x.tm].w + rec[x.tm].l) + M.coef.g_82 * x.gp / 82);
   const r = S.rng(seed), tot = field.map(() => 0);
   for (let v = 0; v < 100; v++) {
     const d = u.map((x, i) => [M.scale * x - Math.log(-Math.log(r() || 1e-12)), i]).sort((a, b) => b[0] - a[0]);

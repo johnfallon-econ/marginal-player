@@ -8,12 +8,15 @@ import * as D from './draft.js';
 import * as M from './value.js';
 import * as X from './trades.js';
 import * as A from './awards.js';
+import * as GM from './gm.js';
+import * as PL from './plan.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 // a window's ceiling on deals, near the real league's count in it (2015-16 to 2024-25: the draft and
-// the first two weeks of free agency 26 a year, the rest of the summer 5, the season to the week
-// before the deadline 6, the deadline week 15); value decides how many happen under it
-export const TRADES = { draft: 26, summer: 6, dec15: 7, deadline: 18 };
+// the first two weeks of free agency 26 a year, 7 of them on draft night itself, made during the
+// draft with no ceiling (tradeUp), the rest of the summer 5, the season to the week before the deadline 6, the
+// deadline week 15); value decides how many happen under it
+export const TRADES = { draft: 19, summer: 6, dec15: 7, deadline: 18 };
 
 // ---- a new game ----------------------------------------------------------------------------
 // L: data/gm_league.json; cal: data/gm_calibration.json; opts: { team, hidden, seed }
@@ -25,8 +28,7 @@ export function newGame(L, cal, opts) {
     history: [], log: [], lotteryHist: {}, seed: opts.seed };
   G.f[L.season] = C.figures(L.season, G.caps[L.season]);
   for (const [ab, t] of Object.entries(L.teams)) {
-    G.teams[ab] = { ...t, roster: [], dead: [], holds: [], tpes: [], hardCap: null, cashSent: 0, cashRecv: 0,
-      gm: gmPersonality(r), exc: null };
+    G.teams[ab] = { ...t, roster: [], dead: [], holds: [], tpes: [], hardCap: null, cashSent: 0, cashRecv: 0, exc: null };
     G.teams[ab].exc = C.freshExceptions(G.teams[ab], G.f[L.season]);
   }
   for (const p0 of [...L.players, ...L.freeAgents]) {
@@ -35,23 +37,48 @@ export function newGame(L, cal, opts) {
     G.players[p.id] = p;
     if (p.tm) G.teams[p.tm].roster.push(p.id); else G.fa.push(p.id);
   }
+  // Plus-minus is against the average man on the floor, so the league's rating, weighted by the minutes
+  // its clubs will play their men (the Trade Lab's, the opening season's roles), is 0: the site's recent
+  // ratings drift above it (their box-score prior is not centred), and the replacement level, wins above
+  // it and the market's prices all assume an average man is 0. Every man moves by the same amount.
+  { let a = 0, w = 0;
+    for (const T of Object.values(G.teams)) for (const id of T.roster) { const p = G.players[id]; if (!p.contract?.twoWay) { a += p.rate * p.mpg; w += p.mpg; } }
+    G.centred = a / w;
+    for (const p of Object.values(G.players)) { p.rate -= G.centred; p.talent -= G.centred; } }
   G.scoutSd = D.solveScoutSd(L, r);
   G.names = L.names; G.draftData = L.draft;
+  GM.init(G, L, r);                               // each club's real lead executive (gm.js)
   setLeagueNet(G);                                // projected wins average 41 from the start
   G.rngState = r.state();
   return G;
 }
 
-// A computer GM's leanings, fixed for the game: how far his valuations stray from the model
-// (noise), whether he leans young or old, how much he pays to win now, how much tax he stands.
-function gmPersonality(r) {
-  return { noise: 0.15 + 0.15 * r(), youth: 0.1 * r.normal(), winNow: 0.1 * r.normal(), taxTol: r() };
+// What club `ab` thinks a player is worth h seasons past next, $: his market value as its GM reads
+// him. Every club sees how good he is now; where he is heading is another matter. His own club knows
+// his trend (dev.js: what each season adds to his talent beyond the league's aging, keeping rho of
+// itself a season), so it sees trend x (1 - rho^h) / (1 - rho) more by season h. Another club expects
+// the trend of a man like him (a recent draftee's from the draft model, tp; else none) and, knowing
+// his club knows better and would part with him at the market only if it reads his trend below that,
+// takes it at the expectation given that: less 0.8 x edge, the mean of a normal cut at its centre, edge
+// the spread of trends about their expectation (lemons). A free agent has no club that knows better.
+// A read strays by its GM's noise, more the less certain he is (M.uncertainty), and an outsider leans
+// on the expectation by as much (weight 1 / (1 + u^2)); his own club's read strays half as far (an
+// assumption).
+const _edge = new WeakMap();
+function edge(G) {                                          // the spread of trends about their expectation, by season
+  const e = _edge.get(G);
+  if (e?.s === G.season) return e.v;
+  const d = Object.values(G.teams).flatMap((T) => T.roster).map((id) => G.players[id]).map((p) => p.trend - (p.tp ?? 0));
+  const m = d.reduce((a, x) => a + x, 0) / d.length, v = Math.sqrt(d.reduce((a, x) => a + (x - m) ** 2, 0) / (d.length - 1));
+  _edge.set(G, { s: G.season, v });
+  return v;
 }
-// What club `ab` thinks a player is worth next season, $: the market value seen through his GM.
 export function teamValue(G, ab, p, h = 0) {
-  const g = G.teams[ab].gm, base = M.marketValue(p, h, capAt(G, G.season + 1 + h), G.K);
-  const lean = 1 + g.youth * (27 - p.age) / 5 + g.winNow * (p.age > 28 ? 1 : 0);
-  return base * lean * (1 + g.noise * hashNoise(`${ab}|${p.id}|${G.season}`));
+  const g = G.teams[ab].gm, cap = capAt(G, G.season + 1 + h), u = M.uncertainty(p, h, G.K), z = g.noise * hashNoise(`${ab}|${p.id}|${G.season}`);
+  const ahead = (1 - G.K.dev.rho ** h) / (1 - G.K.dev.rho);
+  if (p.tm === ab || G.teams[ab].rights?.includes(p.id)) return M.marketValue({ ...p, rate: p.talent + p.trend * ahead }, h, cap, G.K) * (1 + z * u / 2);
+  const held = p.tm || Object.values(G.teams).some((T) => T.rights?.includes(p.id));
+  return M.marketValue({ ...p, rate: p.talent + ((p.tp ?? 0) - (held ? 0.8 * edge(G) : 0)) * ahead }, h, cap, G.K) * (1 + z * u / (1 + u * u));
 }
 const hashNoise = V.hashNoise;
 // How much a club makes of a man's coming season when it pays him, by what it is trying to do, as its
@@ -60,18 +87,62 @@ const nowWeight = (G, ab) => X.WEIGHT[X.mode(projWins(G, ab))].now;
 // A player's ask this summer, with his max-or-not draw fixed for the summer (hashed, so asking twice
 // gives the same answer)
 export const askOf = (G, p, F, ext = 0) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)), ext);
-// A club's projected wins for the coming season: the site's identity, 41 + wins-per-net x net,
-// with each man at his projection and the role he is in line for, at his availability.
+// A club's net for the coming season: each man at his projection, in the role he is in line for, at
+// his availability, over the nights each man is out as well as in (S.expNet: a club built on stars who
+// miss games loses more to their nights out than a deep one). adj: a man as he stands now, or null
+export const teamNet = (G, ab, adj = (p) => p) => S.expNet(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay)
+  .map(adj).filter(Boolean).map((p) => ({ ...p, play: p.rate })), G.K.maxMpg);
+// Wins at net n against the league (its clubs' nets, G.nets): each game's chance as the season engine
+// plays it, half of them at home, so projections are what the games produce
+export function winsAt(G, n, self) {
+  const K = G.K, o = Object.entries(G.nets).filter(([ab]) => ab !== self).map(([, v]) => v);
+  return 82 * o.reduce((a, v) => a + (S.Phi((K.netScale * (n - v) + K.hca) / K.sigma) + S.Phi((K.netScale * (n - v) - K.hca) / K.sigma)) / 2, 0) / o.length;
+}
+// the net that wins w games (winsAt rises with n)
+export function netAt(G, w, self) {
+  let lo = Math.min(...Object.values(G.nets)) - 40, hi = Math.max(...Object.values(G.nets)) + 40;
+  for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (winsAt(G, m, self) < w) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+// A club's projected wins for the coming season
 export function projWins(G, ab) {
-  const ps = G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay);
-  // over the nights each man is out as well as in (S.expNet): a club built on stars who miss games
-  // loses more to their nights out than a deep one
-  return 41 + G.K.winsPerNet * (S.expNet(ps.map((p) => ({ ...p, play: p.rate })), G.K.maxMpg) - (G.leagueNet ?? 0));
+  if (!G.nets) setLeagueNet(G);
+  return winsAt(G, teamNet(G, ab), ab);
+}
+// Each club's chance of the title: what is left of the season and the playoffs, n times over, each
+// club at its strength as its projection and its record so far put it, give or take what remains
+// unknown of it; in the playoffs, the series from where they stand. Fixed draws, so the odds hold
+// still between looks.
+export function titleOdds(G, n = 200) {
+  const T = G.teams, K = G.K, r = S.rng(13), cur = G.phase === 'season' ? G.cur : null, po = G.phase === 'playoffs' ? G.po : null;
+  const days = po ? [] : cur ? cur.days.slice(cur.d) : S.schedule(T, G.season, r);
+  // a man out hurt now is out for the games his injury still costs him (the report's timeline); the
+  // rest at their usual availability
+  const avail = (ab, p) => { const h = cur?.hurt[p.id], g = cur?.played[ab]; if (!h?.[g]) return p;
+    const a = h.slice(g).filter((x) => !x).length / (82 - g); return a ? { ...p, av: a, mpg: p.mpg * a / (p.av ?? 1) } : null; };
+  if (!G.nets) setLeagueNet(G);
+  const base = Object.fromEntries(Object.keys(T).map((ab) => [ab, teamNet(G, ab, (p) => avail(ab, p))]));
+  // a club's true strength, a share of games won: its projection (prior, missing a season by
+  // K.pickSim.miss wins) updated by its record so far (each game a coin with that chance), then as a
+  // net (netAt), its spread through the slope of wins at that net
+  const post = Object.fromEntries(Object.entries(base).map(([ab, v]) => {
+    const g = cur ? cur.record[ab].w + cur.record[ab].l : 0, v0 = (K.pickSim.miss / 82) ** 2, q = winsAt(G, v, ab) / 82;
+    const w = g ? v0 * g / (v0 * g + q * (1 - q)) : 0, th = q + w * (cur?.record[ab].w / g - q || 0), m = netAt(G, 82 * th, ab);
+    const slope = (winsAt(G, m + 0.05, ab) - winsAt(G, m - 0.05, ab)) / 0.1 / 82;
+    return [ab, [m, Math.sqrt(v0 * (1 - w)) / slope]];
+  }));
+  const out = Object.fromEntries(Object.keys(T).map((ab) => [ab, 0]));
+  for (let k = 0; k < n; k++) {
+    if (po) { const p = structuredClone(po); while (!p.champion) { for (const x of p.series) while (S.seriesGame(x, p.nets, K, r)); S.nextRound(p, r); } out[p.champion] += 1 / n; continue; }
+    const nets = Object.fromEntries(Object.entries(post).map(([ab, [m, sd]]) => [ab, m + sd * r.normal()]));
+    const rec = cur ? structuredClone(cur.record) : Object.fromEntries(Object.keys(T).map((ab) => [ab, { w: 0, l: 0, h2h: {}, confW: 0, confL: 0, divW: 0, divL: 0 }]));
+    for (const day of days) for (const [h, a] of day) S.tally(T, rec, h, a, r() < S.winP(h, a, nets, K));
+    out[S.postseason(T, rec, S.standings(T, rec, r), nets, K, r).champion] += 1 / n;
+  }
+  return out;
 }
 export function setLeagueNet(G) {
-  G.leagueNet = 0;
-  const n = Object.keys(G.teams).map((ab) => projWins(G, ab));
-  G.leagueNet = (n.reduce((a, b) => a + b, 0) / n.length - 41) / G.K.winsPerNet;
+  G.nets = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab, teamNet(G, ab)]));
 }
 // The cap for a future season: the draws already made, else the expected path.
 export function capAt(G, s) {
@@ -154,6 +225,8 @@ export function seasonStart(G, r) {
   // that, coaches assign them
   if (G.history.length || G.log.some((x) => x.type === 'trade')) assignRoles(G);
   V.seasonForm(G.teams, G.players, G.K, r);
+  setLeagueNet(G);
+  for (const [ab, T] of Object.entries(G.teams)) T.gm.pre = projWins(G, ab) / 82;   // what each GM's season is judged against
   G.cur = S.startSeason(lg(G), G.season, r); G.seasonOver = false;
   grantDPE(G);
   G.phase = 'season'; G.date = C.seasonDates(G.season).opening;
@@ -242,9 +315,9 @@ export function playSeason(G, r, window = (date, k) => X.tradeWindow(G, r, date,
 
 // ---- end of season: the tax, service and Bird years, development, retirements --------------
 export function endSeason(G, r) {
-  const s = G.season, f = fig(G, s), P = G.players;
+  const s = G.season, f = fig(G, s), P = G.players, pays = {};
   for (const [ab, T] of Object.entries(G.teams)) {
-    const pay = C.teamSalary(T, G, s), rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[s - k]).length >= 3;
+    const pay = pays[ab] = C.teamSalary(T, G, s), rep = [1, 2, 3, 4].filter((k) => T.taxpaid?.[s - k]).length >= 3;
     T.tax = T.tax || {}; T.tax[s] = C.taxBill(pay, f, rep);
     (T.taxpaid ||= {})[s] = pay > f.tax;
     (T.short ||= {})[s] = Math.max(0, f.minTeam - pay);   // below the floor, a club pays its players the shortfall (Art. VII §2(b))
@@ -259,7 +332,7 @@ export function endSeason(G, r) {
   for (const [ab, T] of Object.entries(G.teams)) for (const id of T.roster) {
     const p = P[id], gp = G.lastGp?.[id] || 0, m = G.lastMins?.[id] || 0;
     const rate = V.seasonRate(p, m, G.K, G.hidden);
-    (p.log ||= []).push({ s, tm: ab, tw: p.contract?.twoWay ? 1 : undefined, gp, mpg: gp ? +(m / gp).toFixed(1) : 0, rate: +rate.toFixed(2), lean: +(p.lean ?? 0).toFixed(2), p100: V.boxLine(p, gp && m / gp, G.K, s) ?? undefined });
+    (p.log ||= []).push({ s, tm: ab, tw: p.contract?.twoWay ? 1 : undefined, gp, mpg: gp ? +(m / gp).toFixed(1) : 0, rate: +rate.toFixed(2), lean: +(p.lean ?? 0).toFixed(2), p100: V.boxLine(p, gp && m / gp, G.K, s, gp) ?? undefined });
   }
   V.endSeason(P, G.lastMins || {}, G.K, r, G.hidden);
   // Ratings are relative -- points per 100 against an average player -- so the league's
@@ -272,6 +345,9 @@ export function endSeason(G, r) {
   for (const p of Object.values(P)) { p.talent -= shift; p.rate -= shift; }
 
   for (const p of Object.values(P)) if (p.contract === null && G.lastMins?.[p.id] === undefined) p.idle = (p.idle || 0) + 1;
+  // each GM's season on the books; the computer clubs' GMs who lose their jobs, and who replaces them (gm.js)
+  GM.closeSeason(G, G.history.at(-1), pays);
+  GM.summer(G, r);
 }
 // a second-apron team's first-round pick seven drafts out is frozen (Art. VII §2(f))
 function freezePick(G, ab, s) { const k = `${ab}|${s + 8}|1`; G.picks[k] = { ...(G.picks[k] || { t: 'clear' }), frozen: true }; }
@@ -317,8 +393,10 @@ export function draftStart(G, r) {
   const { order, created } = D.resolvePicks([D.frozenLast(first, year, G.picks), byRec], year, G.picks, G.swaps);
   Object.assign(G.picks, created);
   const cls = D.generateClass({ names: G.names, draft: G.draftData }, s, r, G.scoutSd), pool = cls.filter((p) => !p.undrafted);
-  // the undrafted, journeymen from the G League and abroad, go straight to the summer's market
-  for (const p of cls.filter((q) => q.undrafted)) { p.rate = G.hidden ? p.board : p.talent; p.se = 1.0; p.prior = 0; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal(); p.mpg = M.mpgFor(p.rate, G.K) * p.av; p.tm = null; p.contract = null; G.players[p.id] = p; G.fa.push(p.id); }
+  // the rest of the class, journeymen from the G League and abroad the draft usually passes over: on the
+  // board too, and whoever goes unpicked joins the summer's market (draftEnd)
+  const rest = cls.filter((q) => q.undrafted);
+  for (const p of rest) { p.rate = G.hidden ? p.board : p.talent; p.se = 1.0; p.prior = 0; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal(); p.mpg = M.mpgFor(p.rate, G.K) * p.av; G.players[p.id] = p; }
   for (const p of pool) {
     // hidden talent: the league sees the scouts' board, shrunk to what it predicts; else the truth
     p.rate = G.hidden ? shrinkBoard(p, pool) : p.talent;
@@ -330,7 +408,7 @@ export function draftStart(G, r) {
   }
   // what the board misses: each prospect's talent less the league's read of him, over the class
   const resid = G.hidden ? pool.map((p) => +(p.talent - p.rate).toFixed(3)) : [0];
-  G.draft = { year, order, avail: pool.map((p) => p.id), picks: [], lottery: lot, resid };
+  G.draft = { year, order, avail: [...pool, ...rest].map((p) => p.id), picks: [], lottery: lot, resid };
   settleDraft(G);
   G.phase = 'draft'; G.date = `${year}-06-24`;
 }
@@ -370,11 +448,7 @@ export function fans(G, p, n = 400) {
   G.draft.proj ??= Object.fromEntries(G.draft.avail.map((id) => G.players[id]).sort((a, b) => b.rate - a.rate).map((q, i) => [q.id, i + 1]));
   const pick = G.draft.proj[p.id] ?? 61, Lr = pick <= 30 ? 4 : 2;
   const holdP = (w, k) => { const c = B.rookie, r2 = +(pick > 30); return lg(c.a + c.war * w + c.sqrt_war * sw(w) + c.round2 * r2 + c.ln_pick * Math.log(Math.min(pick, 61)) + c.k3 * (k === 3) + c.k4 * (k === 4) + c.r2_k3 * r2 * (k === 3) + c.r2_k4 * r2 * (k === 4)); };
-  const keepP = (first, w, age) => { const c = first ? B.first : B.later;
-    return lg(first ? c.a + c.war * w + c.sqrt_war * sw(w) + c.age_25 * (age - 25) : c.a + c.war * w + c.sqrt_war * sw(w) + c.age_28 * (age - 28) + c.age_over_32 * Math.max(age - 32, 0)); };
-  const deal = (first, w, svc, age) => { const mx = Math.max(...Object.entries(B.max_pct).filter(([y]) => svc >= +y).map(([, v]) => v)) / 100, c = B.max_deal, N = B.nonmax;
-    const z = (c_) => c_.a + c_.war * w + c_.sqrt_war * sw(w) + c_.first * first + c_.age_28 * (age - 28) + c_.age_over_32 * Math.max(age - 32, 0);
-    return { mx, pmax: lg(z(c)), nm: Math.min(Math.max(z(N), N.min_share), mx) }; };
+  const keepP = (first, w, age) => M.keepP(K, first, w, age), deal = (first, w, svc, age) => M.redeal(K, first, w, svc, age);
   const fan = (a) => { a.sort((x, y) => x - y); return QL.map((u) => +a[Math.floor(u * (a.length - 1))].toFixed(2)); };
   const A_ = { v: [], r: [], q: [], k: [], o: [], d: [], V: [], vs: Array.from({ length: 20 }, () => []), kept: Array(20).fill(0), mkt: Array(20).fill(0) };
   let star = 0;
@@ -412,13 +486,17 @@ export function draftNext(G, r, choice, human = G.user, n = Infinity) {
   const D_ = G.draft, s = G.season, year = D_.year;
   let made = 0;
   while (D_.picks.length < D_.order.length) {
+    if (D_.order[D_.picks.length].holder !== human) tradeUp(G, D_.picks.length, human);
     const { slot, holder } = D_.order[D_.picks.length];
     if (holder === human && choice == null) return { slot, holder };          // on the clock
     if (holder !== human && made++ >= n) return { slot, holder };
     const avail = D_.avail.map((id) => G.players[id]);
-    const p = holder === human ? G.players[choice] : D.aiPick(avail, r, G.teams[holder].gm.noise * 3);
+    // a computer club takes the man worth most on its estimate (gm.js: the board, its own read, the draft so far)
+    const cap = capAt(G, year), p = holder === human ? G.players[choice] : avail.reduce((a, q) => (prospectWorth(G, holder, q, cap) > prospectWorth(G, holder, a, cap) ? q : a));
     choice = null;
+    GM.draftLeft(G, holder, p, avail, capAt(G, year));
     D_.avail = D_.avail.filter((id) => id !== p.id);
+    GM.learn(G, holder, p, D_.avail.map((id) => G.players[id]), (q, rate) => worthAt(G, q, rate, cap));   // every club sees the pick
     p.draft = { year, round: slot <= 30 ? 1 : 2, pick: slot, team: holder };
     // a first-rounder signs his scale deal; a second-rounder's club holds his rights, to sign him
     // when the league year opens or leave him abroad (newLeagueYear)
@@ -432,14 +510,81 @@ export function draftNext(G, r, choice, human = G.user, n = Infinity) {
   }
   return null;
 }
+// A prospect's worth at a rating, $: his market value over four seasons; to club c, at its estimate
+// of him (gm.js)
+export const worthAt = (G, q, rate, cap) => [0, 1, 2, 3].reduce((a, h) => a + M.marketValue({ ...q, rate, mpg: undefined }, h, cap, G.K) / M.DISC ** h, 0);
+export const prospectWorth = (G, c, q, cap) => worthAt(G, q, GM.estimate(G, c, q), cap);
+// The league's view of a class: each prospect's worth on the board, and how fast it rises with his
+// rating -- so another club's pick, its estimate straying from the board by GM.pickSd, can be drawn
+// in worth (simPick)
+function publicView(G, pool, cap) {
+  const v = {}, s = {};
+  for (const q of pool) { v[q.id] = worthAt(G, q, q.board, cap); s[q.id] = (worthAt(G, q, q.board + 0.1, cap) - v[q.id]) / 0.1; }
+  return { v, s };
+}
+const simPick = (pool, r, sd, view) => { let b = null, bv = -Infinity; for (const q of pool) { const x = view.v[q.id] + view.s[q.id] * sd * r.normal(); if (x > bv) { bv = x; b = q; } } return b; };
+// Draft night: before a computer club picks, a club with a later pick may trade up for it. The
+// climber gets the man it values most now, on its estimate (gm.js: the board, its private read, and
+// what the picks so far have shown); staying put it gets the best of those left at its own pick,
+// which it weighs over the draft played out NIGHT times from here, each club picking on the board's
+// worth with the spread its estimates have from outside (GM.pickSd, simPick) -- the man it wants, or one as good, may well fall to
+// it. The club moving down gets the best of those left at the later pick instead of the best now.
+// Each side must come out ahead by what it needs (X.need), the climber adding picks as needed
+// (X.payIn): the price of moving up, the chance of not needing to, and how far each club trusts its
+// own read set how often it happens. A man's worth less his scale salary is weighted as the club
+// weighs picks (X.WEIGHT). The user's club trades on draft night through the trade page.
+const NIGHT = 20;
+function tradeUp(G, k, human) {
+  const D_ = G.draft, e = D_.order[k], H = e.holder;
+  const x = X.market(G), cap = capAt(G, D_.year), league = { ...G, picks: x.pv, ledger: G.picks };
+  const avail = D_.avail.map((id) => G.players[id]), memo = new Map();
+  const mv = (c, q) => { const key = `${c}|${q.id}`; if (!memo.has(key)) memo.set(key, prospectWorth(G, c, q, cap)); return memo.get(key); };
+  const scale = (slot) => D.rookieContract(slot, G.season, cap).years.reduce((a, y, i) => a + y.sal / M.DISC ** i, 0);
+  const W = (c, v, i) => X.WEIGHT[x.modes[c]].pick * (v - scale(D_.order[i].slot));
+  // the draft played out from here: in each run, the pick at which each man goes
+  const rr = S.rng(D_.year * 100 + k), runs = [], view = publicView(G, avail, cap);
+  for (let n = 0; n < NIGHT; n++) {
+    let pool = avail.slice(); const at = new Map();
+    for (let i = k; i < D_.order.length && pool.length; i++) {
+      const q = simPick(pool, rr, GM.pickSd(G, G.teams[D_.order[i].holder].gm), view); at.set(q.id, i); pool = pool.filter((y) => y !== q);
+    }
+    runs.push(at);
+  }
+  const sorted = {}, by = (c) => (sorted[c] ||= avail.slice().sort((a, b) => mv(c, b) - mv(c, a)));
+  // what club c expects at pick i: the best man, on its estimate, still there in each run (left: who
+  // is there, by the run; none left, nothing)
+  const expect = (c, i, left = (q, at) => (at.get(q.id) ?? Infinity) >= i) => runs.reduce((a, at) => { const q = by(c).find((y) => left(y, at)); return a + (q ? mv(c, q) : 0); }, 0) / runs.length;
+  const id = (o) => `${o.origin}|${D_.year}|${o.slot <= 30 ? 1 : 2}`;
+  let top = null;
+  for (const B of Object.keys(G.teams)) {
+    const j = D_.order.findIndex((o, i) => i > k && o.holder === B);
+    if (B === H || B === human || j < 0) continue;
+    const want = by(B)[0], mine = by(H)[0];
+    // moving down, H finds at j those the run leaves there, and the man it would have taken at k, but not want, B's now
+    const eB = expect(B, j), eH = expect(H, j, (q, at) => q !== want && ((at.get(q.id) ?? Infinity) >= j || at.get(q.id) === k));
+    const slots = { [B]: W(B, mv(B, want), k) - W(B, eB, j), [H]: W(H, eH, j) - W(H, mv(H, mine), k) };
+    const size = { [B]: Math.abs(W(B, mv(B, want), k)) + Math.abs(W(B, eB, j)), [H]: Math.abs(W(H, eH, j)) + Math.abs(W(H, mv(H, mine), k)) };
+    const trade = { date: G.date, moves: [], picks: [{ id: id(e), from: H, to: B }, { id: id(D_.order[j]), from: B, to: H }], swaps: [], cash: [] };
+    const g = (c) => X.gain(G, x, c, { ...trade, picks: trade.picks.slice(2) }) + (slots[c] ?? 0);
+    const need = (c) => X.need(G, x, c, { ...trade, picks: trade.picks.slice(2) }, size[c]);   // the slots sized by what the club makes of them
+    if (g(B) <= need(B)) continue;
+    X.payIn(G, x, trade, g, league, B, H, () => need(H));
+    const res = C.validateTrade(league, trade);
+    const score = Math.min(g(B) / need(B), g(H) / need(H));
+    if (res.ok && score > 1 && (!top || score > top.score)) top = { trade, res, score };
+  }
+  if (!top) return;
+  X.complete(G, top);
+}
 // The chance each prospect is still on the board at the user's next pick: the clubs ahead pick
 // by the same rule as draftNext, n times over (a fixed seed, so the page doesn't flicker).
 export function there(G, n = 400) {
   const D_ = G.draft, k = D_.order.findIndex((e, i) => i >= D_.picks.length && e.holder === G.user), r = S.rng(D_.year), c = {};
   if (k < 0) return null;
+  const view = publicView(G, D_.avail.map((id) => G.players[id]), capAt(G, D_.year));
   for (let t = 0; t < n; t++) {
     let pool = D_.avail.map((id) => G.players[id]);
-    for (let i = D_.picks.length; i < k; i++) { const p = D.aiPick(pool, r, G.teams[D_.order[i].holder].gm.noise * 3); pool = pool.filter((x) => x !== p); }
+    for (let i = D_.picks.length; i < k; i++) { const p = simPick(pool, r, GM.pickSd(G, G.teams[D_.order[i].holder].gm), view); pool = pool.filter((x) => x !== p); }
     for (const p of pool) c[p.id] = (c[p.id] || 0) + 1 / n;
   }
   return { slot: D_.order[k].slot, p: c };
@@ -448,7 +593,8 @@ export function there(G, n = 400) {
 // n times over (a fixed seed per pick, so the page doesn't flicker).
 export function takenNow(G, n = 400) {
   const D_ = G.draft, c = onClock(G), r = S.rng(D_.year * 100 + D_.picks.length), pool = D_.avail.map((id) => G.players[id]), out = {};
-  for (let t = 0; t < n; t++) { const p = D.aiPick(pool, r, G.teams[c.holder].gm.noise * 3); out[p.id] = (out[p.id] || 0) + 1 / n; }
+  const view = publicView(G, pool, capAt(G, D_.year));
+  for (let t = 0; t < n; t++) { const p = simPick(pool, r, GM.pickSd(G, G.teams[c.holder].gm), view); out[p.id] = (out[p.id] || 0) + 1 / n; }
   return out;
 }
 // Draft and stash: a club leaves a first-round pick abroad before his rookie deal begins, keeping his
@@ -653,17 +799,24 @@ export function faEnd(G, r, human = G.user) {
 }
 export function freeAgency(G, r) { faStart(G, r, {}, null); while (!faDay(G, r, {}, null)); faEnd(G, r, null); }
 // The free agent a club's GM most wants, at a salary its rules allow.
+// where every club stands as free agency stands today (X.market: the tax forward, next summer's
+// market), the same for every club in a day
+const _today = new WeakMap();                    // kept off the game, which a save writes out whole
+function today(G) {
+  if (_today.get(G)?.date !== G.date) _today.set(G, { date: G.date, x: X.market(G) });
+  return _today.get(G).x;
+}
 function bestTarget(G, ab, day) {
   const s = G.season, F = fig(G, s), T = G.teams[ab], P = G.players, K = G.K;
   const std = T.roster.filter((id) => !P[id].contract?.twoWay).length;
   if (std >= 15) return null;
   const pay = C.teamSalary(T, G, s), capPay = C.teamSalary(T, G, s, { holds: true, offseason: true });
-  const share = C.taxShare(G, s), w = nowWeight(G, ab);
+  const w = nowWeight(G, ab);
   let best = null;
   for (const id of G.fa) {
     const p = P[id];
     if (p.qo && T.rfa?.includes(id)) continue;
-    const a = askOf(G, p, F), v = w * teamValue(G, ab, p);
+    const a = askOf(G, p, F), v = w * (teamValue(G, ab, p) + GM.signPremium(T.gm, p, F.cap, K));
     if (v < a.sal * (1 - 0.025 * day)) continue;
     // the most this club can offer him, and under which rule
     const room = F.cap - capPay;
@@ -678,8 +831,10 @@ function bestTarget(G, ab, day) {
       if ((how === 'ntmle' || how === 'bae') && pay + o.sal > F.tax) continue;
       const ok = C.validateSigning(G, { team: ab, pid: id, how, date: `${s}-07-10`, years: years5(o.sal, o.years, 0.05), prior: p.prior * 1e6 }).ok;
       if (!ok) continue;
-      // what he is worth to it less his salary and the tax he brings, as far as its owner minds
-      const gain = v - o.sal - (1 - T.gm.taxTol) * C.taxCost(T, pay, o.sal, F, s, share);
+      // what he is worth to it less his salary, the tax he brings over the seasons ahead, as far as its
+      // owner minds, and what his salary the season after does to its room next summer (plan.js)
+      const x = today(G), path = Array.from({ length: PL.TAX_H }, (_, k) => (k < o.years ? o.sal * 1.05 ** k : 0));
+      const gain = v - o.sal - x.tax(ab, path) + (o.years > 1 ? PL.change(x.plan, ab, o.sal * 1.05) : 0);
       if (gain <= 0) continue;
       if (!best || gain > best.gain) best = { ...o, gain };
       break;
@@ -764,6 +919,22 @@ export function fillRosters(G, clubs = Object.keys(G.teams), date = G.phase === 
 }
 
 // ---- a whole year, untouched by the user (computer GMs decide for every club) --------------------
+// The user out of work, waiting a year: the league plays on without him, from the draft under way to
+// the next one, where the clubs that changed GMs that summer may call (gm.js offers)
+export function toNextDraft(G, r) {
+  G.autoUser = true;
+  draftNext(G, r, null, null); draftEnd(G);
+  newLeagueYear(G, r);
+  freeAgency(G, r);
+  X.tradeWindow(G, r, `${G.season}-09-20`, TRADES.summer, null);
+  fillRosters(G);
+  for (const ab of Object.keys(G.teams)) cutdown(G, r, ab);
+  playSeason(G, r);
+  endSeason(G, r);
+  X.tradeWindow(G, r, `${G.season + 1}-06-20`, TRADES.draft, null);
+  draftStart(G, r);
+  delete G.autoUser;
+}
 export function simYear(G, r) {
   G.autoUser = true;                                // no one at the controls: the user's club is a computer GM's too
   fillRosters(G);                                   // offseason trades can leave a club short

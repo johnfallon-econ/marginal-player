@@ -9,6 +9,7 @@ import * as A from './awards.js';
 import * as B from './board.js';
 import * as O from './owner.js';
 import * as P_ from './picks.js';
+import * as GM from './gm.js';
 
 let G = null, r = null, view = 'home', ui = {};
 const $ = (s) => document.querySelector(s), root = () => $('#gm');
@@ -173,6 +174,9 @@ const ACT = {
   closecard: () => { ui.card = null; render(); },
   noop: () => {},
   sel: (pid) => { ui.pid = ui.pid === pid ? null : pid; ui.err = null; render(); },
+  rmode: (m) => { ui.rmode = m; render(); },
+  // the stats table's order: a header sorts by it, again the other way; names and positions A to Z first
+  rsort: (k) => { ui.rsort = [k, ui.rsort?.[0] === k ? -ui.rsort[1] : ['nm', 'pos'].includes(k) ? 1 : -1]; render(); },
   waive: (pid) => {
     if (!confirm(`Waive ${P(pid).nm}? His guaranteed money stays on your books.`)) return;
     step('Waiving', () => { L.release(G, G.user, pid, G.date, $('#stretch')?.checked); ui = {}; });
@@ -196,6 +200,7 @@ const ACT = {
       const used = new Set([...j.trade.moves.map((m) => m.pid), ...j.trade.picks.map((k) => k.id)]);
       G.offers = G.offers.filter((o, k) => k !== +i && ![...o.moves.map((m) => m.pid), ...o.picks.map((x) => x.id)].some((x) => used.has(x))); }); },
   pass: (i) => { G.offers.splice(+i, 1); save(); render(); },
+  uncheer: () => document.querySelector('.cheer')?.remove(),
   // the trading block: the men ticked to send, shopped to every club
   shop: () => { const ids = Object.keys(ui.give).filter((k) => ui.give[k] && G.players[k]);
     if (!ids.length) { alert('Tick the players you want to shop under "You send".'); return; }
@@ -209,6 +214,7 @@ const ACT = {
   import: () => $('#importf').click(),
   takejob: (ab) => { O.move(G, ab, r); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
   retire: () => { G.fired.retired = true; save(); render(); },
+  wait: () => step('A year out of the game', () => { const f = G.fired; L.toNextDraft(G, r); f.out += 1; f.s = G.season; const o = GM.offers(G, r, f.out); f.offers = o.clubs; f.h = o.h; }),
   staff: () => { G.staffSigns = G.staffSigns === false; save(); render(); },
   newgame: () => { if (!G || confirm('Start over? The current game is replaced.')) { G = null; view = 'new'; render(); } },
   renounce: (pid) => { const T = me(); T.holds = T.holds.filter((h) => h.pid !== pid); T.rfa = (T.rfa || []).filter((x) => x !== pid); ui = {}; save(); render(); },
@@ -252,7 +258,7 @@ const tradeOf = () => {
 const judgeTrade = (t, g = structuredClone(G)) => { for (const [ab, pid] of t.sat) L.satSign(g, ab, g.players[pid]); return X.judge(g, { moves: t.moves, picks: t.picks, swaps: t.swaps }); };
 
 // ---- views -------------------------------------------------------------------------------------
-const TABS = [['home', 'Home'], ['roster', 'Roster'], ['league', 'League'], ['trade', 'Trade'], ['log', 'Moves'], ['menu', 'Game']];
+const TABS = [['home', 'Home'], ['roster', 'Roster'], ['league', 'League'], ['gms', 'GMs'], ['trade', 'Trade'], ['log', 'Moves'], ['menu', 'Game']];
 function render() {
   if (!G) { root().innerHTML = newGame(); return; }
   if (G.fired) { root().innerHTML = fired(); return; }
@@ -262,6 +268,25 @@ function render() {
 ${capStrip()}
 <div class="tabs" role="navigation">${[...TABS.slice(0, 1), ...extra, ...TABS.slice(1)].map(([k, n]) => `<button data-act="go" data-arg="${k}"${view === k ? ' aria-current="page"' : ''}>${n}</button>`).join('')}</div>
 <section>${(VIEWS[view] || VIEWS.home)()}</section>${ui.card && P(ui.card) ? card(ui.card) : ''}`;
+  cheer();
+}
+// A series won, and the title (the Finals won): once each, a moment to enjoy it -- read off the
+// rounds played as well as the live series, as a round simmed whole has moved on before the page draws
+function cheer() {
+  const po = G.po, x = mySeries();
+  if (G.phase !== 'playoffs' || !po) return;
+  const won = po.rounds.flatMap((res, k) => Object.entries(res).filter(([, z]) => z.winner === G.user).map(([m, z]) => ({ k, opp: m.split('-').find((t) => t !== G.user), g: z.games })));
+  if (x && S.seriesDone(x) && (x.hi === G.user ? x.w : x.l) === 4) won.push({ k: po.round, opp: x.hi === G.user ? x.lo : x.hi, g: `${x.w}-${x.l}` });
+  const fresh = won.filter((z) => !(G.cheered ||= []).includes(`${G.season}|${z.k}`)), last = fresh.at(-1);
+  if (!last) return;
+  fresh.forEach((z) => G.cheered.push(`${G.season}|${z.k}`)); save();
+  const title = last.k === 3, opp = last.opp, [a, b] = last.g.split('-').map(Number), score = `${Math.max(a, b)}-${Math.min(a, b)}`;
+  const cols = ['#f5c542', '#FF6B00', '#1F6B4A', '#ffffff', '#C2410C', '#3b82f6'];
+  const bits = Array.from({ length: title ? 180 : 70 }, (_, i) => `<i class="cf" style="left:${(i * 37) % 100}%;background:${cols[i % cols.length]};animation-duration:${2.2 + (i % 7) * 0.35}s;animation-delay:${(i % 13) * 0.12}s"></i>`).join('');
+  const next = ['the conference semifinals', 'the conference finals', 'the Finals'][last.k];
+  root().insertAdjacentHTML('beforeend', `<div class="cheer${title ? ' title' : ''}" role="dialog" aria-label="${title ? 'Champions' : 'Series won'}">${bits}<div class="cheer-c">${title ? '<div class="trophy">🏆</div>' : ''}
+<small>${title ? `${SEASON(G.season)} NBA champions` : ROUND[last.k]}</small><h2>${title ? `The ${esc(NAME(G.user))} are champions` : `${esc(NAME(G.user))} win the series`}</h2>
+<p>${title ? `They beat the ${esc(NAME(opp))} ${score} in the Finals.` : `${score} over the ${esc(NAME(opp))}. On to ${next}.`}</p>${btn('uncheer', title ? 'Raise the banner' : 'On to the next round')}</div></div>`);
 }
 // The season whose books matter now: after the season ends, next season's commitments against its
 // projected cap (the cap is drawn July 1).
@@ -291,7 +316,7 @@ const usage = (p) => { const gp = G.cur?.gp[p.id], l = p.log?.at(-1);
 // his line under his name: this season's (or his last), per game; a prospect's pre-draft line until
 // his first NBA game
 const statLine = (p) => { const l = A.line(G, p);
-  return l ? `${SEASON(l.s)}: ${l.gp} gp, ${l.mpg.toFixed(1)} mpg${l.pg ? ` · ${l.pg[0].toFixed(1)} pts, ${l.pg[1].toFixed(1)} reb, ${l.pg[2].toFixed(1)} ast` : ''}` : ''; };
+  return l ? `${SEASON(l.s)}: ${l.gp} gp, ${l.mpg.toFixed(1)} mpg${l.pg ? ` · ${l.pg.pts.toFixed(1)} pts, ${l.pg.reb.toFixed(1)} reb, ${l.pg.ast.toFixed(1)} ast` : ''}` : ''; };
 const playerRow = (p, extra = '') => { const l = statLine(p);
   return `<tr data-act="sel" data-arg="${p.id}" class="${ui.pid === p.id ? 'on' : ''}"><td><b>${esc(p.nm)}</b><small>${[p.pos, p.ht, Math.floor(p.age), p.contract?.twoWay && 'two-way', p.contract?.tenDay && '10-day', l].filter(Boolean).join(' · ')}</small>${p.pre && !l ? pre(p) : ''}</td>
 <td class="n">${sg(p.rate)}<small> ${od(p.rate, p.lean)}</small></td><td class="n">${M.war(p, 0, G.K).toFixed(1)}</td>${extra}</tr>`; };
@@ -313,7 +338,23 @@ const card = (id) => { const p = P(id), h = honors(id);
 <p class="sub">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.</p>
 ${p.contract ? `<p>${contract(p)}</p>` : ''}${h.length ? `<p><b>Honors</b><br>${h.join('<br>')}</p>` : ''}${logTable(p)}</div></div>`; };
 const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Off / Def</th><th class="n">Pts/Reb/Ast/Stl/Blk per game</th></tr></thead><tbody>
-${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.rate == null || l.lean == null ? '–' : od(l.rate, l.lean).replace('O ', '').replace(' D ', ' / ')}</td><td class="n">${l.p100 ? l.p100.map((x) => (x * l.mpg / 48).toFixed(1)).join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
+${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.rate == null || l.lean == null ? '–' : od(l.rate, l.lean).replace('O ', '').replace(' D ', ' / ')}</td><td class="n">${l.p100 ? l.p100.slice(0, 5).map((x) => (x * l.mpg / 48).toFixed(1)).join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
+// The roster's per-game lines as Basketball-Reference sets them out: this season's so far, else the
+// last season's; mPM is the season's rating, mWAR the wins above replacement in his minutes so far
+const BX = [['pos', 'Pos'], ['age', 'Age'], ['gp', 'G'], ['mpg', 'MP'], ['fgm', 'FG'], ['fga', 'FGA'], ['fg_pct', 'FG%'], ['fg3m', '3P'], ['ftm', 'FT'], ['fta', 'FTA'], ['ft_pct', 'FT%'],
+  ['oreb', 'ORB'], ['dreb', 'DRB'], ['reb', 'TRB'], ['ast', 'AST'], ['stl', 'STL'], ['blk', 'BLK'], ['tov', 'TOV'], ['pf', 'PF'], ['pts', 'PTS'], ['ts_pct', 'TS%'], ['rate', 'mPM'], ['war', 'mWAR']];
+const bxCell = (k, v) => (v == null || (typeof v === 'number' && !Number.isFinite(v)) ? '' : k === 'pos' ? v : ['age', 'gp'].includes(k) ? v
+  : k.endsWith('_pct') ? v.toFixed(3).replace(/^0/, '') : k === 'rate' ? sg(v) : v.toFixed(1));
+const statsTable = (ps) => {
+  const s = G.cur ? G.season : ['offseason', 'draft'].includes(G.phase) ? G.season : G.season - 1, Ls = new Map(A.lines(G, s).map((x) => [x.p.id, x]));
+  const rows = ps.map((p) => { const l = Ls.get(p.id);
+    return { p, nm: p.nm, pos: p.pos, age: Math.floor(p.age), ...(l && { gp: l.gp, mpg: l.mpg, ...l.pg, rate: l.rate, war: G.K.beta * l.gp * l.mpg / 48 * (l.rate - G.K.repl) }) }; });
+  const [k, d] = ui.rsort || ['mpg', -1];
+  rows.sort((a, b) => (a[k] == null) - (b[k] == null) || d * (a[k] > b[k] ? 1 : a[k] < b[k] ? -1 : 0));
+  const th = (c, n, cls = 'n') => `<th class="${cls}" data-act="rsort" data-arg="${c}"${k === c ? ` aria-sort="${d > 0 ? 'ascending' : 'descending'}"` : ''}>${n}</th>`;
+  return `<p class="note">${G.cur ? `${SEASON(s)} so far` : `Last season, ${SEASON(s)}`}: per game. Click a heading to sort.</p><div class="scroll"><table class="t bx"><thead><tr>${th('nm', 'Player', '')}${BX.map(([c, n]) => th(c, n, c === 'pos' ? '' : 'n')).join('')}</tr></thead><tbody>
+${rows.map((x) => `<tr><td>${nm(x.p.id)}</td>${BX.map(([c]) => `<td${c === 'pos' ? '' : ' class="n"'}>${bxCell(c, x[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+};
 const detail = (p, actions = '') => `<tr class="det"><td colspan="9">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.
 Projected to be available for ${Math.round(100 * (p.av ?? 0.9))}% of games.${p.contract ? `<br>${contract(p)}` : ''}${logTable(p)}${actions}</td></tr>`;
 const extInfo = (p) => { const start = p.contract.years.at(-1).s + 1;
@@ -338,6 +379,12 @@ Minutes are per game when he plays: each night 240 go down the rotation among wh
 ${L.rotation(G, G.user).map(([p, m], i) => `<li><b>${nm(p.id)}</b> <small>${ROLE(i, p)} · ${m.toFixed(0)} min${out(p) ? ' · <span class="bad">out injured</span>' : ''}</small></li>`).join('')}</ol></div>`;
 };
 // Both conferences' standings: the record so far, else last season's, else projected wins
+// title odds (L.titleOdds), kept until the season, the playoffs or a roster moves on
+let oddsMemo = {};
+const odds = () => { const k = `${G.season}|${G.phase}|${G.date}|${G.cur?.d}|${G.po?.series.map((x) => x.w + x.l).join()}|${G.log.length}`;
+  if (oddsMemo.k !== k) oddsMemo = { k, v: L.titleOdds(G) }; return oddsMemo.v; };
+// none in the draws: out of it in the playoffs, a long shot before them
+const oddsPct = (x) => (x === 0 && G.phase === 'playoffs' ? '–' : x < 0.01 ? '<1%' : `${Math.round(100 * x)}%`);
 const standings = () => {
   const rec = G.cur?.record || (G.lastRecord && G.phase !== 'preseason' ? G.lastRecord : null);
   const conf = (c) => {
@@ -346,8 +393,9 @@ const standings = () => {
       : T.map((ab) => [ab, L.projWins(G, ab)]).sort((a, b) => b[1] - a[1]).map(([ab, w]) => [ab, w.toFixed(1), '']);
     // games behind the conference leader
     const gb = ([, w, l]) => (rec ? ((rows[0][1] - w + l - rows[0][2]) / 2 || '–') : '');
-    return `<h3>${c}</h3><table class="t"><thead><tr><th>Team</th><th class="n">${rec ? 'W' : 'Proj. W'}</th><th class="n">${rec ? 'L' : ''}</th><th class="n">${rec ? 'GB' : ''}</th></tr></thead><tbody>
-${rows.map((x, i) => `<tr class="${x[0] === G.user ? 'me' : ''}${i === 5 || i === 9 ? ' cut' : ''}"><td>${i + 1}. ${esc(NAME(x[0]))}</td><td class="n">${x[1]}</td><td class="n">${x[2]}</td><td class="n">${gb(x)}</td></tr>`).join('')}</tbody></table>`;
+    const o = odds();
+    return `<h3>${c}</h3><table class="t"><thead><tr><th>Team</th><th class="n">${rec ? 'W' : 'Proj. W'}</th><th class="n">${rec ? 'L' : ''}</th><th class="n">${rec ? 'GB' : ''}</th><th class="n" title="Chance of winning the title">Title</th></tr></thead><tbody>
+${rows.map((x, i) => `<tr class="${x[0] === G.user ? 'me' : ''}${i === 5 || i === 9 ? ' cut' : ''}"><td>${i + 1}. ${esc(NAME(x[0]))}</td><td class="n">${x[1]}</td><td class="n">${x[2]}</td><td class="n">${gb(x)}</td><td class="n">${oddsPct(o[x[0]])}</td></tr>`).join('')}</tbody></table>`;
   };
   return `<div class="two"><div>${conf('East')}</div><div>${conf('West')}</div></div>`;
 };
@@ -389,6 +437,8 @@ ${rows.map(([ab, x]) => `<tr${ab === G.user ? ' class="me"' : ''}><td>${esc(NAME
 };
 // one line of the moves log
 const logLine = (x) => x.type === 'trade' ? `${x.teams.join(' / ')}: ${x.moves ? x.moves.map((m) => `${nm(m.pid)} to ${m.to}`).join(', ') : x.players.map(nm).join(', ')}${x.picks.length ? `; picks ${x.picks.map((k, i) => `${k.startsWith('op|') ? `${k.split('|')[1]} claim` : `${k.split('|').slice(0, 2).join(' ')} ${k.endsWith('|1') ? '1st' : '2nd'}`}${x.prot?.find(([id]) => id === k) ? ' (protected)' : ''} to ${x.pickTo?.[i] ?? ''}`).join(', ')}` : ''}${x.swaps ? `; swap rights ${x.swaps.map((w) => `${w.y} to ${w.to}`).join(', ')}` : ''}`
+  : x.type === 'owner' ? `${x.team} sold to new owners`
+  : x.type === 'gm' ? (x.out ? `${x.team} part with GM ${esc(x.out)}` : `${x.team} hire ${esc(x.in)} as GM${x.back ? ' (back in the game)' : ''}`)
   : x.type === 'sign' ? `${x.team} sign ${nm(x.pid)}, ${$M(x.sal)} × ${x.years}` : x.type === 'extend' ? `${x.team} extend ${nm(x.pid)}, ${$M(x.sal)} × ${x.years} more` : x.type === 'retire' ? `${nm(x.pid)} retires${x.team ? ` (${x.team})` : ''}` : `${x.team} waive ${nm(x.pid)}`;
 // What happened while the season was simmed: your stretch, who is hurt, the league's trades
 function news(before) {
@@ -473,17 +523,20 @@ function career() {
   return c.length ? `<table class="t"><thead><tr><th>Season</th><th>Club</th><th class="n">W-L</th><th>Playoffs</th></tr></thead><tbody>${c.slice().reverse().map((x) => `<tr><td>${SEASON(x.s)}</td><td>${esc(NAME(x.ab))}</td><td class="n">${x.w}-${x.l}</td><td>${x.champ ? '<b>Champions</b>' : x.won ? `won ${x.won} round${x.won > 1 ? 's' : ''}` : ''}</td></tr>`).join('')}</tbody></table>` : '';
 }
 function fired() {
-  const f = G.fired, rec = G.history.at(-1).record;
+  const f = G.fired, rec = G.history.at(-1).record, pct = (x) => `${Math.round(100 * x)}%`;
   if (f.retired) return `<div class="card"><h2>Career over</h2>${career()}<div class="row">${btn('newgame', 'New game')}${btn('export', 'Export the save')}</div></div>`;
-  return `<div class="card"><h2>You're fired</h2><p>After the ${SEASON(f.s)} season the ${esc(NAME(G.user))}' owner's confidence fell to ${Math.round(f.conf)} of 100, and he let you go.</p>${ownerBooks()}
+  const why = f.out > 1 ? `You have been out of the game ${f.out - 1} season${f.out > 2 ? 's' : ''}.`
+    : f.mode === 'realistic' ? `After the ${SEASON(f.s)} season the ${esc(NAME(f.from))} let you go. Real GMs are let go most when their club falls short of what it was expected to win; the model put the odds at ${pct(G.exitOdds)}.`
+    : `After the ${SEASON(f.s)} season the ${esc(NAME(f.from))}' owner's confidence fell to ${Math.round(f.conf)} of 100, and he let you go.`;
+  return `<div class="card"><h2>${f.out > 1 ? 'Out of work' : "You're fired"}</h2><p>${why}</p>${f.out > 1 ? '' : ownerBooks()}
 <h3>Clubs that want you</h3>${f.offers.length ? f.offers.map((ab) => `<div class="off"><b>${esc(NAME(ab))}</b> <small>${rec[ab][0]}-${rec[ab][1]} last season · payroll ${$m(O.payroll(G, ab) / 1e6)}</small> ${btn('takejob', 'Take the job', ab)}</div>`).join('') : '<p>No one calls.</p>'}
-<p class="note">Jobs open at the foot of the standings; a record that wins reaches clubs further up and brings a third offer. Your new owner is the kind you asked for when you started.</p>
-<h3>Your career</h3>${career()}<div class="row">${btn('retire', 'Retire', '', 'warn')}${btn('export', 'Export the save')}</div></div>`;
+<p class="note">Only clubs that changed GMs this summer are hiring (${G.openSeats.filter((ab) => ab !== f.from).length} of them). Real GMs who lose a job get another one at a rate that falls the longer they are out; for a career like yours, the model's chance of a job this summer is ${pct(f.h)}. Your new owner is the kind you asked for when you started.</p>
+<h3>Your career</h3>${career()}<div class="row">${btn('wait', 'Wait a year')}${btn('retire', 'Retire', '', 'warn')}${btn('export', 'Export the save')}</div></div>`;
 }
 function ownerCard() {
   if (!G.owner) return '';
   const o = O.OWNERS[G.owner.type], b = O.projected(G), c = Math.round(G.owner.conf), l = O.line(G, b.s);
-  return `<div class="card"><h3>The owner</h3><p>${o.label}: he ${o.say}. Confidence in you: <b class="${c < 40 ? 'bad' : 'good'}">${c}</b> of 100${c < 40 ? ' — he is losing patience; below 20 at a season\'s end you are fired' : ''}.</p>
+  return `<div class="card"><h3>The owner</h3><p>${o.label}: he ${o.say}. Confidence in you: <b class="${c < 40 ? 'bad' : 'good'}">${c}</b> of 100${c < 40 && G.fireMode === 'simple' ? ' — he is losing patience; below 20 at a season\'s end you are fired' : ''}.${G.fireMode === 'realistic' && G.exitOdds != null ? ` After last season, the model put your odds of losing the job at ${Math.round(100 * G.exitOdds)}% (it is decided at each season's end).` : ''}</p>
 <p>${SEASON(b.s)} as it stands: revenue ${$m(b.rev)} (${b.n.toFixed(1)} home playoff games expected), payroll ${$m(b.pay)}, tax ${$m(b.tax)}, other costs ${$m(b.other)}: <b class="${b.profit < l ? 'bad' : 'good'}">${$m(b.profit)}</b> against his line of ${$m(l)}. ${G.owner.order ? `<b class="bad">He has ordered payroll down to ${$m(G.owner.order.target / 1e6)} by the trade deadline.</b>` : ''}</p>
 ${G.ownerSay ? `<p class="note">${esc(G.ownerSay)}</p>` : ''}${ownerBooks()}
 <p class="note">Revenue is the club's (Forbes, 2024-25, net of revenue sharing) growing with the cap, plus about $6M a home playoff game; regular-season wins don't measurably move it. Other costs are 28% of revenue.</p></div>`;
@@ -496,7 +549,7 @@ const VIEWS = {
 ${(G.offers || []).map((t, i) => `<div class="card"><h3>Offer from ${esc(NAME(t.moves[0].to))}</h3>${tradeText(t)}<div class="row">${btn('take', 'Accept', i)}${btn('pass', 'Decline', i, 'warn')}</div></div>`).join('')}
 ${G.phase === 'season' ? standings() : G.phase === 'playoffs' ? VIEWS.playoffs() : ''}
 ${['offseason', 'draft'].includes(G.phase) && last?.season === G.season ? `<div class="card"><h3>The ${SEASON(last.season)} season</h3><p><b>${esc(NAME(last.champion))}</b> are champions${finals(last) ? `, over the ${esc(NAME(finals(last).lo))}` : ''}. ${last.awards ? `MVP: ${who(last.awards.mvp[0][0])}.` : ''}</p>${awardsCard(last).replace(/<h3>.*?<\/h3>/, '')}</div>` : ''}
-<div class="card"><h3>${esc(NAME(G.user))}</h3><p>${rec ? `Record ${rec.w}-${rec.l}. ` : ''}Projected wins ${L.projWins(G, G.user).toFixed(1)}; ${std(T).length} standard contracts, ${T.roster.length - std(T).length} two-way.
+<div class="card"><h3>${esc(NAME(G.user))}</h3><p>${rec ? `Record ${rec.w}-${rec.l}. ` : ''}Projected wins ${L.projWins(G, G.user).toFixed(1)}, title odds ${oddsPct(odds()[G.user])}; ${std(T).length} standard contracts, ${T.roster.length - std(T).length} two-way.
 ${last ? `<br>Last season: ${summary(last)}` : ''}</p>${payroll()}</div>
 ${ownerCard()}
 ${(() => { const gone = G.log.filter((x) => x.type === 'retire' && x.team === G.user && x.date >= `${G.season}-06-01`); return gone.length && G.phase === 'freeagency' ? `<div class="card"><p>Retired this summer: ${gone.map((x) => nm(x.pid)).join(', ')}.</p></div>` : ''; })()}
@@ -507,10 +560,11 @@ Ratings (mPM) are points per 100 possessions against an average player, split in
   },
   roster: () => {
     const T = me(), ps = T.roster.map(P).sort((a, b) => !!a.contract?.twoWay - !!b.contract?.twoWay || b.rate - a.rate);
-    const canWaive = G.phase !== 'draft';
-    return `${rotationCard()}<table class="t"><thead><tr><th>Player</th><th class="n">mPM</th><th class="n">mWAR</th><th class="n">Salary</th><th class="n">Yrs</th></tr></thead><tbody>
+    const canWaive = G.phase !== 'draft', mode = ui.rmode || (std(T).length > 15 ? 'contracts' : 'stats');
+    const tog = `<div class="tabs sub">${[['stats', 'Stats'], ['contracts', 'Contracts']].map(([k, n]) => `<button data-act="rmode" data-arg="${k}"${mode === k ? ' aria-current="true"' : ''}>${n}</button>`).join('')}</div>`;
+    return `${rotationCard()}${tog}${mode === 'stats' ? statsTable(ps) : `<table class="t"><thead><tr><th>Player</th><th class="n">mPM</th><th class="n">mWAR</th><th class="n">Salary</th><th class="n">Yrs</th></tr></thead><tbody>
 ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?.sal || 0)}</td><td class="n">${yrs(p).length}</td>`)
-      + (ui.pid === p.id ? detail(p, extForm(p) + (canWaive ? `<div class="row"><label><input type="checkbox" id="stretch"> stretch</label>${btn('waive', 'Waive', p.id, 'warn')}</div>` : '')) : '')).join('')}</tbody></table>${payroll()}`;
+      + (ui.pid === p.id ? detail(p, extForm(p) + (canWaive ? `<div class="row"><label><input type="checkbox" id="stretch"> stretch</label>${btn('waive', 'Waive', p.id, 'warn')}</div>` : '')) : '')).join('')}</tbody></table>`}${payroll()}`;
   },
   league: () => {
     const hist = G.history.slice().reverse().map((h) => `<tr><td>${SEASON(h.season)}</td><td class="n">${h.record[G.user].join('-')}</td><td>${esc(playoffs(h))}</td><td>${h.champion}</td></tr>`).join('');
@@ -542,7 +596,7 @@ ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?
     const v = ui.verdict, md = { contend: 'contending', middle: 'in the middle', rebuild: 'rebuilding' }[X.mode(L.projWins(G, B))];
     const say = !v ? '' : !v.ok ? `<p class="bad">Not allowed: ${esc(v.errors.join('; '))}.</p>`
       : v.accept ? `<p class="good">${esc(NAME(B))} accept.</p>${Object.entries(v.res.waive || {}).map(([ab, n]) => `<p class="note">${ab === G.user ? `You will have to waive ${n}` : `${esc(NAME(ab))} will waive ${n}`} to get back to the roster limit.</p>`).join('')}${btn('accept', 'Make the trade')}`
-      : `<p class="bad">${esc(NAME(B))} decline: they would want about ${$M(Math.max(F().cap * X.MIN_GAIN - v.gains[B], 0))} more in value.</p>`;
+      : `<p class="bad">${esc(NAME(B))} decline: they would want about ${$M(Math.max(v.need[B] - v.gains[B], 0))} more in value.</p>`;
     const open = G.phase !== 'season' || G.date <= C.seasonDates(G.season).deadline;
     return `<div class="card"><label>Trade with <select id="partner" data-chg="partner">${others.map((ab) => `<option value="${ab}"${ab === B ? ' selected' : ''}>${esc(NAME(ab))}</option>`).join('')}</select></label>
 ${capStrip(B)}<details><summary>Their cap sheet</summary>${payroll(B)}</details><p class="note">${esc(NAME(B))} are ${md}.${open ? '' : ' The deadline has passed.'}${ui.done ? ' Trade done.' : ''}</p></div>
@@ -631,6 +685,16 @@ ${all.length > pool.length ? `<div class="row">${btn('famore', `Show more (${all
 <div class="row">${btn('export', 'Export the save')}${btn('import', 'Import a save')}${btn('newgame', 'New game', '', 'warn')}</div>
 <p class="note">Injury help: ${G.staffSigns === false ? 'off. Your club plays short when injuries pile up.' : 'on. When fewer than 13 of your men on standard deals are healthy, your staff signs the best free agent to a 10-day contract (past 15 under the hardship exception once four are out).'}</p>${btn('staff', G.staffSigns === false ? 'Let the staff sign injury help' : 'Stop the staff signing injury help', '', 'ghost')}</div>`,
 };
+// The front offices: who runs each club, his background, and his three fitted leanings
+const BG = { former_player: 'Former player', cap_specialist: 'Cap specialist', former_agent: 'Former agent', former_scout: 'Former scout', analytics: 'Analytics' };
+VIEWS.gms = () => {
+  const K = G.K.gm, cap = F().cap, rows = Object.entries(G.teams).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([ab, T]) => {
+    const g = T.gm, you = ab === G.user;
+    return `<tr${you ? ' class="me"' : ''}><td>${esc(T.name)}</td><td>${you ? '<b>You</b>' : esc(g.n)}</td><td>${you ? '' : g.b.map((k) => BG[k]).join(', ') || '—'}</td><td class="n">${you ? '' : g.ten}</td>
+<td class="n">${you ? '' : (K.tradesMean + g.trades).toFixed(1)}</td><td class="n">${you ? '' : (g.consolidate < 0 ? '−' : '+') + Math.abs(g.consolidate).toFixed(2)}</td><td class="n">${you ? '' : sg(g.sign_rate / 100 * cap / 1e6)}</td></tr>`; }).join('');
+  return `<div class="card"><h3>Front offices</h3><div class="scroll"><table class="t bx"><thead><tr><th>Club</th><th>GM</th><th>Background</th><th class="n">Seasons</th><th class="n">Trades a season</th><th class="n">Players out − in</th><th class="n">$M per mPM</th></tr></thead><tbody>${rows}</tbody></table></div>
+<p class="note">The clubs open with their real lead executives. Three leanings set real GMs apart beyond luck, and each GM has his own, estimated from his record and pulled toward the average for his background (a GM with a short record is mostly his background): how many trades he makes a season; how many more players he sends out than he takes back in a trade; and how much more (or less) than the league he pays a free agent for each point of mPM, in first-season salary. Analytics hires trade most and pay most for mPM, and their reads of players stray half as far from the model's as other GMs'. GMs lose their jobs as real ones do, mostly when their club falls short of what was expected, and more often under a new owner (clubs change hands about one in 21 a year, yours included); ${G.gmPool.length} are out of work, and they come back at the rates real ones did; the rest of the openings go to first-time GMs.</p></div>`;
+};
 ACT.logall = () => { ui.all = !ui.all; render(); };
 ACT.famore = () => { ui.more = true; render(); };
 
@@ -641,6 +705,7 @@ Every rule of the collective bargaining agreement applies; the other 29 clubs ar
 <fieldset><legend>Talent</legend><label class="ck"><input type="radio" name="mode" value="hidden" checked> Hidden: ratings are estimates, and players turn out better or worse</label>
 <label class="ck"><input type="radio" name="mode" value="truth"> The truth: every player is exactly his projection</label></fieldset>
 <label>Owner <select id="owner"><option value="random">Random</option>${Object.entries(O.OWNERS).map(([k, o]) => `<option value="${k}">${o.label}</option>`).join('')}</select></label>
+<label>Can you be fired? <select id="fire"><option value="simple">Simple: when the owner's confidence ends a season below 20</option><option value="realistic">Realistic: as real GMs lose their jobs, by the record against expectations</option><option value="never">Never</option></select></label>
 <div class="row"><button class="b" id="create">Start</button>${btn('import', 'Import a save')}</div></div>`;
 }
 let TEAMS = {};
@@ -655,13 +720,16 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ui.card)
 document.addEventListener('change', (e) => { if (e.target.dataset.chg) ACT[e.target.dataset.chg](e.target); });
 async function data() { return (await fetch('gm/league.json')).json(); }
 // a save keeps its league; the model's constants (K) are the site's current ones, which the code expects
-const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.league.const, ...d.cal } }; if (G_.draft) L.settleDraft(G_); return G_; };
+// A save from before the clubs had their real GMs gets them now, on the season under way.
+const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.league.const, ...d.cal } }; if (G_.draft) L.settleDraft(G_);
+  if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'simple'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
+  return G_; };
 async function create() {
   const team = $('#team').value, hidden = document.querySelector('input[name=mode]:checked').value === 'hidden';
   root().insertAdjacentHTML('beforeend', '<div class="busy" role="status">Building the league…</div>');
   const d = await data(), seed = Math.floor(Math.random() * 2 ** 31);
   adopt(L.newGame(d.league, d.cal, { team, hidden, seed }));
-  O.hire(G, $('#owner').value, r);
+  O.hire(G, $('#owner').value, r); G.fireMode = $('#fire').value;
   view = 'home'; await save(); render();
 }
 async function boot() {

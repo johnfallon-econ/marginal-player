@@ -7,8 +7,12 @@
 // An owner has a line, the least profit he will stand for a season, and weighs winning against it:
 // he blocks moves that take the projected season below his line, orders payroll cut by the trade
 // deadline when the season opens below it, and grades each season; his confidence falls with bad
-// ones, he warns below 40 and fires below 20.
+// ones and he warns below 40. When the club is sold (gm.js), a new owner of any kind takes over, his
+// confidence starting at 40. Whether the user can lose the job is the new game's choice (G.fireMode):
+// never; simple, when the owner's confidence ends a season below 20; or realistic, by the exit model
+// the computer clubs' GMs face (gm.js), on the user's season and years in the job.
 import * as C from './cba.js';
+import * as GM from './gm.js';
 import { capAt, projWins } from './league.js';
 
 export const OWNERS = {
@@ -85,19 +89,20 @@ export function review(G, h, r) {
   const grade = (1 - O.money) * win + O.money * money;
   G.owner.conf = Math.max(0, Math.min(100, G.owner.conf + 20 * grade));
   G.owner.books.push({ ...b, w, won, grade });
-  (G.career ||= []).push({ ab: G.user, s, w, l: h.record[G.user][1], won, champ: h.champion === G.user });
-  if (G.owner.conf < 20) G.fired = { s, conf: G.owner.conf, offers: offers(G, r) };
+  const x = T.gm.rec.at(-1);                       // the season as the exit model reads it (gm.js)
+  (G.career ||= []).push({ ab: G.user, s, w, l: h.record[G.user][1], won, champ: h.champion === G.user, vs_exp: x.vs_exp, po_w: x.po_w, proc: x.trade_proc, left: x.draft_left });
+  const ten = G.career.length - G.career.findLastIndex((c) => c.ab !== G.user) - 1, p = GM.pExit(G, { ten, rec: [x] });
+  G.exitOdds = p;
+  if ({ never: false, simple: G.owner.conf < 20, realistic: r() < p }[G.fireMode]) {
+    const o = GM.offers(G, r);
+    G.fired = { s, conf: G.owner.conf, mode: G.fireMode, from: G.user, out: 1, offers: o.clubs, h: o.h };
+    GM.hire(G, G.user, r);                         // his old club hires a GM of its own
+  } else if (T.sold === s + 1) {
+    // the club is sold: a new owner, of any kind, who would rather have his own GM
+    G.owner = { ...G.owner, type: Object.keys(OWNERS)[Math.floor(r() * 3)], conf: 40 };
+    G.ownerSay = `The club has been sold. Your new owner: ${OWNERS[G.owner.type].label.toLowerCase()}. New owners usually want their own GM; his confidence in you starts at 40.`;
+  }
   return b;
-}
-// Fired, the GM hears from the clubs looking for one: those at the foot of the standings, where jobs
-// open; a record that wins (his career win share, and a playoff round counts as much as five wins)
-// reaches clubs further up and brings a third offer.
-export function offers(G, r) {
-  const C_ = G.career, w = C_.reduce((a, x) => a + x.w + 5 * x.won, 0) / C_.reduce((a, x) => a + x.w + x.l, 0);
-  const rec = G.history.at(-1).record, pool = Object.keys(G.teams).filter((ab) => ab !== G.user).sort((a, b) => rec[a][0] - rec[b][0]).slice(0, Math.round(6 + 20 * w));
-  const out = [];
-  for (let k = w >= 0.5 ? 3 : 2; k > 0 && pool.length; k--) out.push(...pool.splice(Math.floor(r() * pool.length), 1));
-  return out;
 }
 // Taking a job: the club is his, with a new owner of the kind he asked for; his career goes with him
 export function move(G, ab, r) {
