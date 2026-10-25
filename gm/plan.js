@@ -62,14 +62,15 @@ export function taxPlan(G, s, figs, share, apron) {
   return { s, figs, pay, share, apron };
 }
 function path(tp, T, ab, dv) {
-  const paid = { ...(T.taxpaid || {}) };
+  const paid = T.taxpaid || {}, now = [];          // seasons before the path as paid, along it as projected
   let v = 0;
   tp.figs.forEach((f, k) => {
-    const t = tp.s + k, p = tp.pay[ab][k] + (dv[k] || 0), rep = [1, 2, 3, 4].filter((j) => paid[t - j]).length >= 3;
-    paid[t] = p > f.tax;
-    v += (C.taxBill(p, f, rep) + (paid[t] ? tp.share : 0) + (p > f.apron2 ? tp.apron[ab] : 0)) / M.DISC ** k;
+    const t = tp.s + k, p = tp.pay[ab][k] + (dv[k] || 0);
+    let n = 0; for (let j = 1; j <= 4; j++) if (j <= k ? now[k - j] : paid[t - j]) n++;
+    now[k] = p > f.tax;
+    v += (C.taxBill(p, f, n >= 3) + (now[k] ? tp.share : 0) + (p > f.apron2 ? tp.apron[ab] : 0)) / M.DISC ** k;
   });
   return v;
 }
 // What salary changes dv (by season, from s) do to club ab's tax over the path, $
-export const taxChange = (tp, T, ab, dv) => path(tp, T, ab, dv) - path(tp, T, ab, []);
+export const taxChange = (tp, T, ab, dv) => path(tp, T, ab, dv) - ((tp.base ||= {})[ab] ??= path(tp, T, ab, []));   // the path as it stands, once a club
