@@ -64,7 +64,7 @@ export function tradeProc(G, tr, cap, surplusOf, pickOf) {
 // a pick's value left on the table, % of the cap: the model's worth of the man taken less that of
 // the best on the board (both on the same scale deal, so only market value counts)
 export function draftLeft(G, ab, p, avail, cap) {
-  const mv = (q) => [0, 1, 2, 3].reduce((a, h) => a + M.marketValue({ ...q, rate: q.board, mpg: undefined }, h, cap, G.K), 0);
+  const mv = (q) => [0, 1, 2, 3].reduce((a, h) => a + M.marketValue({ ...q, rate: q.rate, mpg: undefined }, h, cap, G.K), 0);
   const g = G.teams[ab].gm; g.left = (g.left || 0) + 100 * (mv(p) - Math.max(...avail.map(mv))) / cap;
 }
 
@@ -139,27 +139,30 @@ export function offers(G, r, out = 1) {
 }
 
 // ---- the draft as a common-value auction ------------------------------------------------------
-// A prospect's talent is one value every club would like to know. The board (the league's read,
-// public) misses it by the scouts' error, G.scoutSd. Each GM starts from his own prior: the board
-// plus a lean of his own (sd LEAN, no news of the talent), held with spread HOLD; and he has his own
+// A prospect's talent is one value every club would like to know. The board misses it by the
+// scouts' error, G.scoutSd; the league's read (his rate) is what the board predicts of it, missing
+// by G.draft.hold over the class. Each GM starts from his own prior: that read plus a lean of his
+// own (sd LEAN, no news of the talent), held with the read's own spread; and he has his own
 // read of the talent, private, missing it by READ x his noise (both fixed for the draft). His
 // estimate is Bayesian: prior and read weighted by their precision, and what the draft has shown --
 // a club that passed on a prospect preferred the man it took, which caps what its estimate of the
 // one passed over could have been; every such pass is on the record for every prospect still there
 // (G.draft.ll, over a grid of talents), so a man sliding past where the board had him is marked down
-// by all. READ, LEAN and HOLD are set so the game's draft orders talent no better than its board (as
+// by all. READ and LEAN are set so the game's draft orders talent no better than its board (as
 // the real draft orders careers no better than the consensus board), strays from the board by the
 // real reach, and has the real number of draft-night trades (data/_gm_draft_accuracy.json,
 // _gm_trade_shape.json). With the projections as the truth, every club knows the talent.
-// set on 10 drafts each over a grid (READ 6-24, LEAN 0-0.5, HOLD 0.3-1.76): reach 13 picks (real 14),
-// draft order no better than the board (gap -0.015, se 0.009; real 0.005), 10.2 draft-night trades
-// (real 6.6, 1 to 12 a year); a lean of the GM's own only added trades
-export let READ = 18, LEAN = 0, HOLD = 0.7;
-export const tune = (o) => ({ READ = READ, LEAN = LEAN, HOLD = HOLD } = o);   // for calibration runs
+// set on 10 drafts from one league's snapshot over a grid (READ 18-1000, LEAN 0-0.3): READ 250 gives
+// reach 15 picks against the public worth order (real 14 against ESPN's), draft order ranking the
+// class's early careers about as the board does (gap +0.021, real +0.005); a lean of the GM's own
+// only added reach. Draft-night trades are 1.2 a draft (real 6.6): with the board as uncertain as the
+// real one, neighbouring picks are worth too nearly the same to a club for climbing to pay
+export let READ = 250, LEAN = 0;
+export const tune = (o) => ({ READ = READ, LEAN = LEAN } = o);   // for calibration runs
 export const GRID = 41;
 export const readSd = (g) => READ * g.noise;
-const grid = (G, q, i) => q.board + (G.scoutSd + LEAN) * (-4 + 8 * i / (GRID - 1));
-const onPrior = (sd) => (1 / HOLD ** 2) / (1 / HOLD ** 2 + 1 / sd ** 2);   // the weight on the prior, against the read
+const grid = (G, q, i) => q.rate + (G.draft.hold + LEAN) * (-4 + 8 * i / (GRID - 1));
+const onPrior = (G, sd) => (1 / G.draft.hold ** 2) / (1 / G.draft.hold ** 2 + 1 / sd ** 2);   // the weight on the prior, against the read
 // a pick on the record: club d took p; for every prospect q left, the chance d's estimate of q fell
 // below its estimate of p -- tau, the rating at which q would be worth what p is on the board, give
 // or take how d's estimate of p strays from the board (worth weighs age and growth as well as the
@@ -168,25 +171,25 @@ export function learn(G, d, p, left, worthAt) {
   if (!G.hidden) return;
   // the spread: d's own lean and read of q, and -- unseen -- of p, which strays from the board as any
   // of d's estimates does from outside (pickSd)
-  const sd = readSd(G.teams[d].gm), l = onPrior(sd), s = Math.sqrt((l * LEAN) ** 2 + ((1 - l) * sd) ** 2 + pickSd(G, G.teams[d].gm) ** 2), ll = (G.draft.ll ||= {}), target = worthAt(p, p.board);
+  const sd = readSd(G.teams[d].gm), l = onPrior(G, sd), s = Math.sqrt((l * LEAN) ** 2 + ((1 - l) * sd) ** 2 + pickSd(G, G.teams[d].gm) ** 2), ll = (G.draft.ll ||= {}), target = worthAt(p, p.rate);
   for (const q of left) {
-    let lo = q.board - 10, hi = q.board + 10;                      // the rating, by bisection, over a span past any class's
+    let lo = q.rate - 10, hi = q.rate + 10;                      // the rating, by bisection, over a span past any class's
     for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (worthAt(q, m) < target) lo = m; else hi = m; }
     const tau = (lo + hi) / 2, L = (ll[q.id] ||= Array(GRID).fill(0));
-    for (let i = 0; i < GRID; i++) L[i] += Math.log(Phi((tau - l * q.board - (1 - l) * grid(G, q, i)) / s));
+    for (let i = 0; i < GRID; i++) L[i] += Math.log(Phi((tau - l * q.rate - (1 - l) * grid(G, q, i)) / s));
   }
 }
 // club c's estimate of q's talent: its prior, its read, the draft so far
 export function estimate(G, c, q) {
   if (!G.hidden) return q.talent;
-  const sd = readSd(G.teams[c].gm), m = q.board + LEAN * hashNoise(`${c}|${q.id}|lean`), r = q.talent + sd * hashNoise(`${c}|${q.id}|read`), L = G.draft?.ll?.[q.id];
+  const sd = readSd(G.teams[c].gm), m = q.rate + LEAN * hashNoise(`${c}|${q.id}|lean`), r = q.talent + sd * hashNoise(`${c}|${q.id}|read`), L = G.draft?.ll?.[q.id];
   let a = 0, b = 0;
   for (let i = 0; i < GRID; i++) {
-    const t = grid(G, q, i), z = Math.exp(-0.5 * ((m - t) / HOLD) ** 2 - 0.5 * ((r - t) / sd) ** 2 + (L ? L[i] : 0));
+    const t = grid(G, q, i), z = Math.exp(-0.5 * ((m - t) / G.draft.hold) ** 2 - 0.5 * ((r - t) / sd) ** 2 + (L ? L[i] : 0));
     a += z * t; b += z;
   }
   return a / b;
 }
 // how far, to another club, c's estimate of a man strays from the board: what c's choices look like
 // from outside (D.aiPick's spread when a club plays the draft out in its head)
-export const pickSd = (G, g) => { const sd = readSd(g), l = onPrior(sd); return G.hidden ? Math.sqrt((l * LEAN) ** 2 + (1 - l) ** 2 * (G.scoutSd ** 2 + sd * sd)) : 0; };
+export const pickSd = (G, g) => { if (!G.hidden) return 0; const sd = readSd(g), l = onPrior(G, sd); return Math.sqrt((l * LEAN) ** 2 + (1 - l) ** 2 * (G.draft.hold ** 2 + sd * sd)); };

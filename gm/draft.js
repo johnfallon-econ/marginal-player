@@ -4,15 +4,18 @@ import { rookieScale, minSalary, twoWaySalary } from './cba.js';
 // ---- the class ---------------------------------------------------------------------------------
 // Each prospect's talent comes from a real player drafted near the same slot (L.draft.donors:
 // [pick, age at draft, entry talent, height, weight, position, level, pre-draft line, lean, expected availability], 12_gm_data.py), so the class has the real spread of
-// stars, role players and washouts by slot. Scouts see talent through noise (scoutSd), set so
-// the order the league drafts in ranks talent as well as real drafts have (L.draft.sp).
+// stars, role players and washouts by slot, and how each grew (g: his rookie-to-third-season growth
+// past the league's aging; none for the undrafted). Scouts read where a prospect is headed --
+// talent plus that growth -- through noise (scoutSd), set so the order the league drafts in ranks
+// it as well as real drafts rank careers (L.draft.sp); how well that ranks entry talent follows
+// from the real careers the class is drawn from.
 export function generateClass(L, season, r, scoutSd) {
   const names = L.names, real = new Set(names.real), donors = L.draft.donors, pool = [];
   const name = () => { for (;;) { const n = `${r.pick(names.first)} ${r.pick(names.last)}`; if (!real.has(n)) return n; } };
   for (let slot = 1; slot <= 60 + L.draft.undrafted; slot++) {   // 60 picks plus the undrafted market
     const near = slot > 60 ? L.draft.udonors : donors.filter(([k]) => Math.abs(k - slot) <= 2);   // the undrafted: real undrafted entrants
-    const [, age, talent, ht, wt, pos, lvl, line, lean, av, from] = r.pick(near);
-    pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, board: talent + scoutSd * r.normal(), yos: 0, draftYear: season + 1, lean, av, undrafted: slot > 60 || undefined,
+    const [, age, talent, ht, wt, pos, lvl, line, lean, av, from, g = 0] = r.pick(near);
+    pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, g, board: talent + g + scoutSd * r.normal(), yos: 0, draftYear: season + 1, lean, av, undrafted: slot > 60 || undefined,
       pos, ht: ht && `${Math.floor(ht / 12)}-${ht % 12}`, wt, from, pre: lvl && { lvl, line } });
   }
   return pool;
@@ -32,7 +35,7 @@ export function solveScoutSd(L, r, target = L.draft.sp) {
     let rho = 0;
     for (let k = 0; k < 30; k++) {
       const c = generateClass(L, 2026, r, sd).filter((p) => !p.undrafted).sort((a, b) => b.board - a.board).slice(0, 60);
-      rho += spearman(c.map((p) => p.board), c.map((p) => p.talent)) / 30;
+      rho += spearman(c.map((p) => p.board), c.map((p) => p.talent + p.g)) / 30;
     }
     (rho > target ? (lo = sd) : (hi = sd));
   }
@@ -131,7 +134,7 @@ export function applyOps(ops, slot, h, owe = () => {}) {
 // own error (gmSd) -- no GM sees talent.
 export function aiPick(pool, r, gmSd) {
   let best = null, bv = -Infinity;
-  for (const p of pool) { const v = p.board + gmSd * r.normal(); if (v > bv) { bv = v; best = p; } }
+  for (const p of pool) { const v = p.rate + gmSd * r.normal(); if (v > bv) { bv = v; best = p; } }
   return best;
 }
 

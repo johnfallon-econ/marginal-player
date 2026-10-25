@@ -10,6 +10,7 @@ import * as B from './board.js';
 import * as O from './owner.js';
 import * as P_ from './picks.js';
 import * as GM from './gm.js';
+import * as V from './dev.js';
 
 let G = null, r = null, view = 'home', ui = {};
 const $ = (s) => document.querySelector(s), root = () => $('#gm');
@@ -722,6 +723,7 @@ async function data() { return (await fetch('gm/league.json')).json(); }
 // a save keeps its league; the model's constants (K) are the site's current ones, which the code expects
 // A save from before the clubs had their real GMs gets them now, on the season under way.
 const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.league.const, ...d.cal } }; if (G_.draft) L.settleDraft(G_);
+  for (const p of Object.values(G_.players)) V.initSeen(p, G_.K);   // a save from before ratings kept what they stand on
   if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'simple'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
   return G_; };
 async function create() {

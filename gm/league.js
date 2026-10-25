@@ -396,19 +396,21 @@ export function draftStart(G, r) {
   // the rest of the class, journeymen from the G League and abroad the draft usually passes over: on the
   // board too, and whoever goes unpicked joins the summer's market (draftEnd)
   const rest = cls.filter((q) => q.undrafted);
-  for (const p of rest) { p.rate = G.hidden ? p.board : p.talent; p.se = 1.0; p.prior = 0; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal(); p.mpg = M.mpgFor(p.rate, G.K) * p.av; G.players[p.id] = p; }
+  for (const p of rest) { p.rate = G.hidden ? shrinkBoard(p, cls) : p.talent; p.se = 1.0; p.prior = 0; p.seen = G.K.priorMinutes; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal(); p.mpg = M.mpgFor(p.rate, G.K) * p.av; G.players[p.id] = p; }
   for (const p of pool) {
-    // hidden talent: the league sees the scouts' board, shrunk to what it predicts; else the truth
-    p.rate = G.hidden ? shrinkBoard(p, pool) : p.talent;
-    // his growth by where the class had him (the slot his talent was drawn for) and his talent
+    // hidden talent: the league sees the scouts' board, shrunk to what it predicts of talent over the
+    // whole class (journeymen too: they are on the board); else the truth
+    p.rate = G.hidden ? shrinkBoard(p, cls) : p.talent;
+    // the growth the league expects by where the class had him (the slot his talent was drawn for)
+    // and his talent; his own is his donor's
     Object.assign(p, V.growth(G.K, +p.id.split('-')[1], p.talent));
-    p.se = 1.0; p.prior = 0; p.trend = p.tp + (G.hidden ? G.K.trendHidden : G.K.dev.trend) * p.dsd * r.normal();
+    p.se = 1.0; p.prior = 0; p.seen = G.K.priorMinutes; p.trend = p.g / (1 + G.K.dev.rho);   // his own early growth (D.generateClass), as growth() turns two seasons into a trend
     p.mpg = M.mpgFor(p.rate, G.K) * p.av;
     G.players[p.id] = p;
   }
   // what the board misses: each prospect's talent less the league's read of him, over the class
-  const resid = G.hidden ? pool.map((p) => +(p.talent - p.rate).toFixed(3)) : [0];
-  G.draft = { year, order, avail: [...pool, ...rest].map((p) => p.id), picks: [], lottery: lot, resid };
+  const resid = G.hidden ? cls.map((p) => +(p.talent - p.rate).toFixed(3)) : [0];
+  G.draft = { year, order, avail: [...pool, ...rest].map((p) => p.id), picks: [], lottery: lot, resid, hold: Math.sqrt(resid.reduce((a, x) => a + x * x, 0) / resid.length) };
   settleDraft(G);
   G.phase = 'draft'; G.date = `${year}-06-24`;
 }
@@ -519,7 +521,7 @@ export const prospectWorth = (G, c, q, cap) => worthAt(G, q, GM.estimate(G, c, q
 // in worth (simPick)
 function publicView(G, pool, cap) {
   const v = {}, s = {};
-  for (const q of pool) { v[q.id] = worthAt(G, q, q.board, cap); s[q.id] = (worthAt(G, q, q.board + 0.1, cap) - v[q.id]) / 0.1; }
+  for (const q of pool) { v[q.id] = worthAt(G, q, q.rate, cap); s[q.id] = (worthAt(G, q, q.rate + 0.1, cap) - v[q.id]) / 0.1; }
   return { v, s };
 }
 const simPick = (pool, r, sd, view) => { let b = null, bv = -Infinity; for (const q of pool) { const x = view.v[q.id] + view.s[q.id] * sd * r.normal(); if (x > bv) { bv = x; b = q; } } return b; };

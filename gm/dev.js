@@ -25,7 +25,15 @@ export const agingStep = (K, age) => {
 export function initTalent(p, K, r, hidden) {
   p.talent = p.rate + (hidden ? K.devScale * K.dev.persist * r.normal() : 0);
   p.trend = (p.tp ?? 0) + trendSd(K, hidden, p) * r.normal();     // tp: the draft model's expected trend
+  initSeen(p, K);
 }
+// How much play a rating stands on, in minutes (hidden talent), as a Kalman filter keeps it: a season
+// of m minutes moves the rating by m / (m + seen) and adds m to what it stands on, and talent moving
+// on over the year takes some back (seen -> 1 / (1 / (seen + m) + 1 / K.learnMinutes)) -- a man the
+// league has watched for years moves about m / (m + K.learnMinutes), one it has barely seen far more.
+// A veteran starts where his own minutes would hold it; a draftee, at what the scouts' board is worth
+// (K.priorMinutes, league.js draftStart).
+export const initSeen = (p, K) => { const m = (p.mpg ?? 0) * 82 * (p.av ?? 0.9); p.seen ??= (Math.sqrt(m * m + 4 * m * K.learnMinutes) - m) / 2; };
 // A draftee's growth (K.grow, 12_gm_data.py): from his rookie season to his third a real one grew
 // past the league's aging by a + b x his rookie level, give or take sd, by his pick's range. As the
 // game's trend: tp, the mean it starts at (two seasons of a trend that keeps rho of itself carry
@@ -68,9 +76,9 @@ export function hashNoise(s) {
 export const interp = (t, x) => { const i = t.findIndex((c) => c[0] >= x);
   return i < 0 ? t.at(-1)[1] : i === 0 ? t[0][1] : t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (x - t[i - 1][0]) / (t[i][0] - t[i - 1][0]); };
 // The rating a season shows after m minutes: the board's read pulled toward how he has played, by
-// his minutes, as a real season's rating is estimated from that season (the read itself when
+// his minutes against what it already stands on (initSeen), as a real season's rating is estimated from that season (the read itself when
 // talent is not hidden)
-export const seasonRate = (p, m, K, hidden) => (hidden ? p.rate + m / (m + K.learnMinutes) * ((p.play ?? p.talent) - p.rate) : p.rate);
+export const seasonRate = (p, m, K, hidden) => (hidden && m ? p.rate + m / (m + p.seen) * ((p.play ?? p.talent) - p.rate) : p.rate);
 // A season's box line per 100 possessions (K.box, _gm_box.py): each count -- two- and three-point
 // makes, missed shots, free throws made and missed, rebounds at each end, assists, steals, blocks,
 // turnovers, fouls -- is the fit on his offense, defense, position and minutes times his own style
@@ -111,8 +119,9 @@ export function endSeason(players, minutesPlayed, K, r, hidden) {
   for (const p of Object.values(players)) {
     const m = minutesPlayed[p.id] || 0, step = agingStep(K, p.age);
     if (hidden) {
-      const w = m / (m + K.learnMinutes);
+      const w = m && m / (m + p.seen);                // no minutes, nothing learned
       p.rate = p.rate + w * ((p.play ?? p.talent) - p.rate) + step;
+      p.seen = 1 / (1 / (p.seen + m) + 1 / K.learnMinutes);
       p.talent = p.talent + step + p.trend + K.dev.walk * (p.dsd ?? 1) * r.normal();
     } else {
       p.talent = p.talent + step + p.trend + K.dev.walk * (p.dsd ?? 1) * r.normal();
