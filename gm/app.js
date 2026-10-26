@@ -337,7 +337,13 @@ const card = (id) => { const p = P(id), h = honors(id);
 <h3>${esc(p.nm)}</h3><p>${[p.pos, p.ht, `${Math.floor(p.age)} years old`, p.tm ? esc(NAME(p.tm)) : p.retired ? `retired ${SEASON(p.retired)}` : 'free agent'].filter(Boolean).join(' · ')}</p>
 <p>mPM <b>${sg(p.rate)}</b> <small>${od(p.rate, p.lean)}</small> · ${wr(p)}${p.tm ? ` · ${usage(p)}` : ''}</p>
 <p class="sub">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.</p>
-${p.contract ? `<p>${contract(p)}</p>` : ''}${h.length ? `<p><b>Honors</b><br>${h.join('<br>')}</p>` : ''}${logTable(p)}</div></div>`; };
+${trajectory(p)}${p.contract ? `<p>${contract(p)}</p>` : ''}${h.length ? `<p><b>Honors</b><br>${h.join('<br>')}</p>` : ''}${logTable(p)}</div></div>`; };
+// Where he is heading as your club reads it (L.trendRead): a season's gain beyond the league's aging,
+// fading by the year; your own man's, as far as you have seen him play; another club's, the league's
+// expectation less what his club, knowing more, would keep to itself
+const trajectory = (p) => { if (!G.hidden || p.retired) return ''; const t = L.trendRead(G, G.user, p), k = Math.round(100 * t.known);
+  return `<p>Trajectory <b>${sg(t.trend)}</b> a season beyond aging, fading <small>${t.own ? (k ? `your read: you know about ${k}% of where he is heading, from his seasons with you` : 'the league\'s expectation: he has not played a season for you yet')
+    : p.tm || t.known ? `the league's read${k ? `, marked down for what ${p.tm ? esc(NAME(p.tm)) : 'his club'} knows (about ${k}% of it)` : ''}` : 'the league\'s read: no club knows more'}</small></p>`; };
 const logTable = (p) => !p.log?.length ? '' : `<div class="scroll"><table class="t log2"><thead><tr><th>Season</th><th>Club</th><th class="n">GP</th><th class="n">MPG</th><th class="n">Rtg</th><th class="n">Off / Def</th><th class="n">Pts/Reb/Ast/Stl/Blk per game</th></tr></thead><tbody>
 ${p.log.map((l) => `<tr><td>${SEASON(l.s)}</td><td>${l.tm || ''}</td><td class="n">${l.gp}</td><td class="n">${l.mpg}</td><td class="n">${l.rate == null ? '–' : sg(l.rate)}</td><td class="n">${l.rate == null || l.lean == null ? '–' : od(l.rate, l.lean).replace('O ', '').replace(' D ', ' / ')}</td><td class="n">${l.p100 ? l.p100.slice(0, 5).map((x) => (x * l.mpg / 48).toFixed(1)).join(' / ') : ''}</td></tr>`).join('')}</tbody></table></div>`;
 // The roster's per-game lines as Basketball-Reference sets them out: this season's so far, else the
@@ -723,6 +729,7 @@ async function data() { return (await fetch('gm/league.json')).json(); }
 // a save keeps its league; the model's constants (K) are the site's current ones, which the code expects
 // A save from before the clubs had their real GMs gets them now, on the season under way.
 const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.league.const, ...d.cal } }; if (G_.draft) L.settleDraft(G_);
+  M.setDisc(G_.K);
   for (const p of Object.values(G_.players)) V.initSeen(p, G_.K);   // a save from before ratings kept what they stand on
   if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'simple'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
   return G_; };

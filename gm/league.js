@@ -23,6 +23,7 @@ export const TRADES = { draft: 19, summer: 6, dec15: 7, deadline: 18 };
 export function newGame(L, cal, opts) {
   const r = S.rng(opts.seed ?? Date.now() % 2 ** 31);
   const K = { ...L.const, ...cal };
+  M.setDisc(K);
   const G = { season: L.season, phase: 'preseason', date: L.date, user: opts.team, hidden: !!opts.hidden,
     K, caps: { [L.season]: C.figures(L.season, 0).cap }, f: {}, teams: {}, players: {}, fa: [], picks: clone(L.picks), swaps: clone(L.swaps),
     history: [], log: [], lotteryHist: {}, seed: opts.seed };
@@ -56,11 +57,13 @@ export function newGame(L, cal, opts) {
 // What club `ab` thinks a player is worth h seasons past next, $: his market value as its GM reads
 // him. Every club sees how good he is now; where he is heading is another matter. His own club knows
 // his trend (dev.js: what each season adds to his talent beyond the league's aging, keeping rho of
-// itself a season), so it sees trend x (1 - rho^h) / (1 - rho) more by season h. Another club expects
+// itself a season) as far as it has seen him play (knows), so it sees that much of trend x (1 - rho^h)
+// / (1 - rho) more by season h. Another club expects
 // the trend of a man like him (a recent draftee's from the draft model, tp; else none) and, knowing
-// his club knows better and would part with him at the market only if it reads his trend below that,
-// takes it at the expectation given that: less 0.8 x edge, the mean of a normal cut at its centre, edge
-// the spread of trends about their expectation (lemons). A free agent has no club that knows better.
+// his club knows better -- as much better as it has seen him (knows) -- and would part with him at the
+// market only if it reads his trend below that, takes it at the expectation given that: less 0.8 x what
+// his club knows of edge, the mean of a normal cut at its centre, edge the spread of trends about their
+// expectation (lemons). A free agent has no club that knows better.
 // A read strays by its GM's noise, more the less certain he is (M.uncertainty), and an outsider leans
 // on the expectation by as much (weight 1 / (1 + u^2)); his own club's read strays half as far (an
 // assumption).
@@ -73,17 +76,85 @@ function edge(G) {                                          // the spread of tre
   _edge.set(G, { s: G.season, v });
   return v;
 }
+// How much of a man's trend his club knows: what it has seen of him, n / (n + 1) of it after n seasons
+// played for it (his log's last run with the club) -- none for a draftee or a man just arrived
+const knows = (p, ab) => { let n = 0; for (let i = (p.log?.length ?? 0) - 1; i >= 0 && p.log[i].tm === ab; i--) n++; return n / (n + 1); };
+const holder = (G, p) => p.tm || Object.keys(G.teams).find((ab) => G.teams[ab].rights?.includes(p.id));
+// The trend club ab reads in p, a season's gain beyond the league's aging: its own man's, the
+// expectation plus what it knows of his own; another club's, the expectation less the lemons'
+// discount for what his club knows. known: the share of his trend his club has seen.
+export function trendRead(G, ab, p) {
+  const hb = holder(G, p), tp = p.tp ?? 0, known = hb ? knows(p, hb) : 0;
+  return { own: hb === ab, known, trend: hb === ab ? tp + known * (p.trend - tp) : tp - 0.8 * known * edge(G) };
+}
+// an outsider's read before its own noise is the same for every club: kept for the day, by holder
+const _out = new WeakMap();
+// his market value h seasons on, as a club reading that trend sees him, and his wins then
+const valueAt = (G, p, trend, h) => { const q = { ...p, rate: p.talent + trend * (1 - G.K.dev.rho ** h) / (1 - G.K.dev.rho) };
+  return { mv: M.marketValue(q, h, capAt(G, G.season + 1 + h), G.K), w: M.war(q, h, G.K) }; };
+function outside(G, ab, p, h) {
+  let c = _out.get(G);
+  if (c?.d !== `${G.season}|${G.date}`) _out.set(G, (c = { d: `${G.season}|${G.date}`, m: new Map() }));
+  const key = `${p.id}|${h}|${holder(G, p)}`;
+  if (!c.m.has(key)) c.m.set(key, valueAt(G, p, trendRead(G, ab, p).trend, h));
+  return c.m.get(key);
+}
+// his market value as the club reads him, and what his wins are worth to its chance of a title
 export function teamValue(G, ab, p, h = 0) {
-  const g = G.teams[ab].gm, cap = capAt(G, G.season + 1 + h), u = M.uncertainty(p, h, G.K), z = g.noise * hashNoise(`${ab}|${p.id}|${G.season}`);
-  const ahead = (1 - G.K.dev.rho ** h) / (1 - G.K.dev.rho);
-  if (p.tm === ab || G.teams[ab].rights?.includes(p.id)) return M.marketValue({ ...p, rate: p.talent + p.trend * ahead }, h, cap, G.K) * (1 + z * u / 2);
-  const held = p.tm || Object.values(G.teams).some((T) => T.rights?.includes(p.id));
-  return M.marketValue({ ...p, rate: p.talent + ((p.tp ?? 0) - (held ? 0.8 * edge(G) : 0)) * ahead }, h, cap, G.K) * (1 + z * u / (1 + u * u));
+  const g = G.teams[ab].gm, u = M.uncertainty(p, h, G.K), z = g.noise * hashNoise(`${ab}|${p.id}|${G.season}`), t = trendRead(G, ab, p);
+  const stray = z * u / (1 + u * u);                       // an outsider's; his own club's half as far
+  const v = t.own ? valueAt(G, p, t.trend, h) : outside(G, ab, p, h);
+  return v.mv * (1 + (t.own ? stray / 2 : stray)) + winWorth(G, ab, h) * Math.max(v.w, 0);
+}
+
+// ---- what a win is worth to a club's GM: his job ---------------------------------------------------
+// A GM values a win by what it does to his chance of keeping the job, in the exit model's own terms
+// (K.gm.hazard, at the league's exit rate M.EXIT), each season kept worth K.jobValue. Two ways a win
+// counts, h seasons past next:
+//  - the season's record, once the season is under way and his expectation set (g.pre): a win beats
+//    it, and moves his share of games won and its change on last season with it (that change shows
+//    again, reversed, a season later). A win foreseen is in the expectation and counts only toward
+//    the title: the model's small positive terms on share and change, left alone, would make it cost;
+//  - the title: one more win raises club ab's chance of it by the title model's slope there (the Trade
+//    Lab's logistic in its wins and its best man's mWAR, K.title.b), as a share of the whole league's
+//    chances, and a title lowers his exit odds that season (champ) and the four after (title_recent).
+// Its wins are expected to keep K.title.wins_carry of their distance from 41 a season, its best man's
+// mWAR likewise from the league's typical, and to be the less certain the further off (8 wins now,
+// widening toward the league's spread, K.title.wins_sd): a contender's next seasons are worth far more
+// to it than to a rebuilder, and a season far off is worth the same to every club (winWorth with no club).
+const GH = [[0, 0.53333], [1.35563, 0.22208], [-1.35563, 0.22208], [2.85697, 0.01126], [-2.85697, 0.01126]];
+const lgt = (x) => 1 / (1 + Math.exp(-x));
+const _ttl = new WeakMap();
+function titleBase(G) {
+  const d = `${G.season}|${G.date}|${G.phase}`, c = _ttl.get(G);
+  if (c?.d === d) return c;
+  const K = G.K, b = K.title.b, abs = Object.keys(G.teams), W = {}, B = {};
+  for (const ab of abs) { W[ab] = G._wins?.[ab] ?? projWins(G, ab); B[ab] = Math.max(0, ...G.teams[ab].roster.map((id) => M.war(G.players[id], 0, K))); }
+  const bs = Object.values(B).sort((x, y) => x - y), bm = (bs[14] + bs[15]) / 2;
+  const P = (w, t) => 1 / (1 + Math.exp(-(b[0] + b[1] * w + b[2] * t)));
+  const S = abs.reduce((a, ab) => a + GH.reduce((s, [z, q]) => s + q * P(W[ab] + 8 * z, B[ab]), 0), 0);
+  // seasons kept, discounted: by surviving one exit decision (keep), and by a title (title)
+  const h = K.gm.hazard, p = M.EXIT, l = Math.log(p / (1 - p)), keep = 1 / (M.DISC - 1 + p);
+  const q = [lgt(l + h.champ), ...Array(4).fill(lgt(l + h.title_recent))];
+  let s1 = 1, s0 = 1, title = 0;
+  q.forEach((x, t) => { s1 *= 1 - x; s0 *= 1 - p; title += (s1 - s0) / M.DISC ** (t + 1); });
+  title += (s1 - s0) * (1 - p) / M.DISC ** 5 / (M.DISC - 1 + p);
+  const rec = -p * (1 - p) * keep * (h.pct + h.d_pct + h.vs_exp - h.d_pct * (1 - p) / M.DISC) / 82;
+  const out = { d, W, B, bm, P, S, title, rec, m: new Map() };
+  _ttl.set(G, out);
+  return out;
+}
+export function winWorth(G, ab, h = Infinity) {
+  const T = titleBase(G), key = `${ab}|${h}`;
+  if (!T.m.has(key)) {
+    const { wins_carry: k, wins_sd: sd } = G.K.title, f = ab && Number.isFinite(h) ? k ** h : 0, sig = Math.sqrt(64 + sd * sd * (1 - f * f));
+    const mu = 41 + ((ab ? T.W[ab] : 41) - 41) * f, top = T.bm + ((ab ? T.B[ab] : T.bm) - T.bm) * f, b = G.K.title.b[1];
+    const dP = GH.reduce((s, [z, q]) => { const x = T.P(mu + sig * z, top); return s + q * b * x * (1 - x); }, 0) / T.S;
+    T.m.set(key, G.K.jobValue * (T.title * dP + (h === 0 && ['season', 'playoffs'].includes(G.phase) ? T.rec : 0)));
+  }
+  return T.m.get(key);
 }
 const hashNoise = V.hashNoise;
-// How much a club makes of a man's coming season when it pays him, by what it is trying to do, as its
-// trade GM weighs it (X.WEIGHT): a contender pays to keep and add, into the tax, a rebuilder holds back.
-const nowWeight = (G, ab) => X.WEIGHT[X.mode(projWins(G, ab))].now;
 // A player's ask this summer, with his max-or-not draw fixed for the summer (hashed, so asking twice
 // gives the same answer)
 export const askOf = (G, p, F, ext = 0) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)), ext);
@@ -533,8 +604,8 @@ const simPick = (pool, r, sd, view) => { let b = null, bv = -Infinity; for (cons
 // it. The club moving down gets the best of those left at the later pick instead of the best now.
 // Each side must come out ahead by what it needs (X.need), the climber adding picks as needed
 // (X.payIn): the price of moving up, the chance of not needing to, and how far each club trusts its
-// own read set how often it happens. A man's worth less his scale salary is weighted as the club
-// weighs picks (X.WEIGHT). The user's club trades on draft night through the trade page.
+// own read set how often it happens; a man's worth is less his scale salary. The user's club trades
+// on draft night through the trade page.
 const NIGHT = 20;
 function tradeUp(G, k, human) {
   const D_ = G.draft, e = D_.order[k], H = e.holder;
@@ -542,7 +613,7 @@ function tradeUp(G, k, human) {
   const avail = D_.avail.map((id) => G.players[id]), memo = new Map();
   const mv = (c, q) => { const key = `${c}|${q.id}`; if (!memo.has(key)) memo.set(key, prospectWorth(G, c, q, cap)); return memo.get(key); };
   const scale = (slot) => D.rookieContract(slot, G.season, cap).years.reduce((a, y, i) => a + y.sal / M.DISC ** i, 0);
-  const W = (c, v, i) => X.WEIGHT[x.modes[c]].pick * (v - scale(D_.order[i].slot));
+  const W = (c, v, i) => v - scale(D_.order[i].slot);
   // the draft played out from here: in each run, the pick at which each man goes
   const rr = S.rng(D_.year * 100 + k), runs = [], view = publicView(G, avail, cap);
   for (let n = 0; n < NIGHT; n++) {
@@ -716,7 +787,7 @@ export function faStart(G, r, user = {}, human = G.user) {
       // an owner weighs the tax a re-signing brings as far as his tolerance for it lets him
       const pay = C.teamSalary(T, G, s), taxUp = C.taxCost(T, pay, a.sal, F, s, C.taxShare(G, s));
       const wants = ab === human ? user.resign?.(p, a)
-        : (nowWeight(G, ab) * teamValue(G, ab, p) >= 0.85 * a.sal + (1 - T.gm.taxTol) * taxUp && r() < M.pResign(p, K));
+        : (teamValue(G, ab, p) >= 0.85 * a.sal + (1 - T.gm.taxTol) * taxUp && r() < M.pResign(p, K));
       if (!wants) continue;
       const o = resignTerms(G, ab, p, a);
       if (C.validateSigning(G, { team: ab, pid: p.id, how: o.how, date: faDate(s, 0), years: years5(o.sal, o.years, o.raise), prior: (p.prior || 0) * 1e6 }).ok)
@@ -813,12 +884,11 @@ function bestTarget(G, ab, day) {
   const std = T.roster.filter((id) => !P[id].contract?.twoWay).length;
   if (std >= 15) return null;
   const pay = C.teamSalary(T, G, s), capPay = C.teamSalary(T, G, s, { holds: true, offseason: true });
-  const w = nowWeight(G, ab);
   let best = null;
   for (const id of G.fa) {
     const p = P[id];
     if (p.qo && T.rfa?.includes(id)) continue;
-    const a = askOf(G, p, F), v = w * (teamValue(G, ab, p) + GM.signPremium(T.gm, p, F.cap, K));
+    const a = askOf(G, p, F), v = teamValue(G, ab, p) + GM.signPremium(T.gm, p, F.cap, K);
     if (v < a.sal * (1 - 0.025 * day)) continue;
     // the most this club can offer him, and under which rule
     const room = F.cap - capPay;
@@ -892,7 +962,7 @@ export function extensions(G, r, date, human = G.user) {
       const start = c.years.at(-1).s + 1, t = C.extensionTerms(p, date, fig(G, start));
       if (t.errors.length) continue;
       const a = extensionAsk(G, p), sal = Math.min(a.sal, t.maxY1);
-      if (nowWeight(G, ab) * teamValue(G, ab, p, start - G.season) >= sal && r() < M.pResign(p, G.K)) extend(G, ab, p, sal, Math.min(a.years, t.maxNew), date);
+      if (teamValue(G, ab, p, start - G.season) >= sal && r() < M.pResign(p, G.K)) extend(G, ab, p, sal, Math.min(a.years, t.maxNew), date);
     }
   }
 }

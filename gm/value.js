@@ -35,10 +35,16 @@ export function marketValue(p, h, cap, K) {
 // error and the development the game's spread gives that far out (a recent draftee's own wider, p.dsd)
 export const uncertainty = (p, h, K) => Math.sqrt((p.se ?? 1) ** 2 + (devSd(K, h) * (p.dsd ?? 1)) ** 2);
 
-// The computer GMs' discount: a season ahead is worth 1/DISC of one now -- money's 10% a year, and
-// the 15.9% chance a season that the GM is gone before it comes (lead executives changed after 100 of
-// 630 club seasons, 2005-06 on, data/_gm_tenure.json): what comes after he is gone is nothing to him.
-export const DISC = 1.1 / (1 - 0.159);
+// The computer GMs' discount: a season ahead is worth 1/DISC of one now -- the 15.9% chance a season
+// that the GM is gone before it comes (lead executives changed after 100 of 630 club seasons, 2005-06
+// on, data/_gm_tenure.json), what comes after counting AFTER (half) as much to him as before, since
+// what he leaves behind follows him to his next job; less the cap's growth (K.capGrowth): every value
+// is priced at its own season's cap, so a growing cap already makes later seasons bigger, and owners'
+// money costs them next to nothing against what their clubs gain in worth. Set when a league is made
+// or loaded.
+export const EXIT = 0.159, AFTER = 0.5;
+export let DISC;
+export const setDisc = (K) => { DISC = 1 + (1 - AFTER) * EXIT - K.capGrowth.mean; };
 
 // The surplus of a contract to whoever holds it: market value less salary, each future
 // season at that season's projected cap, discounted.

@@ -64,7 +64,8 @@ export function awards(G, s) {
   const prev = (x) => x.p.log?.find((l) => l.s === s - 1 && l.gp >= 41);
   const mi = best(g65.filter(prev), (x) => x.rate - prev(x).rate);
   return { mvp, allNba: [nba.slice(0, 5), nba.slice(5, 10), nba.slice(10, 15)],
-    roy: vote(L.filter((x) => x.p.yos === 0), rec, K.mvp, [5, 3, 1], seed('roy')).slice(0, 3),
+    // a rookie has played no NBA game in an earlier season (years of service miss two-way seasons)
+    roy: vote(L.filter((x) => !x.p.log?.some((l) => l.s < s && l.gp > 0)), rec, K.mvp, [5, 3, 1], seed('roy')).slice(0, 3),
     smoy: vote(L.filter((x) => !starter(x)), rec, K.mvp, [5, 3, 1], seed('smoy')).slice(0, 3),
     dpoy: dp && [dp.p.id, +dp.def.toFixed(2)], mip: mi && [mi.p.id, +(mi.rate - prev(mi).rate).toFixed(2)] };
 }

@@ -3,21 +3,19 @@
 // out ahead by their own lights and the rules engine passes it.
 import * as C from './cba.js';
 import * as M from './value.js';
-import { teamValue, projWins, capAt, cutdown, fillRosters } from './league.js';
+import { teamValue, projWins, capAt, cutdown, fillRosters, winWorth } from './league.js';
 import * as P from './picks.js';
 import * as D from './draft.js';
 import * as S from './season.js';
 import * as GM from './gm.js';
 import * as PL from './plan.js';
 
-export const RESIGN_H = 10;   // seasons out a man's worth runs, his deal and the re-signings after it
-export const ENDOW = 1, MAX_PICKS = 4, MIN_GAIN = 0.01, GAIN_SHARE = 0.1, PER_CLUB = 3, THREE = 60, ROOMY = 2;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
+export const RESIGN_H = 20;   // seasons out a man's worth runs, his deal and the re-signings after it (the board's horizon)
+export const ENDOW = 0, MAX_PICKS = 4, MIN_GAIN = 0.01, GAIN_SHARE = 0.06, PER_CLUB = 3, THREE = 60, ROOMY = 2;   // tuned so trades a year and players moving match the real league (_gm_targets.json)
 export const mode = (w) => (w >= 47 ? 'contend' : w <= 35 ? 'rebuild' : 'middle');
-// how a club weighs a season h ahead, and a pick, by what it is trying to do
-export const WEIGHT = { contend: { now: 1.5, later: 0.8, pick: 0.7 }, middle: { now: 1, later: 1, pick: 1 }, rebuild: { now: 0.5, later: 1.1, pick: 1.4 } };
 
 // A player's worth to club `ab`, $: each season left on his deal, his value to this GM less his
-// salary, weighted by what the club is after, discounted. In the season, only what is left of it: a
+// salary (his value to it counting what his wins do for its chance of a title), discounted. In the season, only what is left of it: a
 // man traded at the deadline plays a third of it for his new club, who pays a third of his salary.
 // A season the club need not keep is worth only what keeping it would be (season): on a team option
 // it is picked up only if he is worth it, a year not guaranteed can be cut for what is guaranteed, and
@@ -40,11 +38,11 @@ function season(G, ab, p, i, y) {
 export function playerWorth(G, ab, p, m) {
   const key = `${ab}|${p.id}|${m}`, c = G._worth;
   if (c && key in c) return c[key];
-  const W = WEIGHT[m], s = taxSeason(G), left = G.cur ? 1 - G.cur.d / G.cur.days.length : 1;
+  const s = taxSeason(G), left = G.cur ? 1 - G.cur.d / G.cur.days.length : 1;
   // a man whose draft rights it holds, unsigned: the deal his slot brings, which his club need not offer
   const deal = p.contract || D.rookieContract(p.draft.pick, s - 1, capAt(G, s));
   const yrs = deal.years.filter((y) => y.s >= s);
-  let v = yrs.reduce((a, y, i) => a + (i === 0 ? W.now * left : W.later) * season(G, ab, p, i, y) / M.DISC ** i, 0);
+  let v = yrs.reduce((a, y, i) => a + (i === 0 ? left : 1) * season(G, ab, p, i, y) / M.DISC ** i, 0);
   // past his deal, his Bird rights: re-signed in four-season deals at the board's odds, compounding,
   // each season his value less his expected pay (the Trade Lab's resignChain), to RESIGN_H seasons out
   let surv = 1;
@@ -52,7 +50,7 @@ export function playerWorth(G, ab, p, m) {
     const w = M.war(p, e - 1, G.K), first = e === yrs.length && !!deal.rookie, age = p.age + e;
     surv *= M.keepP(G.K, first, w, age);
     const { mx, pmax, nm } = M.redeal(G.K, first, w, p.yos + e, age), share = pmax * mx + (1 - pmax) * nm;
-    for (let k = e; k < Math.min(e + 4, RESIGN_H); k++) v += W.later * surv * (teamValue(G, ab, p, k) - share * capAt(G, G.season + 1 + k)) / M.DISC ** k;
+    for (let k = e; k < Math.min(e + 4, RESIGN_H); k++) v += surv * (teamValue(G, ab, p, k) - share * capAt(G, G.season + 1 + k)) / M.DISC ** k;
   }
   const w = p.contract ? v : Math.max(v, 0);
   if (c) c[key] = w;
@@ -62,7 +60,8 @@ export function playerWorth(G, ab, p, m) {
 // A pick's worth, $: the board's surplus for the slots it brings over simulated drafts (picks.js
 // worth: the lottery, every protection and swap), at that draft's cap, weighted by what the club
 // is after and discounted. prot: a protection the sender adds.
-const scale = (G, y, m, v) => WEIGHT[m].pick * v * capAt(G, y - 1) / (G.K.slotCap * 1e6) * 1e6 / M.DISC ** (y - (G.season + 1));
+// (what the men a pick brings win counts toward a title as a season far off does for any club: winWorth)
+const scale = (G, y, m, v) => (1 + winWorth(G) / (G.K.price.b * capAt(G, y - 1))) * v * capAt(G, y - 1) / (G.K.slotCap * 1e6) * 1e6 / M.DISC ** (y - (G.season + 1));
 export const pickWorth = (G, ab, pick, m, prot) => scale(G, pick.year, m, P.worth(G, pick, prot, ab));
 // a new swap right (picks.js after), $, to the club given it
 export const swapWorth = (G, s, m) => scale(G, s.y, m, P.swapWorth(G, s));
@@ -147,8 +146,8 @@ export function market(G) {
 const salPath = (p, s, cap) => Array.from({ length: PL.TAX_H }, (_, k) => (k ? C.yearOf(p.contract, s + k)?.sal ?? 0 : C.charge(p, s, cap)));
 // What a trade is worth to club ab, $, by its own lights: what comes in, less what goes out (which
 // looms larger, a star most), less the tax it brings, plus what its GM makes of sending more men than
-// he takes back (a consolidator) or fewer (gm.js), plus what it does to the club's room next summer
-// (plan.js).
+// he takes back (a consolidator) or fewer (gm.js), less the men it must waive to make room, plus what
+// it does to the club's room next summer (plan.js).
 // How far ahead a deal must leave club ab: GAIN_SHARE of what it moves (its worth of all that comes
 // in and goes out), never under MIN_GAIN of the cap -- so a small deal (a fringe man, a second)
 // needs a small edge, a big one a big edge.
@@ -169,6 +168,13 @@ export function gain(G, x, ab, tr) {
   }
   if (dy) v += PL.change(x.plan, ab, dy);
   v += GM.shed(G.teams[ab].gm) * n * x.F.cap;
+  // a roster spot: past 15 standard contracts the club waives the men it would least keep (worth to
+  // it plus the guaranteed money it owes him either way), so a man more costs it the last it keeps
+  const T = G.teams[ab], std = (ids) => ids.filter((id) => P[id].contract && !P[id].contract.twoWay);
+  const keep = (id) => once(x, `k|${ab}|${id}`, () => playerWorth(G, ab, P[id], x.modes[ab]) + C.waive(P[id], tr.date).reduce((a, d) => a + d.amt / M.DISC ** (d.s - x.s), 0));
+  const cut = (ids) => ids.map(keep).sort((a, b) => a - b).slice(0, Math.max(0, ids.length - 15)).reduce((a, w) => a + w, 0);
+  const now = std(T.roster), after = std(now.filter((id) => !tr.moves.some((m) => m.pid === id && m.from === ab)).concat(tr.moves.filter((m) => m.to === ab).map((m) => m.pid)));
+  if (now.length > 15 || after.length > 15) v += once(x, `c|${ab}`, () => cut(now)) - once(x, `c|${ab}|${after}`, () => cut(after));
   for (const p of tr.picks) {
     const w = pickW(G, x, ab, x.pv[p.id], p.prot);
     if (p.to === ab) v += w; else if (p.from === ab) v -= give(w);
@@ -199,8 +205,8 @@ export function fit(league, tr) {
 // Club payer pays payee in picks, up to MAX_PICKS in the deal: the cheapest one that closes the gap,
 // else its best and go on, until payee is ahead by what it needs (need), payer staying ahead of nothing lost.
 // What it can pay in: its picks and claims; a first of its own it may protect (top 4, 10 or 14); the
-// right to swap firsts with the payee in a year both hold their own; or the draft rights of a man it
-// holds unsigned. g: each club's gain from the deal as it stands.
+// right to swap firsts with the payee in a year both hold their own; the draft rights of a man it
+// holds unsigned; or taking on a contract the payee would rather be rid of (worth less than nothing to it). g: each club's gain from the deal as it stands.
 export function payIn(G, x, trade, g, league, payer, payee, nd = () => need(G, x, payee, trade)) {   // nd: what payee needs
   const P = G.players;
   const own = (ab, k) => k.kind === 'pick' && k.round === 1 && k.origin === ab && k.holder === ab && !k.prot && !k.terms.length;
@@ -210,6 +216,8 @@ export function payIn(G, x, trade, g, league, payer, payee, nd = () => need(G, x
     ...(own(payer, k) ? [[1, 4], [1, 10], [1, 14]].map((p) => ({ id: k.id, pk: { id: k.id, from: payer, to: payee, prot: p }, v: pickW(G, x, payee, k, p) })) : []),
     ...(own(payer, k) && own(payee, x.pv[`${payee}|${k.year}|1`] || {}) ? [{ id: k.id, sw: { y: k.year, r: 1, from: payer, to: payee }, v: swapW(G, x, payee, { y: k.year, r: 1, from: payer, to: payee }) }] : []),
   ]).concat((G.teams[payer].rights ?? []).filter((id) => !used.has(id)).map((id) => ({ id, mv: { pid: id, from: payer, to: payee }, v: playerWorth(G, payee, P[id], x.modes[payee]) })))
+    .concat(G.teams[payee].roster.filter((id) => !used.has(id) && !P[id].contract?.twoWay && !P[id].contract?.tenDay)   // or take a contract off its hands
+      .map((id) => ({ id, mv: { pid: id, from: payee, to: payer }, v: -playerWorth(G, payee, P[id], x.modes[payee]) })))
     .filter((c) => c.v > 0).sort((a, b) => a.v - b.v);
   while (g(payee) <= nd() && trade.picks.length + trade.swaps.length < MAX_PICKS && pool.length) {
     const i = pool.findIndex((c) => c.v > nd() - g(payee)), c = pool.splice(i < 0 ? pool.length - 1 : i, 1)[0], into = c.pk ? trade.picks : c.sw ? trade.swaps : trade.moves;
@@ -255,7 +263,7 @@ export function buildOffer(G, x, B, S, p, date, asked = false, via = S) {
   res = fit(league, trade);
   // asked (the seller shopping him): the buyer's best offer, whether the seller likes it is the seller's call
   // score: how far past its need the club least ahead is (over 1 clears)
-  return res.ok && g(B) > 0 && (asked || g(S) > 0) && g(via) > 0 ? { trade, res, score: Math.min(...[B, S, via].map((ab) => g(ab) / nd(ab))) } : null;
+  return res.ok && g(B) > 0 && (asked || g(S) > 0) && (via === S || g(via) > 0) ? { trade, res, score: Math.min(...[B, S, via].map((ab) => g(ab) / nd(ab))) } : null;
 }
 
 // The user's offer, put to the other clubs: legal, and does every computer GM in it come out ahead

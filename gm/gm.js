@@ -90,7 +90,8 @@ export function closeSeason(G, h, pay) {
 export function pExit(G, g) {
   const c = G.K.gm.hazard, x = g.rec.at(-1), t = Math.min(g.ten, 6);
   return lgt(c.Intercept + (t > 1 ? c[`C(ten)[T.${t === 6 ? '6+' : t}]`] : 0) + c.pct * x.pct + c.vs_exp * x.vs_exp + c.d_pct * x.d_pct
-    + c.playoffs * x.playoffs + c.po_w * x.po_w + c.pay_rel * x.pay_rel + c.trade_proc * x.trade_proc + c.draft_left * x.draft_left + c.new_owner * x.new_owner);
+    + c.playoffs * x.playoffs + c.po_w * x.po_w + c.pay_rel * x.pay_rel + c.trade_proc * x.trade_proc + c.draft_left * x.draft_left + c.new_owner * x.new_owner
+    + c.champ * x.champ + c.title_recent * +g.rec.slice(-5, -1).some((r) => r.champ));
 }
 // what the re-entry model reads off a spell
 export function spellOf(g) {
@@ -152,12 +153,15 @@ export function offers(G, r, out = 1) {
 // the real draft orders careers no better than the consensus board), strays from the board by the
 // real reach, and has the real number of draft-night trades (data/_gm_draft_accuracy.json,
 // _gm_trade_shape.json). With the projections as the truth, every club knows the talent.
-// set on 10 drafts from one league's snapshot over a grid (READ 18-1000, LEAN 0-0.3): READ 250 gives
-// reach 15 picks against the public worth order (real 14 against ESPN's), draft order ranking the
-// class's early careers about as the board does (gap +0.021, real +0.005); a lean of the GM's own
-// only added reach. Draft-night trades are 1.2 a draft (real 6.6): with the board as uncertain as the
-// real one, neighbouring picks are worth too nearly the same to a club for climbing to pay
-export let READ = 250, LEAN = 0;
+// set on 10 drafts from one league's snapshot over a grid (READ 18-1000, LEAN 0-0.5). With the board
+// as uncertain as the real one, a club's own read adds next to nothing (READ 1000), and clubs differ by
+// their leans: LEAN 0.17 gives reach 14 picks against the public worth order (real 14 against ESPN's)
+// with draft order ranking early careers as the board does (gap about 0, real +0.005) -- they disagree,
+// as real clubs do, without knowing more -- and the odds the draft room shows (league.there/takenNow)
+// draw each rival's pick with that spread. (READ 250 with no lean also reached 14, but every club then
+// saw the same thing, so the room's odds were all 0% or 100%.) Draft-night trades: about 1 a draft
+// (real 6.6) at every setting
+export let READ = 1000, LEAN = 0.17;
 export const tune = (o) => ({ READ = READ, LEAN = LEAN } = o);   // for calibration runs
 export const GRID = 41;
 export const readSd = (g) => READ * g.noise;
