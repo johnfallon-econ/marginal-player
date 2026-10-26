@@ -50,8 +50,9 @@ function firstTimer(G, r) {
 }
 
 // ---- the season's record --------------------------------------------------------------------
-// A trade on each side's GM's books for the season: its process value, % of the cap (the model's
-// surplus of what the club takes in less what it sends, picks at their board worth), and the
+// A trade on each side's GM's books for the season: its process value, % of the cap (the market's
+// worth over the career, deal and re-signings, of what the club takes in less what it sends, picks at
+// their board worth: trades.js marketWorth, as the real measure reads the trades page), and the
 // trade and the players it sent out less those it took in
 export function tradeProc(G, tr, cap, surplusOf, pickOf) {
   const d = {}, n = {};
@@ -61,11 +62,11 @@ export function tradeProc(G, tr, cap, surplusOf, pickOf) {
     const g = G.teams[ab].gm; g.proc = (g.proc || 0) + 100 * v / cap; g.nt = (g.nt || 0) + 1; g.net = (g.net || 0) + (n[ab] || 0);
   }
 }
-// a pick's value left on the table, % of the cap: the model's worth of the man taken less that of
-// the best on the board (both on the same scale deal, so only market value counts)
-export function draftLeft(G, ab, p, avail, cap) {
-  const mv = (q) => [0, 1, 2, 3].reduce((a, h) => a + M.marketValue({ ...q, rate: q.rate, mpg: undefined }, h, cap, G.K), 0);
-  const g = G.teams[ab].gm; g.left = (g.left || 0) + 100 * (mv(p) - Math.max(...avail.map(mv))) / cap;
+// a pick's value left on the table, % of the cap: the draft board's worth of the man taken (worth:
+// league.js fans, his career to the club that drafts him, as the real measure reads the site's board)
+// less that of the best man left
+export function draftLeft(G, ab, p, avail, cap, worth) {
+  const g = G.teams[ab].gm; g.left = (g.left || 0) + 100 * (worth(p) - Math.max(...avail.map(worth))) / cap;
 }
 
 // The season just played, for every club's GM: what the exit model reads (g.pre: the share of games
@@ -82,6 +83,12 @@ export function closeSeason(G, h, pay) {
     g.ten += 1;
     g.rec.push({ s: h.season, pct, vs_exp: pct - g.pre, d_pct: pct - G.lastPct[ab], new_owner: +[h.season, h.season - 1].includes(T.sold), playoffs: +(ab in won), po_w: won[ab] || 0,
       champ: +(h.champion === ab), pay_rel: pay[ab] / med, trade_proc: g.proc || 0, draft_left: g.left || 0, trades: g.nt || 0, sent_less_got: g.net || 0 });
+    // the GMs tab's all-time table (G.K.gm.records, the real ones to 2025-26) gets the season too: yours
+    // under 'you' while you hold the job
+    const id = ab === G.user && !G.fired ? 'you' : g.id, x = g.rec.at(-1), t = ((G.gmStats ||= {})[id] ||= { n: id === 'you' ? 'You' : g.n, clubs: [], seasons: 0, w: 0, l: 0, vs_w: 0, lined: 0, po_w: 0, titles: 0, trade: 0, draft: 0 });
+    if (!t.clubs.includes(ab)) t.clubs.push(ab);
+    Object.assign(t, { last: h.season, seasons: t.seasons + 1, w: t.w + w, l: t.l + l, vs_w: t.vs_w + x.vs_exp * (w + l), lined: t.lined + 1, po_w: t.po_w + x.po_w,
+      titles: t.titles + x.champ, trade: t.trade + x.trade_proc, draft: t.draft + x.draft_left });
     delete g.proc; delete g.left; delete g.pre; delete g.nt; delete g.net;
   }
   G.lastPct = Object.fromEntries(Object.entries(h.record).map(([ab, [w, l]]) => [ab, w / (w + l)]));

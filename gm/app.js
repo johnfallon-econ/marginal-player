@@ -527,7 +527,7 @@ ${summer.length ? `<details class="card"><summary>Every signing this summer (${s
 // drafts him, each prospect's value violin, quality fans and the game's own odds; open one for his
 // career arc and what his club keeps season by season.
 function board(pool, onMe, tn, th, c) {
-  const F_ = new Map(pool.map((p) => [p.id, L.fans(G, sp(p))])), f = (p) => F_.get(p.id), list = pool.slice().sort((a, b) => f(b).EV - f(a).EV).slice(0, 60);
+  const F_ = new Map(pool.map((p) => [p.id, L.fans(G, sp(p), !!G.reveal)])), f = (p) => F_.get(p.id), list = pool.slice().sort((a, b) => f(b).EV - f(a).EV).slice(0, 60);
   const all = [...F_.values()], VD = [Math.floor(Math.min(...all.map((x) => x.v[1]))), Math.ceil(Math.max(...all.map((x) => x.v[6])))];
   const QD = [Math.floor(Math.min(...all.flatMap((x) => ['r', 'q', 'k', 'o', 'd'].map((k) => x[k][1])))), Math.ceil(Math.max(...all.flatMap((x) => ['r', 'q', 'k', 'o', 'd'].map((k) => x[k][5]))))];
   const chip = (d) => `<span class="chip ${d > 0 ? 'up' : d < 0 ? 'dn' : 'na'}">${d > 0 ? '+' : ''}${d}</span>`;
@@ -722,14 +722,42 @@ ${all.length > pool.length ? `<div class="row">${btn('famore', `Show more (${all
 };
 // The front offices: who runs each club, his background, and his three fitted leanings
 const BG = { former_player: 'Former player', cap_specialist: 'Cap specialist', former_agent: 'Former agent', former_scout: 'Former scout', analytics: 'Analytics' };
+// Every GM, all time: the real records to 2025-26 (G.K.gm.records) with the game's seasons added
+// (G.gmStats), yours among them; sortable, per season or over the career
+const GCOL = [['n', 'GM', 0], ['seasons', 'Seasons', 0], ['pct', 'Win %', 0], ['vs_w', 'Wins vs line', 1], ['po_w', 'Playoff wins', 1], ['titles', 'Titles', 1], ['trade', 'Trades $M', 1], ['draft', 'Draft $M', 1]];
+function allGMs() {
+  const R = G.K.gm.records || {}, S = G.gmStats || {}, now = Object.fromEntries(Object.entries(G.teams).map(([ab, T]) => [ab === G.user && !G.fired ? 'you' : T.gm.id, ab]));
+  return [...new Set([...Object.keys(R), ...Object.keys(S)])].map((id) => {
+    const a = R[id], b = S[id], add = (k) => (a?.[k] || 0) + (b?.[k] || 0);
+    const t = { id, n: (a || b).n, clubs: [...new Set([...(a?.clubs || []), ...(b?.clubs || [])])], first: a?.first ?? (b.last - b.seasons + 1), last: b?.last ?? a.last, now: now[id], sim: b?.seasons || 0 };
+    for (const k of ['seasons', 'w', 'l', 'vs_w', 'lined', 'po_w', 'titles', 'trade', 'draft']) t[k] = add(k);
+    t.pct = t.w / (t.w + t.l);
+    return t; });
+}
 VIEWS.gms = () => {
+  const cap = F().cap, per = ui.gmPer ?? true, key = ui.gmSort || 'seasons', dir = ui.gmDir ?? -1;
+  const val = (t, k, f) => (k === 'n' ? t.n : k === 'pct' || k === 'seasons' || !f ? t[k] : per ? t[k] / (k === 'vs_w' ? t.lined || 1 : t.seasons) : t[k]);
+  const usd = (v) => v / 100 * cap / 1e6;                                       // % of a season's cap, at this season's, $M
+  const L = allGMs().filter((t) => t.seasons).sort((a, b) => { const f = GCOL.find((c) => c[0] === key)[2], x = val(a, key, f), y = val(b, key, f); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir; });
+  const cell = (t, [k, , f]) => { const v = val(t, k, f);
+    return k === 'n' ? `<td>${t.id === 'you' ? '<b>You</b>' : esc(t.n)}${t.now ? ` <small>${t.now}</small>` : ''}<br><small>${t.clubs.join(', ')} · ${SEASON(t.first)}${t.last > t.first ? `–${SEASON(t.last).slice(-2)}` : ''}${t.sim ? ` · ${t.sim} in the game` : ''}</small></td>`
+      : `<td class="n">${k === 'seasons' ? v : k === 'pct' ? `${t.w}-${t.l}<br><small>${v.toFixed(3).replace(/^0/, '')}</small>` : k === 'trade' || k === 'draft' ? sg(usd(v)) : k === 'vs_w' ? sg(+v.toFixed(1)) : per ? v.toFixed(k === 'titles' ? 2 : 1) : v}</td>`; };
+  const head = GCOL.map(([k, h]) => `<th class="${k === 'n' ? '' : 'n'}" data-act="gmsort" data-arg="${k}" style="cursor:pointer">${h}${key === k ? (dir < 0 ? ' ▾' : ' ▴') : ''}</th>`).join('');
+  return `<div class="card"><h3>Every GM</h3><div class="row">${btn('gmper', per ? '✓ Per season' : 'Per season', '', per ? '' : 'ghost')}${btn('gmper', per ? 'Career' : '✓ Career', '', per ? 'ghost' : '')}</div>
+<div class="scroll"><table class="t bx"><thead><tr><th>#</th>${head}</tr></thead><tbody>${L.map((t, i) => `<tr${t.id === 'you' ? ' class="me"' : ''}><td class="n">${i + 1}</td>${GCOL.map((c) => cell(t, c)).join('')}</tr>`).join('')}</tbody></table></div>
+<p class="note">Every lead executive since 1999-2000 (Basketball-Reference's team pages), his real record through 2025-26 and his seasons in this game added, yours among them; click a column to sort. Wins vs line: games won over the preseason over-under (in the game, over the club's projection at the opener). Trades: the model's surplus of what his clubs took in over what they sent, players and picks; Draft: the worth of his picks against the best man left at each, so never above zero. Both are shares of each season's cap, shown at this season's (${$M(cap)}).</p></div>
+${frontOffices()}`;
+};
+ACT.gmsort = (k) => { ui.gmDir = ui.gmSort === k ? -(ui.gmDir ?? -1) : (k === 'n' ? 1 : -1); ui.gmSort = k; render(); };
+ACT.gmper = () => { ui.gmPer = !(ui.gmPer ?? true); render(); };
+function frontOffices() {
   const K = G.K.gm, cap = F().cap, rows = Object.entries(G.teams).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([ab, T]) => {
     const g = T.gm, you = ab === G.user;
     return `<tr${you ? ' class="me"' : ''}><td>${esc(T.name)}</td><td>${you ? '<b>You</b>' : esc(g.n)}</td><td>${you ? '' : g.b.map((k) => BG[k]).join(', ') || '—'}</td><td class="n">${you ? '' : g.ten}</td>
 <td class="n">${you ? '' : (K.tradesMean + g.trades).toFixed(1)}</td><td class="n">${you ? '' : (g.consolidate < 0 ? '−' : '+') + Math.abs(g.consolidate).toFixed(2)}</td><td class="n">${you ? '' : sg(g.sign_rate / 100 * cap / 1e6)}</td></tr>`; }).join('');
-  return `<div class="card"><h3>Front offices</h3><div class="scroll"><table class="t bx"><thead><tr><th>Club</th><th>GM</th><th>Background</th><th class="n">Seasons</th><th class="n">Trades a season</th><th class="n">Players out − in</th><th class="n">$M per mPM</th></tr></thead><tbody>${rows}</tbody></table></div>
-<p class="note">The clubs open with their real lead executives. Three leanings set real GMs apart beyond luck, and each GM has his own, estimated from his record and pulled toward the average for his background (a GM with a short record is mostly his background): how many trades he makes a season; how many more players he sends out than he takes back in a trade; and how much more (or less) than the league he pays a free agent for each point of mPM, in first-season salary. Analytics hires trade most and pay most for mPM, and their reads of players stray half as far from the model's as other GMs'. GMs lose their jobs as real ones do, mostly when their club falls short of what was expected, and more often under a new owner (clubs change hands about one in 21 a year, yours included); ${G.gmPool.length} are out of work, and they come back at the rates real ones did; the rest of the openings go to first-time GMs.</p></div>`;
-};
+  return `<div class="card"><h3>Front offices now</h3><div class="scroll"><table class="t bx"><thead><tr><th>Club</th><th>GM</th><th>Background</th><th class="n">Seasons</th><th class="n">Trades a season</th><th class="n">Players out − in</th><th class="n">$M per mPM</th></tr></thead><tbody>${rows}</tbody></table></div>
+<p class="note">The clubs opened with their real lead executives. Three leanings set real GMs apart beyond luck, and each GM has his own, estimated from his record and pulled toward the average for his background (a GM with a short record is mostly his background): how many trades he makes a season; how many more players he sends out than he takes back in a trade; and how much more (or less) than the league he pays a free agent for each point of mPM, in first-season salary. Analytics hires trade most and pay most for mPM, and their reads of players stray half as far from the model's as other GMs'. GMs lose their jobs as real ones do, mostly when their club falls short of what was expected, and more often under a new owner (clubs change hands about one in 21 a year, yours included); ${G.gmPool.length} are out of work, and they come back at the rates real ones did; the rest of the openings go to first-time GMs.</p></div>`;
+}
 ACT.logall = () => { ui.all = !ui.all; render(); };
 ACT.famore = () => { ui.more = true; render(); };
 

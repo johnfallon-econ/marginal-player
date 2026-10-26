@@ -38,11 +38,20 @@ function season(G, ab, p, i, y) {
 export function playerWorth(G, ab, p, m) {
   const key = `${ab}|${p.id}|${m}`, c = G._worth;
   if (c && key in c) return c[key];
+  const w = career(G, p, (i, y) => season(G, ab, p, i, y), (k) => teamValue(G, ab, p, k));
+  if (c) c[key] = w;
+  return w;
+}
+// The same at the market's price, to no club in particular: a trade's process value (gm.js tradeProc),
+// on the scale of the real one (the trades page's, over the career)
+export const marketWorth = (G, p) => career(G, p, (i, y) => M.marketValue(p, i, capAt(G, G.season + 1 + i), G.K) - y.sal, (k) => M.marketValue(p, k, capAt(G, G.season + 1 + k), G.K));
+// now(i, y): season i of his deal, worth less salary; later(k): a season past it, worth before pay
+function career(G, p, now, later) {
   const s = taxSeason(G), left = G.cur ? 1 - G.cur.d / G.cur.days.length : 1;
   // a man whose draft rights it holds, unsigned: the deal his slot brings, which his club need not offer
   const deal = p.contract || D.rookieContract(p.draft.pick, s - 1, capAt(G, s));
   const yrs = deal.years.filter((y) => y.s >= s);
-  let v = yrs.reduce((a, y, i) => a + (i === 0 ? left : 1) * season(G, ab, p, i, y) / M.DISC ** i, 0);
+  let v = yrs.reduce((a, y, i) => a + (i === 0 ? left : 1) * now(i, y) / M.DISC ** i, 0);
   // past his deal, his Bird rights: re-signed in four-season deals at the board's odds, compounding,
   // each season his value less his expected pay (the Trade Lab's resignChain), to RESIGN_H seasons out
   let surv = 1;
@@ -50,11 +59,9 @@ export function playerWorth(G, ab, p, m) {
     const w = M.war(p, e - 1, G.K), first = e === yrs.length && !!deal.rookie, age = p.age + e;
     surv *= M.keepP(G.K, first, w, age);
     const { mx, pmax, nm } = M.redeal(G.K, first, w, p.yos + e, age), share = pmax * mx + (1 - pmax) * nm;
-    for (let k = e; k < Math.min(e + 4, RESIGN_H); k++) v += surv * (teamValue(G, ab, p, k) - share * capAt(G, G.season + 1 + k)) / M.DISC ** k;
+    for (let k = e; k < Math.min(e + 4, RESIGN_H); k++) v += surv * (later(k) - share * capAt(G, G.season + 1 + k)) / M.DISC ** k;
   }
-  const w = p.contract ? v : Math.max(v, 0);
-  if (c) c[key] = w;
-  return w;
+  return p.contract ? v : Math.max(v, 0);
 }
 
 // A pick's worth, $: the board's surplus for the slots it brings over simulated drafts (picks.js
@@ -341,8 +348,8 @@ export function complete(G, j) { execute(G, j.trade, j.res); G.log.push(logEntry
 // Put a passed trade into effect: rosters, picks, hard caps, new trade exceptions, cash.
 export function execute(G, trade, res) {
   // each side's process value, on the books for its GM's season (gm.js), as the deal stood
-  const capOf = (y) => capAt(G, y), pv = P.assets(G);
-  GM.tradeProc(G, trade, capAt(G, taxSeason(G)), (p) => M.surplus(p, capOf, G.K), (id) => pv[id] ? scale(G, pv[id].year, 'middle', P.worth(G, pv[id], undefined, pv[id].holder)) : 0);
+  const pv = P.assets(G);
+  GM.tradeProc(G, trade, capAt(G, taxSeason(G)), (p) => marketWorth(G, p), (id) => pv[id] ? scale(G, pv[id].year, 'middle', P.worth(G, pv[id], undefined, pv[id].holder)) : 0);
   for (const m of trade.moves) {
     const p = G.players[m.pid];
     const k = p.contract ? 'roster' : 'rights';                // draft rights change hands unsigned

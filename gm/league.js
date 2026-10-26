@@ -513,10 +513,11 @@ export function settleDraft(G) {
 // seasons 1-6, as the game's own leagues have kept such men (K.stick).
 export const QL = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99];
 const FANS = new Map();
-export function fans(G, p, n = 400) {
-  const key = `${G.draft.year}|${p.id}`;
+// known: his talent is known (yours, shown the truth: G.reveal), so no board miss
+export function fans(G, p, known = false, n = 400) {
+  const key = `${G.draft.year}|${p.id}|${known}`;
   if (FANS.has(key)) return FANS.get(key);
-  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = G.reveal ? [0] : G.draft.resid, cap = capAt(G, G.draft.year);   // shown the truth, you know his talent: no board miss
+  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = known ? [0] : G.draft.resid, cap = capAt(G, G.draft.year);
   const r = S.rng([...p.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7));
   const mins = (x) => K.beta * 82 * M.mpgFor(x, K) / 48;
   // the board's contract model at a season's wins w (its keepP, holdP, dealMax)
@@ -570,7 +571,7 @@ export function draftNext(G, r, choice, human = G.user, n = Infinity) {
     // a computer club takes the man worth most on its estimate (gm.js: the board, its own read, the draft so far)
     const cap = capAt(G, year), p = holder === human ? G.players[choice] : avail.reduce((a, q) => (prospectWorth(G, holder, q, cap) > prospectWorth(G, holder, a, cap) ? q : a));
     choice = null;
-    GM.draftLeft(G, holder, p, avail, capAt(G, year));
+    GM.draftLeft(G, holder, p, avail, capAt(G, year), (q) => fans(G, q).EV * 1e6);   // the board's worth, $M
     D_.avail = D_.avail.filter((id) => id !== p.id);
     GM.learn(G, holder, p, D_.avail.map((id) => G.players[id]), (q, rate) => worthAt(G, q, rate, cap));   // every club sees the pick
     p.draft = { year, round: slot <= 30 ? 1 : 2, pick: slot, team: holder };
