@@ -229,13 +229,13 @@ const ACT = {
   takejob: (ab) => { O.move(G, ab, r); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
   retire: () => { G.fired.retired = true; save(); render(); },
   path: (k) => { G.fired.path = k; save(); render(); },
-  // a season out, on the path chosen (simmed lightly: no one is at your controls); all: until a club calls, ten at most
+  // a season out, on the path chosen (simmed lightly: no one is at your controls); all: until a club calls
   away: (all) => { const f = G.fired, k = f.path || 'away';
     step(`${f.out > 1 ? `Season ${f.out} out` : 'A season out'}: ${GM.PATHS[k].label.toLowerCase()}`, async () => {
       G.lite = true; try { await L.toNextDraft(G, r, (date, k) => tradeWindow(date, L.TRADES[k], null)); } finally { delete G.lite; }
       (f.log ||= []).push({ s: G.season, path: k }); f.out += 1; f.s = G.season;
       const o = GM.offers(G, r, f.out, k); f.offers = o.clubs; f.h = o.h;
-      if (all && !f.offers.length && f.out <= 10) setTimeout(() => ACT.away(true), 50);
+      if (all && !f.offers.length) setTimeout(() => ACT.away(true), 50);
     }); },
   staff: () => { G.staffSigns = G.staffSigns === false; save(); render(); },
   newgame: () => { if (!G || confirm('Start over? The current game is replaced.')) { G = null; view = 'new'; render(); } },
@@ -559,7 +559,7 @@ function fired() {
   return `<div class="card"><h2>${f.out > 1 ? 'Out of work' : "You're fired"}</h2><p>${why}</p>${f.out > 1 ? '' : ownerBooks()}
 <h3>Clubs that want you</h3>${f.offers.length ? f.offers.map((ab) => `<div class="off"><b>${esc(NAME(ab))}</b> <small>${rec[ab][0]}-${rec[ab][1]} last season · payroll ${$m(O.payroll(G, ab) / 1e6)}</small> ${btn('takejob', 'Take the job', ab)}</div>`).join('') : '<p>No one calls.</p>'}
 <p class="note">Only clubs that changed GMs this summer are hiring (${G.openSeats.filter((ab) => ab !== f.from).length} of them). Real GMs who lose a job get another one at a rate that falls the longer they are out; for a career like yours, the model's chance of a job this summer is ${pct(f.h)}. Your new owner is the kind you asked for when you started.</p>
-<h3>While you wait</h3><p class="note">Media work puts you in front of the big markets (the ten clubs with the most revenue); a front-office job in front of the rest. The other seasons are simmed lightly while you are out: fewer trade talks, so they go faster.</p>
+<h3>While you wait</h3><p class="note">Television puts you in front of the big markets (the ten clubs with the most revenue); a front-office job in front of the rest; a podcast in front of everyone, less strongly. The other seasons are simmed lightly while you are out: fewer trade talks, so they go faster.</p>
 <div class="row">${Object.entries(GM.PATHS).map(([k, p]) => btn('path', `${(f.path || 'away') === k ? '✓ ' : ''}${p.label}`, k, (f.path || 'away') === k ? '' : 'ghost')).join('')}</div>
 ${f.log?.length ? `<p><small>${f.log.map((x) => `${SEASON(x.s)}: ${esc(GM.PATHS[x.path].say)}`).join(' · ')}</small></p>` : ''}
 <h3>Your career</h3>${career()}<div class="row">${btn('away', 'Spend a season', '')}${btn('away', 'Until a club calls', 'all')}${btn('retire', 'Retire', '', 'warn')}${btn('export', 'Export the save')}</div></div>`;

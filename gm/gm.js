@@ -133,13 +133,13 @@ export function hire(G, ab, r, x = firstTimer(G, r)) {
 }
 // The user, out of work: each club that changed GMs this summer calls with the chance that makes his
 // odds of a job this year what the re-entry model gives a spell like his (his career as one spell)
-// What a fired GM does while out of work, and which clubs it puts him in front of: media work (a
-// podcast, television) in front of the big markets, a front-office job in front of the rest. The
+// What a fired GM does while out of work, and which clubs it puts him in front of: television in
+// front of the big markets, a front-office job in front of the rest, a podcast in front of all. The
 // lifts are the game's, not measured: big markets are the ten clubs with the most revenue (K.fin).
 export const PATHS = {
-  tv: { label: 'Television analyst', say: 'a studio chair on national television', big: 1.6, rest: 0.8 },
-  podcast: { label: 'Start a podcast', say: 'a podcast with a following among front offices', big: 1.3, rest: 0.9 },
-  agm: { label: 'Assistant GM', say: 'an assistant GM\'s job, learning another front office', big: 0.8, rest: 1.6 },
+  tv: { label: 'Television analyst', say: 'a studio chair on national television', big: 25, rest: 0.8 },
+  podcast: { label: 'Start a podcast', say: 'a podcast with a following among front offices', big: 15, rest: 15 },
+  agm: { label: 'Assistant GM', say: 'an assistant GM\'s job, learning another front office', big: 0.8, rest: 25 },
   away: { label: 'Step away', say: 'time away from the game', big: 1, rest: 1 },
 };
 export const bigMarket = (G, ab) => Object.entries(G.K.fin.revenue).sort((a, b) => b[1] - a[1]).slice(0, 10).some(([x]) => x === ab);
@@ -147,7 +147,7 @@ export const bigMarket = (G, ab) => Object.entries(G.K.fin.revenue).sort((a, b) 
 export function offers(G, r, out = 1, path = 'away') {
   const R = (G.career || []).map((x) => ({ pct: x.w / (x.w + x.l), vs_exp: x.vs_exp, po_w: x.po_w, champ: +x.champ, trade_proc: x.proc, draft_left: x.left }));
   const h = pBack(G, spellOf({ rec: R }), out), seats = G.openSeats.filter((ab) => ab !== G.user), q = 1 - (1 - h) ** (1 / seats.length);
-  const P = PATHS[path], lift = (ab) => (bigMarket(G, ab) ? P.big : P.rest);
+  const P = PATHS[path], lift = (ab) => Math.min(1 / q, bigMarket(G, ab) ? P.big : P.rest);   // a seat's chance is at most certain
   return { h: 1 - seats.reduce((a, ab) => a * (1 - q * lift(ab)), 1), clubs: seats.filter((ab) => r() < q * lift(ab)) };
 }
 
