@@ -77,9 +77,29 @@ export const picksView = (G) => P.assets(G);
 // taxpayer pays a club with room to take money off its books. The buyer sends back what it values
 // least to make salaries legal, then picks change hands -- either way -- until both clubs are
 // ahead by their own lights, the tax counted as far as each owner minds it. The best such deal goes
-// through; repeat up to maxTrades.
+// through; repeat up to maxTrades. The offers each round needs are drawn up by the driver: here, one
+// after another (tradeWindow); in the browser, spread over workers that hold the league (tradeWindowWith, worker.js).
 export function tradeWindow(G, r, date, maxTrades = 6, userAb = G.user) {
-  const done = [];
+  const it = windowSteps(G, date, maxTrades, userAb);
+  let s = it.next();
+  while (!s.done) s = it.next(s.value.need?.map(([S, p, B, V]) => buildOffer(G, s.value.x, B, S, p, date, false, V)));
+  return s.value;
+}
+// pool: { start(G), offers(date, need, x), done(trade, res, wins) } -- a round's offers, and each deal
+// as it goes through (with the wins it moved), so workers holding the league can keep it as it is here
+export async function tradeWindowWith(pool, G, r, date, maxTrades = 6, userAb = G.user) {
+  const it = windowSteps(G, date, maxTrades, userAb);
+  let s = it.next(), k = 0;
+  while (!s.done) {
+    const v = s.value;
+    if (v.done) { await pool.done(...v.done); s = it.next(); continue; }
+    if (!k++) await pool.start(G);
+    s = it.next(await pool.offers(date, v.need, v.x));
+  }
+  return s.value;
+}
+function* windowSteps(G, date, maxTrades, userAb) {
+  const done = [], seen = new Map(), moved = {};
   G._worth = {};                                                // a player's worth to a club holds all window
   G._wins = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab, projWins(G, ab)]));
   for (let k = 0; k < maxTrades; k++) {
@@ -92,29 +112,44 @@ export function tradeWindow(G, r, date, maxTrades = 6, userAb = G.user) {
         return clubs.filter((B) => B !== S).map((B) => [S, p, B, playerWorth(G, B, p, modes[B]) - tax(B, sal) - own, own]); })
       .sort((a, b) => b[3] - a[3]);
       const worst = L.reduce((a, c) => (c[4] < a[4] ? c : a), L[0]);  // its worst contract, to the club minding it least
-      return [...L.slice(0, PER_CLUB), worst].filter(Boolean); });                 // each club's few likeliest deals
+      return [...L.slice(0, G.lite ? 1 : PER_CLUB), worst].filter(Boolean); });   // each club's few likeliest deals (one, in a season simmed lightly)
     // a deal may go through a third club with room to take salary in, in the seller's place: the ROOMY
     // clubs with the most room (cap space or an exception), tried for the THREE likeliest deals (tuned
     // so three-club deals are about the real share of trades, _gm_trade_shape.json)
     const room = Object.fromEntries(clubs.map((ab) => [ab, Math.max(F.cap - C.teamSalary(G.teams[ab], { ...G, f: { ...G.f, [s]: F } }, s),
       ...G.teams[ab].tpes.filter((e) => !e.dpe && e.expires >= date).map((e) => e.amt), 0)]));
-    let best = null, tried = 0;
-    const consider = (o, S, B, V) => {
+    const want = new Map();
+    let tried = 0;
+    for (const [S, p, B] of cands) {
+      want.set(`${S}|${p.id}|${B}|${S}`, [S, p, B, S]);
+      if (tried++ >= (G.lite ? THREE / 3 : THREE)) continue;
+      for (const V of clubs.filter((ab) => ab !== S && ab !== B && room[ab] > 0).sort((a, b) => room[b] - room[a]).slice(0, ROOMY)) want.set(`${S}|${p.id}|${B}|${V}`, [S, p, B, V]);
+    }
+    // a deal tried earlier in the window, among clubs no deal has touched since, is not tried again:
+    // its standing is kept, and it is drawn up afresh only if it comes out on top
+    const entry = (key, [S, p, B, V], o) => {
       // the windows hold only so many deals: those between GMs who trade more come first (gm.js)
       const act = o && [S, B, V].filter((ab, i, a) => a.indexOf(ab) === i).reduce((a, ab) => a * GM.activity(G.teams[ab].gm, G.K), o.score);
-      if (o && o.score > 1 && (!best || act > best.act)) best = { ...o, S, B, V, act };
+      const e = { o: o && o.score > 1 ? o : null, act, key, w: [S, p, B, V], k };
+      seen.set(key, e);
+      return e;
     };
-    for (const [S, p, B] of cands) {
-      const o = buildOffer(G, x, B, S, p, date);
-      consider(o, S, B, S);
-      if (tried++ >= THREE) continue;
-      for (const V of clubs.filter((ab) => ab !== S && ab !== B && room[ab] > 0).sort((a, b) => room[b] - room[a]).slice(0, ROOMY))
-        consider(buildOffer(G, x, B, S, p, date, false, V), S, B, V);
+    const need = [...want].filter(([key, [S, , B, V]]) => { const c = seen.get(key); return !c || [S, B, V].some((ab) => (moved[ab] ?? -1) >= c.k); });
+    const got = yield { x, need: need.map(([, w]) => w) };
+    need.forEach(([key, w], i) => entry(key, w, got[i]));
+    let best = null;
+    for (const q = [...want.keys()].map((key) => seen.get(key)).filter((e) => e.o); q.length;) {
+      const i = q.reduce((j, e, n) => (e.act > q[j].act ? n : j), 0), e = q[i], [S, p, B, V] = e.w;
+      if (e.k === k) { best = { ...e.o, S, B, V }; break; }
+      const f = entry(e.key, e.w, buildOffer(G, x, B, S, p, date, false, V));
+      if (f.o) q[i] = f; else q.splice(i, 1);
     }
     if (!best) break;
     execute(G, best.trade, best.res);
-    for (const ab of new Set([best.S, best.B, best.V])) G._wins[ab] = projWins(G, ab);
+    const wins = {};
+    for (const ab of new Set([best.S, best.B, best.V, ...best.trade.picks.flatMap((q) => [q.from, q.to])])) { wins[ab] = G._wins[ab] = projWins(G, ab); moved[ab] = k; }
     done.push(logEntry(best.trade));
+    yield { done: [best.trade, best.res, wins] };
   }
   delete G._worth; delete G._wins;
   G.log.push(...done);
@@ -140,7 +175,8 @@ export function market(G) {
   const tp = PL.taxPlan(G, s, figs, C.taxShare(G, s), apron);
   const tax = (ab, dv) => (1 - G.teams[ab].gm.taxTol) * PL.taxChange(tp, G.teams[ab], ab, typeof dv === 'number' ? [dv] : dv);
   const Y = G.season + 1, FY = G.f[Y] || C.figures(Y, capAt(G, Y));
-  return { s, F, modes, tax, pv, plan: PL.market(G, Y, FY, (y) => capAt(G, y)) };
+  // the rules' view of the league as it stands, for every deal tried until one goes through
+  return { s, F, modes, tax, pv, plan: PL.market(G, Y, FY, (y) => capAt(G, y)), league: { ...G, picks: pv, ledger: G.picks, view: true } };
 }
 // a man's salary over the tax path from season s: this season's charge, then his deal's
 const salPath = (p, s, cap) => Array.from({ length: PL.TAX_H }, (_, k) => (k ? C.yearOf(p.contract, s + k)?.sal ?? 0 : C.charge(p, s, cap)));
@@ -206,14 +242,16 @@ export function fit(league, tr) {
 // else its best and go on, until payee is ahead by what it needs (need), payer staying ahead of nothing lost.
 // What it can pay in: its picks and claims; a first of its own it may protect (top 4, 10 or 14); the
 // right to swap firsts with the payee in a year both hold their own; the draft rights of a man it
-// holds unsigned; or taking on a contract the payee would rather be rid of (worth less than nothing to it). g: each club's gain from the deal as it stands.
+// holds unsigned; or taking on a contract the payee would rather be rid of (worth less than nothing to it).
+// A pick is chosen at what it brings a club with no other stake in its round (a pick tied up in a swap
+// is worth a little more or less to a club in the swap); the deal is then judged at its worth to each. g: each club's gain from the deal as it stands.
 export function payIn(G, x, trade, g, league, payer, payee, nd = () => need(G, x, payee, trade)) {   // nd: what payee needs
   const P = G.players;
   const own = (ab, k) => k.kind === 'pick' && k.round === 1 && k.origin === ab && k.holder === ab && !k.prot && !k.terms.length;
   const used = new Set([...trade.picks.map((q) => q.id), ...trade.swaps.map((w) => `${w.from}|${w.y}|1`), ...trade.moves.map((m) => m.pid)]);
   const pool = Object.values(x.pv).filter((k) => k.holder === payer && !k.frozen && k.year > G.season && !used.has(k.id)).flatMap((k) => [
-    { id: k.id, pk: { id: k.id, from: payer, to: payee }, v: pickW(G, x, payee, k) },
-    ...(own(payer, k) ? [[1, 4], [1, 10], [1, 14]].map((p) => ({ id: k.id, pk: { id: k.id, from: payer, to: payee, prot: p }, v: pickW(G, x, payee, k, p) })) : []),
+    { id: k.id, pk: { id: k.id, from: payer, to: payee }, v: pickW(G, x, '~', k) },
+    ...(own(payer, k) ? [[1, 4], [1, 10], [1, 14]].map((p) => ({ id: k.id, pk: { id: k.id, from: payer, to: payee, prot: p }, v: pickW(G, x, '~', k, p) })) : []),
     ...(own(payer, k) && own(payee, x.pv[`${payee}|${k.year}|1`] || {}) ? [{ id: k.id, sw: { y: k.year, r: 1, from: payer, to: payee }, v: swapW(G, x, payee, { y: k.year, r: 1, from: payer, to: payee }) }] : []),
   ]).concat((G.teams[payer].rights ?? []).filter((id) => !used.has(id)).map((id) => ({ id, mv: { pid: id, from: payer, to: payee }, v: playerWorth(G, payee, P[id], x.modes[payee]) })))
     .concat(G.teams[payee].roster.filter((id) => !used.has(id) && !P[id].contract?.twoWay && !P[id].contract?.tenDay)   // or take a contract off its hands
@@ -235,7 +273,7 @@ export function buildOffer(G, x, B, S, p, date, asked = false, via = S) {
   const P = G.players, mine = G.teams[B].roster
     .filter((id) => id !== p.id && !P[id].contract?.twoWay && !P[id].contract?.tenDay && C.charge(P[id], x.s, x.F.cap) > 0)
     .sort((a, b) => playerWorth(G, B, P[a], x.modes[B]) - playerWorth(G, B, P[b], x.modes[B]));
-  const trade = { date, moves: [{ pid: p.id, from: S, to: B }], picks: [], cash: [] }, league = { ...G, picks: x.pv, ledger: G.picks };
+  const trade = { date, moves: [{ pid: p.id, from: S, to: B }], picks: [], cash: [] }, league = x.league;
   // as few men as match the salaries: one, else two, each time the ones it values least; else
   // its least valued, one after another until the rules allow
   const send = (ids) => { trade.moves = [trade.moves[0], ...ids.map((id) => ({ pid: id, from: B, to: via }))]; delete trade.tpe; return fit(league, trade); };

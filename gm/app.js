@@ -13,6 +13,19 @@ import * as GM from './gm.js';
 import * as V from './dev.js';
 
 let G = null, r = null, view = 'home', ui = {};
+// a trade window's offers spread over workers, one a core but this page's (worker.js): each holds the
+// league for the window, given it at the start and every deal after, and draws up its share of each round
+const POOL = Array.from({ length: Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 2) - 1)) }, () => new Worker(new URL('./worker.js', import.meta.url), { type: 'module' }));
+let job = 0;
+const ask = (w, msg) => new Promise((ok) => { const id = ++job, on = ({ data }) => { if (data.id === id) { w.removeEventListener('message', on); ok(data.out); } };
+  w.addEventListener('message', on); w.postMessage({ ...msg, id }); });
+const pool = {
+  start: (G) => POOL.forEach((w) => w.postMessage({ G })),
+  offers: async (date, need) => { const n = Math.ceil(need.length / POOL.length);
+    return (await Promise.all(POOL.map((w, i) => need.slice(i * n, (i + 1) * n)).map((part, i) => part.length ? ask(POOL[i], { date, need: part.map(([S, p, B, V]) => [S, p.id, B, V]) }) : []))).flat(); },
+  done: (trade, res, wins) => POOL.forEach((w) => w.postMessage({ trade, res, wins })),
+};
+const tradeWindow = (date, n, userAb) => X.tradeWindowWith(pool, G, r, date, n, userAb);
 const $ = (s) => document.querySelector(s), root = () => $('#gm');
 const P = (id) => G.players[id], me = () => G.teams[G.user], F = () => G.f[G.season];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -37,7 +50,7 @@ const adopt = (g) => { G = g; r = S.rng(0, G.rngState); };
 // Long steps: paint the busy note first, then run, save and redraw.
 function step(label, f) {
   root().insertAdjacentHTML('beforeend', `<div class="busy" role="status">${esc(label)}…</div>`);
-  setTimeout(async () => { try { f(); await save(); } catch (e) { console.error(e); alert(e.message); } render(); }, 30);
+  setTimeout(async () => { try { await f(); await save(); } catch (e) { console.error(e); alert(e.message); } render(); }, 30);
 }
 
 // ---- what happens next -------------------------------------------------------------------------
@@ -52,8 +65,8 @@ const NEXT = {
   },
   season: () => {
     const w = G.cur.win, to = ['Sim to Dec 15', 'Sim to the trade deadline', 'Sim the rest of the season'][w];
-    const rec = G.cur.record[G.user], n = std(me()).length;
-    if (n > 15) return [`You carry ${n} standard contracts after the trade: waive down to 15 before the next game.`, btn('autocut', 'Make the cuts for me'), btn('go', 'Choose the cuts', 'roster')];
+    const rec = G.cur.record[G.user], n = std(me()).length, over = std(me()).filter((id) => !P(id).contract.tenDay).length;   // a 10-day man under the hardship exception may be a 16th
+    if (over > 15) return [`You carry ${over} standard contracts after the trade: waive down to 15 before the next game.`, btn('autocut', 'Make the cuts for me'), btn('go', 'Choose the cuts', 'roster')];
     if (n < 13) return [`You carry ${n} standard contracts after the trade: sign up to 13 before the next game.`, btn('autofill', 'Sign the best left at the minimum'), btn('go', 'Choose free agents', 'fa')];
     return [`${rec.w}-${rec.l} after ${rec.w + rec.l} games. ${w < 2 ? 'Clubs can trade until the deadline.' : 'The deadline has passed.'}`, btn('sim', to)];
   },
@@ -114,9 +127,9 @@ const ACT = {
     L.seasonStart(G, r); G.cur.win = 0; G.offers = [];
     G.ownerSay = O.opening(G);
   }),
-  sim: () => step('Simulating', () => {
+  sim: () => step('Simulating', async () => {
     const w = G.cur.win++, d = C.seasonDates(G.season), before = { ...G.cur.record[G.user], log: G.log.length };
-    if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; X.tradeWindow(G, r, G.date, L.TRADES[L.WINDOWS[w].date]); L.assignRoles(G); G.offers = X.offersFor(G); if (w === 1) G.ownerSay = O.deadline(G); }
+    if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; await tradeWindow(G.date, L.TRADES[L.WINDOWS[w].date]); L.assignRoles(G); G.offers = X.offersFor(G); if (w === 1) G.ownerSay = O.deadline(G); }
     else L.seasonTo(G, r, 1);
     G.news = news(before);
     if (w >= 2) { L.postseasonStart(G, r); G.offers = []; view = 'home'; }
@@ -125,12 +138,12 @@ const ACT = {
   pseries: () => { const x = mySeries(); while (S.seriesGame(x, G.po.nets, G.K, r)); keepPace(x); save(); render(); },
   pround: () => step('Playoffs', () => { if (S.roundDone(G.po)) S.nextRound(G.po, r); else L.playRound(G, r); }),
   poend: () => step('Wrapping up the season', () => { L.postseasonEnd(G); view = 'home'; }),
-  todraft: () => step('The lottery', () => {
+  todraft: () => step('The lottery', async () => {
     const before = Object.fromEntries(me().roster.map((id) => [id, P(id).rate]));
     L.endSeason(G, r);
     G.ownerSay = null; O.review(G, G.history.at(-1), r);
     G.dev = Object.entries(before).map(([id, b]) => [id, b, P(id).rate]).sort((a, b) => (b[2] - b[1]) - (a[2] - a[1]));
-    X.tradeWindow(G, r, `${G.season + 1}-06-20`, L.TRADES.draft);
+    await tradeWindow(`${G.season + 1}-06-20`, L.TRADES.draft);
     G.offers = X.offersFor(G);
     L.draftStart(G, r); view = 'draft';
   }),
@@ -154,7 +167,7 @@ const ACT = {
     G.ownerSay = no.length ? no.join(' ') : null;
   }),
   faday: () => step('Free agency', faDay),
-  farest: () => step('Free agency', () => { while (G.phase === 'freeagency' && !Object.keys(G.fa_.sheets).length) faDay(); }),
+  farest: () => step('Free agency', async () => { while (G.phase === 'freeagency' && !Object.keys(G.fa_.sheets).length) await faDay(); }),
   match: (a) => { const [pid, v] = a.split('|'); G.matchAns[pid] = v === '1'; render(); },
   offer: () => {
     const p = P(ui.pid), how = $('#how').value, o = { pid: p.id, ab: G.user, how, sal: how === 'min' ? C.minSalary(p.yos, F().cap) : how === 'twoWay' ? C.twoWaySalary(F().cap) : Math.round(+$('#sal').value * 1e6), years: ['min', 'twoWay', 'bae', 'tpmle'].includes(how) ? Math.min(+$('#yrs').value, 2) : +$('#yrs').value };
@@ -215,7 +228,15 @@ const ACT = {
   import: () => $('#importf').click(),
   takejob: (ab) => { O.move(G, ab, r); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
   retire: () => { G.fired.retired = true; save(); render(); },
-  wait: () => step('A year out of the game', () => { const f = G.fired; L.toNextDraft(G, r); f.out += 1; f.s = G.season; const o = GM.offers(G, r, f.out); f.offers = o.clubs; f.h = o.h; }),
+  path: (k) => { G.fired.path = k; save(); render(); },
+  // a season out, on the path chosen (simmed lightly: no one is at your controls); all: until a club calls, ten at most
+  away: (all) => { const f = G.fired, k = f.path || 'away';
+    step(`${f.out > 1 ? `Season ${f.out} out` : 'A season out'}: ${GM.PATHS[k].label.toLowerCase()}`, async () => {
+      G.lite = true; try { await L.toNextDraft(G, r, (date, k) => tradeWindow(date, L.TRADES[k], null)); } finally { delete G.lite; }
+      (f.log ||= []).push({ s: G.season, path: k }); f.out += 1; f.s = G.season;
+      const o = GM.offers(G, r, f.out, k); f.offers = o.clubs; f.h = o.h;
+      if (all && !f.offers.length && f.out <= 10) setTimeout(() => ACT.away(true), 50);
+    }); },
   staff: () => { G.staffSigns = G.staffSigns === false; save(); render(); },
   newgame: () => { if (!G || confirm('Start over? The current game is replaced.')) { G = null; view = 'new'; render(); } },
   renounce: (pid) => { const T = me(); T.holds = T.holds.filter((h) => h.pid !== pid); T.rfa = (T.rfa || []).filter((x) => x !== pid); ui = {}; save(); render(); },
@@ -229,11 +250,11 @@ function reoffer(pid, salOf) {
   if (!v.ok) { ui.err = `${$M(sal)} is more than ${o.how} allows: ${v.errors.join('; ')}.`; return render(); }
   o.sal = sal; ui.err = null; save(); render();
 }
-function faDay() {
+async function faDay() {
   const ok = G.myOffers.filter((o) => G.fa.includes(o.pid));
   const done = L.faDay(G, r, { offers: ok, match: G.matchAns });
   G.myOffers = G.myOffers.filter((o) => G.fa.includes(o.pid)); G.matchAns = {};
-  if (done) { L.faEnd(G, r); X.tradeWindow(G, r, `${G.season}-09-20`, L.TRADES.summer); G.phase = 'preseason'; G.offers = X.offersFor(G); view = 'home'; }
+  if (done) { L.faEnd(G, r); await tradeWindow(`${G.season}-09-20`, L.TRADES.summer); G.phase = 'preseason'; G.offers = X.offersFor(G); view = 'home'; }
 }
 const slotOf = (k) => { const [o, y, rd] = k.split('|'); return G.draft?.year === +y ? G.draft.order.find((e) => e.origin === o && (e.slot <= 30) === (rd === '1'))?.slot : null; };
 const RD = (r) => (+r === 1 ? '1st' : '2nd'), top = (p, r) => `top-${p[1] - 30 * (r - 1)} protected`;
@@ -538,7 +559,10 @@ function fired() {
   return `<div class="card"><h2>${f.out > 1 ? 'Out of work' : "You're fired"}</h2><p>${why}</p>${f.out > 1 ? '' : ownerBooks()}
 <h3>Clubs that want you</h3>${f.offers.length ? f.offers.map((ab) => `<div class="off"><b>${esc(NAME(ab))}</b> <small>${rec[ab][0]}-${rec[ab][1]} last season · payroll ${$m(O.payroll(G, ab) / 1e6)}</small> ${btn('takejob', 'Take the job', ab)}</div>`).join('') : '<p>No one calls.</p>'}
 <p class="note">Only clubs that changed GMs this summer are hiring (${G.openSeats.filter((ab) => ab !== f.from).length} of them). Real GMs who lose a job get another one at a rate that falls the longer they are out; for a career like yours, the model's chance of a job this summer is ${pct(f.h)}. Your new owner is the kind you asked for when you started.</p>
-<h3>Your career</h3>${career()}<div class="row">${btn('wait', 'Wait a year')}${btn('retire', 'Retire', '', 'warn')}${btn('export', 'Export the save')}</div></div>`;
+<h3>While you wait</h3><p class="note">Media work puts you in front of the big markets (the ten clubs with the most revenue); a front-office job in front of the rest. The other seasons are simmed lightly while you are out: fewer trade talks, so they go faster.</p>
+<div class="row">${Object.entries(GM.PATHS).map(([k, p]) => btn('path', `${(f.path || 'away') === k ? '✓ ' : ''}${p.label}`, k, (f.path || 'away') === k ? '' : 'ghost')).join('')}</div>
+${f.log?.length ? `<p><small>${f.log.map((x) => `${SEASON(x.s)}: ${esc(GM.PATHS[x.path].say)}`).join(' · ')}</small></p>` : ''}
+<h3>Your career</h3>${career()}<div class="row">${btn('away', 'Spend a season', '')}${btn('away', 'Until a club calls', 'all')}${btn('retire', 'Retire', '', 'warn')}${btn('export', 'Export the save')}</div></div>`;
 }
 function ownerCard() {
   if (!G.owner) return '';

@@ -23,7 +23,10 @@ export const price = (w, cap, K) => Math.max(K.price.a + K.price.b * w + K.price
 // the average over the game's development spread h seasons out (Gauss-Hermite, five nodes).
 // Everyone else is priced on the median, as the curve was fitted.
 const GH = [[0, 0.53333], [1.35563, 0.22208], [-1.35563, 0.22208], [2.85697, 0.01126], [-2.85697, 0.01126]];
-export const devSd = (K, h) => { const { walk, trend, rho } = K.dev; let v = 0; for (let i = 0; i < h; i++) for (let j = 0; j < h; j++) v += rho ** Math.abs(i - j); return Math.sqrt(walk * walk * h + trend * trend * v); };
+const SD = new WeakMap();   // by horizon, for the league's constants
+export const devSd = (K, h) => { const m = SD.get(K.dev) ?? (SD.set(K.dev, []), SD.get(K.dev));
+  if (m[h] === undefined) { const { walk, trend, rho } = K.dev; let v = 0; for (let i = 0; i < h; i++) for (let j = 0; j < h; j++) v += rho ** Math.abs(i - j); m[h] = Math.sqrt(walk * walk * h + trend * trend * v); }
+  return m[h]; };
 export function marketValue(p, h, cap, K) {
   const r = projRate(p, h, K), v = price(warAt(p, r, h, K), cap, K);
   if (!p.dsd || !h) return v;

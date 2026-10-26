@@ -607,9 +607,14 @@ const simPick = (pool, r, sd, view) => { let b = null, bv = -Infinity; for (cons
 // own read set how often it happens; a man's worth is less his scale salary. The user's club trades
 // on draft night through the trade page.
 const NIGHT = 20;
+// the market drawn once for the night, again after each trade (between, only rookies' scale deals
+// change); the picks still in play, every pick
+const NIGHTX = new WeakMap();
 function tradeUp(G, k, human) {
   const D_ = G.draft, e = D_.order[k], H = e.holder;
-  const x = X.market(G), cap = capAt(G, D_.year), league = { ...G, picks: x.pv, ledger: G.picks };
+  if (NIGHTX.get(G)?.n !== G.log.length) NIGHTX.set(G, { n: G.log.length, x: { ...X.market(G), memo: new Map() } });   // its worths kept all night
+  const x0 = NIGHTX.get(G).x, used = new Set(D_.order.slice(0, D_.picks.length).map((o) => `${o.origin}|${D_.year}|${o.slot <= 30 ? 1 : 2}`));
+  const x = { ...x0, pv: Object.fromEntries(Object.entries(x0.pv).filter(([id]) => !used.has(id))) }, cap = capAt(G, D_.year), league = { ...G, picks: x.pv, ledger: G.picks };
   const avail = D_.avail.map((id) => G.players[id]), memo = new Map();
   const mv = (c, q) => { const key = `${c}|${q.id}`; if (!memo.has(key)) memo.set(key, prospectWorth(G, c, q, cap)); return memo.get(key); };
   const scale = (slot) => D.rookieContract(slot, G.season, cap).years.reduce((a, y, i) => a + y.sal / M.DISC ** i, 0);
@@ -994,17 +999,22 @@ export function fillRosters(G, clubs = Object.keys(G.teams), date = G.phase === 
 // ---- a whole year, untouched by the user (computer GMs decide for every club) --------------------
 // The user out of work, waiting a year: the league plays on without him, from the draft under way to
 // the next one, where the clubs that changed GMs that summer may call (gm.js offers)
-export function toNextDraft(G, r) {
+// win(date, window): a trade window, its deals drawn up as the caller likes (app.js: over workers)
+export async function toNextDraft(G, r, win = (date, k) => X.tradeWindow(G, r, date, TRADES[k], null)) {
   G.autoUser = true;
   draftNext(G, r, null, null); draftEnd(G);
   newLeagueYear(G, r);
   freeAgency(G, r);
-  X.tradeWindow(G, r, `${G.season}-09-20`, TRADES.summer, null);
+  await win(`${G.season}-09-20`, 'summer');
   fillRosters(G);
   for (const ab of Object.keys(G.teams)) cutdown(G, r, ab);
-  playSeason(G, r);
+  seasonStart(G, r);                                // the season (playSeason), its windows awaited
+  const d = C.seasonDates(G.season);
+  for (const w of WINDOWS) { seasonTo(G, r, w.frac); G.date = d[w.date]; await win(G.date, w.date); assignRoles(G); }
+  seasonTo(G, r, 1);
+  postseason(G, r);
   endSeason(G, r);
-  X.tradeWindow(G, r, `${G.season + 1}-06-20`, TRADES.draft, null);
+  await win(`${G.season + 1}-06-20`, 'draft');
   draftStart(G, r);
   delete G.autoUser;
 }

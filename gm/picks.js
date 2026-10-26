@@ -143,14 +143,13 @@ export function sureFirst(G, picks, swaps, ab, y) {
 const VAL = new WeakMap();
 const slotIn = (dr, y, r, o) => (dr.slot[y] ||= [1, 2].map((rr) => Object.fromEntries(dr[y][rr - 1].map((x, i) => [x, i + 1 + 30 * (rr - 1)]))))[r - 1][o] ?? null;
 // One round of one draw, as the draft resolves it (draft.js resolvePicks: protections, then the
-// swaps), with one asset moved to `to`; what club ab ends the round with.
-function roundFor(G, dr, a, to, ab) {
+// swaps), with one asset moved to `to`; what club ab ends the round with. ops, ent: the round's swaps
+// and cascades (the asset's own claim already given to `to`) and each origin's ledger entry.
+function roundFor(G, dr, a, ops, ent, to, ab) {
   slotIn(dr, a.year, a.round, '');
   const slot = dr.slot[a.year][a.round - 1], h = {}, sv = G.K.slotSurplus;
-  let ops = opsOf(G, a.year, a.round);
-  if (a.kind === 'claim') { ops = ops.slice(); const op = { ...ops[a.op] }; op[op.k === 'give' ? 'to' : 'by'] = to; ops[a.op] = op; }
-  for (const o of Object.keys(slot)) {
-    const e = G.picks[`${o}|${a.year}|${a.round}`];
+  for (const [o, e] of ent) {
+    if (!(o in slot)) continue;                  // a pick forfeited or used: not in this round
     h[o] = a.kind === 'pick' && o === a.origin ? to : e?.h || o;
     if (e?.h && e.p && slot[o] >= e.p[0] && slot[o] <= e.p[1]) h[o] = e.k || o;
   }
@@ -158,23 +157,25 @@ function roundFor(G, dr, a, to, ab) {
   let v = 0; for (const o in h) if (h[o] === ab) v += Math.max(sv[slot[o] - 1], 0);
   return v;
 }
+const claimTo = (ops, a, to) => { if (a.kind !== 'claim') return ops; ops = ops.slice(); const op = { ...ops[a.op] }; op[op.k === 'give' ? 'to' : 'by'] = to; ops[a.op] = op; return ops; };
 export function worth(G, a, prot = null, ab = a.holder) {
   const c = VAL.get(G)?.key === draws.key(G) ? VAL.get(G).v : (VAL.set(G, { key: draws.key(G), v: {} }), VAL.get(G).v);
   // a club with no other stake in that round values the asset as anyone would
   const ops0 = opsOf(G, a.year, a.round), pool = new Set(ops0.flatMap(picksIn)), stake = (c) => ops0.some((op) => owner(op) === c && op.k !== 'swap')
     || [...pool].some((o) => (G.picks[`${o}|${a.year}|${a.round}`]?.h || o) === c && !(a.kind === 'pick' && o === a.origin));
   if (a.kind !== 'pick' || pool.has(a.origin)) ab = stake(ab) ? ab : '~';
-  const k = `${a.id}|${prot}|${ab}`;
-  if (k in c) return c[k];
   const sv = G.K.slotSurplus, R = draws(G), ops = opsOf(G, a.year, a.round);
   const plain = a.kind === 'pick' && !ops.some((op) => picksIn(op).includes(a.origin));
+  const k = `${a.id}|${prot || a.prot}|${plain ? '~' : ab}`;                   // a plain pick brings its slot to whoever holds it
+  if (k in c) return c[k];
   let v = 0;
   if (plain) {
     const p = prot || a.prot;
     for (const dr of R) { const s = slotIn(dr, a.year, a.round, a.origin); if (s && !(p && s >= p[0] && s <= p[1])) v += Math.max(sv[s - 1], 0) / R.length; }
   } else {
     // the round with the asset in ab's hands, and in no one's
-    for (const dr of R) v += (roundFor(G, dr, a, ab, ab) - roundFor(G, dr, a, '-', ab)) / R.length;
+    const ent = Object.keys(G.teams).map((o) => [o, G.picks[`${o}|${a.year}|${a.round}`]]), mine = claimTo(ops, a, ab), none = claimTo(ops, a, '-');
+    for (const dr of R) v += (roundFor(G, dr, a, mine, ent, ab, ab) - roundFor(G, dr, a, none, ent, '-', ab)) / R.length;
   }
   return (c[k] = v);
 }

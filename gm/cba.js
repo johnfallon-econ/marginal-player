@@ -180,7 +180,16 @@ export function capHold(p, prior, avgSal, f) {
 // team: { abbr, roster: [pid], dead: [{ s, amt }], holds: [{ pid, amt }], hardCap, tpes: [...] }
 // The apron/tax figure has no cap holds; the cap figure adds them and, July 1 to opening
 // night, a minimum-salary charge for each roster spot below 12 (§4(f)).
+// a league view's figures that no trade under test changes, kept on it (a trade window builds one view per market)
+// (league.view set): the live game is never one, as it changes under the caller
+const MEMO = new WeakMap(), TID = new WeakMap();
+let nT = 0;
+const memo = (league, key, f) => { if (!league.view) return f(); let m = MEMO.get(league); if (!m) MEMO.set(league, (m = new Map())); if (!m.has(key)) m.set(key, f()); return m.get(key); };
+const tid = (team) => TID.get(team) ?? (TID.set(team, ++nT), nT);
 export function teamSalary(team, league, s, { holds = false, offseason = false } = {}) {
+  return memo(league, `ts|${league.view && tid(team)}|${s}|${holds}|${offseason}`, () => salaryOf(team, league, s, holds, offseason));
+}
+function salaryOf(team, league, s, holds, offseason) {
   const cap = league.f[s].cap, P = league.players;
   const std = team.roster.filter((id) => !P[id].contract?.twoWay);
   let t = std.reduce((a, id) => a + charge(P[id], s, cap), 0);
@@ -340,7 +349,7 @@ function stepien(league, ab, tr, s) {
   const L0 = { teams: league.teams, picks: league.ledger, swaps: league.swaps || {} }, L1 = Pk.after(L0, tr);
   const y0 = Math.max(s + 1, (league.draft?.year || league.lastDraft || 0) + 1);
   const gaps = (L) => { const g = []; for (let y = y0; y < s + 1 + 7; y++) if (!Pk.sureFirst(L0, L.picks, L.swaps, ab, y) && !Pk.sureFirst(L0, L.picks, L.swaps, ab, y + 1)) g.push(y); return g; };
-  const before = gaps(L0), y = gaps(L1).find((x) => !before.includes(x));
+  const before = memo(league, `st|${ab}|${s}`, () => gaps(L0)), y = gaps(L1).find((x) => !before.includes(x));
   return y ? [`${ab} would have no first-round pick in ${y} and ${y + 1} (Stepien rule)`] : [];
 }
 
