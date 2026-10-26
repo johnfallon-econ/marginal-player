@@ -316,8 +316,11 @@ export const seasonTo = (G, r, frac) => {
 // brings in for a handful of games are a sixth of a real league's player-seasons. The user's
 // staff does it for him unless he turns it off (G.staffSigns).
 const TEN = 5;
+// the calendar day of game day d: the schedule's days spread evenly from opening night to the season's end
+const dayDate = (G, d) => { const { opening, seasonEnd } = C.seasonDates(G.season), a = Date.parse(opening), b = Date.parse(seasonEnd);
+  return new Date(a + Math.round((d / G.cur.days.length) * (b - a) / 864e5) * 864e5).toISOString().slice(0, 10); };
 export function shorthanded(G, r) {
-  const st = G.cur, s = G.season, F = fig(G, s), P = G.players;
+  const st = G.cur, s = G.season, F = fig(G, s), P = G.players, date = dayDate(G, st.d);
   for (const [ab, T] of Object.entries(G.teams)) {
     const g = st.played[ab];
     for (const id of T.roster.slice()) if (P[id].contract?.tenDay && g >= P[id].contract.tenDay) {
@@ -329,7 +332,7 @@ export function shorthanded(G, r) {
       const young = G.fa.filter((x) => P[x].yos < 3), id = (young.length ? young : G.fa).slice().sort((a, b) => v3(G, P[b]) - v3(G, P[a]))[0]; if (!id) break;
       const p = P[id], sal = Math.round(C.minSalary(p.yos, F.cap) * TEN / 82);
       p.play = p.talent;                                  // his form, for the games he plays
-      sign(G, ab, p, 'min', sal, 1, G.date, 0);
+      sign(G, ab, p, 'min', sal, 1, date, 0);
       p.contract.tenDay = g + TEN; p.contract.how = 'tenDay';
     }
   }
@@ -513,7 +516,7 @@ const FANS = new Map();
 export function fans(G, p, n = 400) {
   const key = `${G.draft.year}|${p.id}`;
   if (FANS.has(key)) return FANS.get(key);
-  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = G.draft.resid, cap = capAt(G, G.draft.year);
+  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = G.reveal ? [0] : G.draft.resid, cap = capAt(G, G.draft.year);   // shown the truth, you know his talent: no board miss
   const r = S.rng([...p.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7));
   const mins = (x) => K.beta * 82 * M.mpgFor(x, K) / 48;
   // the board's contract model at a season's wins w (its keepP, holdP, dealMax)

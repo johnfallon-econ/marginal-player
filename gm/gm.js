@@ -164,7 +164,7 @@ export function offers(G, r, out = 1, path = 'away') {
 // by all. READ and LEAN are set so the game's draft orders talent no better than its board (as
 // the real draft orders careers no better than the consensus board), strays from the board by the
 // real reach, and has the real number of draft-night trades (data/_gm_draft_accuracy.json,
-// _gm_trade_shape.json). With the projections as the truth, every club knows the talent.
+// _gm_trade_shape.json). With the projections as the truth, every club knows the talent, and leans as ever.
 // set on 10 drafts from one league's snapshot over a grid (READ 18-1000, LEAN 0-0.5). With the board
 // as uncertain as the real one, a club's own read adds next to nothing (READ 1000), and clubs differ by
 // their leans: LEAN 0.17 gives reach 14 picks against the public worth order (real 14 against ESPN's)
@@ -196,8 +196,9 @@ export function learn(G, d, p, left, worthAt) {
   }
 }
 // club c's estimate of q's talent: its prior, its read, the draft so far
+// (with the projections as the truth, every club knows the talent: exactly, or each with its lean, G.clubs)
 export function estimate(G, c, q) {
-  if (!G.hidden) return q.talent;
+  if (!G.hidden) return q.talent + (G.clubs === 'exact' ? 0 : LEAN * hashNoise(`${c}|${q.id}|lean`));
   const sd = readSd(G.teams[c].gm), m = q.rate + LEAN * hashNoise(`${c}|${q.id}|lean`), r = q.talent + sd * hashNoise(`${c}|${q.id}|read`), L = G.draft?.ll?.[q.id];
   let a = 0, b = 0;
   for (let i = 0; i < GRID; i++) {
@@ -208,4 +209,4 @@ export function estimate(G, c, q) {
 }
 // how far, to another club, c's estimate of a man strays from the board: what c's choices look like
 // from outside (D.aiPick's spread when a club plays the draft out in its head)
-export const pickSd = (G, g) => { if (!G.hidden) return 0; const sd = readSd(g), l = onPrior(G, sd); return Math.sqrt((l * LEAN) ** 2 + (1 - l) ** 2 * (G.draft.hold ** 2 + sd * sd)); };
+export const pickSd = (G, g) => { if (!G.hidden) return G.clubs === 'exact' ? 0 : LEAN; const sd = readSd(g), l = onPrior(G, sd); return Math.sqrt((l * LEAN) ** 2 + (1 - l) ** 2 * (G.draft.hold ** 2 + sd * sd)); };
