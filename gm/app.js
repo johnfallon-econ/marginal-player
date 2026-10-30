@@ -81,7 +81,7 @@ const NEXT = {
       S.roundDone(po) ? btn('pround', ['Start the second round', 'Start the conference finals', 'Start the Finals', 'Crown the champion'][po.round]) : btn('pround', 'Sim the round'),
 ];
   },
-  offseason: () => G.step === 'decisions' ? ['Options and qualifying offers are due before the new league year.', btn('newyear', 'Start the new league year')]
+  offseason: () => G.step === 'decisions' ? [`Options and qualifying offers are due before the new league year.${G.calls?.length ? ` ${G.calls.length === 1 ? 'A club is' : `${G.calls.length} clubs are`} calling about you: see Decisions.` : ''}`, btn('newyear', 'Start the new league year')]
     : [summary(G.history.at(-1)), btn('todraft', 'On to the draft')],
   draft: () => { const c = L.onClock(G); if (!c) return ['The draft is done.', btn('enddraft', 'Finish the draft')];
     if (c.holder === G.user) return [`You are on the clock with pick ${c.slot}.`, btn('go', 'Pick a player', 'draft')];
@@ -161,7 +161,7 @@ const ACT = {
     const c = G.choices || {};
     for (const id of me().roster.filter((x) => c[`st|${x}`])) L.stash(G, G.user, id);
     L.newLeagueYear(G, r, { teamOption: (p) => !!c[`opt|${p.id}`], qo: (p) => !!c[`qo|${p.id}`], second: (p) => (c[`sr|${p.id}`] ?? (p.abroad ? '' : 'deal')) || null });
-    delete G.step; G.choices = resignDefaults(); G.offers = []; view = 'resign';
+    delete G.step; delete G.calls; G.choices = resignDefaults(); G.offers = []; view = 'resign';
   }),
   market: () => step('Free agency opens', () => {
     const no = [];
@@ -228,7 +228,7 @@ const ACT = {
     a.href = URL.createObjectURL(new Blob([JSON.stringify(G)], { type: 'application/json' }));
     a.download = `gm-${G.user}-${SEASON(G.season)}.json`; a.click(); },
   import: () => $('#importf').click(),
-  takejob: (ab) => { O.move(G, ab, r); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
+  takejob: (ab) => { O.move(G, ab, r); if (G.step === 'decisions') G.choices = defaults(); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
   retire: () => { G.fired.retired = true; save(); render(); },
   path: (k) => { G.fired.path = k; save(); render(); },
   // a season out, on the path chosen (simmed lightly: no one is at your controls); all: until a club calls
@@ -697,11 +697,13 @@ ${board(pool, onMe, tn, th, c)}
 <h3>Latest picks</h3><ul>${made.map((x) => `<li>${x.slot}. ${x.team}: ${nm(x.pid)}</li>`).join('')}</ul>`;
   },
   decisions: () => {
-    const T = me(), s = G.season + 1, c = G.choices ||= {};
+    const T = me(), s = G.season + 1, c = G.choices ||= {}, rec = G.history.at(-1).record;
+    const calls = G.calls?.length ? `<div class="card"><h3>Clubs calling</h3><p class="note">Clubs changing GMs this summer call a sitting GM as often as they hire one out of work with his record. Take a job and your club hires a GM of its own; the offers lapse when the new league year starts.</p>
+${G.calls.map((ab) => `<div class="off"><b>${esc(NAME(ab))}</b> <small>${rec[ab][0]}-${rec[ab][1]} last season · payroll ${$m(O.payroll(G, ab) / 1e6)}</small> ${btn('takejob', 'Take the job', ab)}</div>`).join('')}</div>` : '';
     const opts = T.roster.map(P).filter((p) => C.yearOf(p.contract, s)?.opt === 'tm');
     const qos = T.roster.map(P).filter((p) => p.contract?.rookie && p.draft?.round === 1 && !C.yearOf(p.contract, s));
     const row = (k, p, what) => `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="${k}|${p.id}"${c[`${k}|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(sp(p).rate)} · ${wr(p)} · ${what}</small></label>`;
-    return `<div class="card"><h3>Team options for ${SEASON(s)}</h3>${opts.map((p) => row('opt', p, `pick up ${$M(C.yearOf(p.contract, s).sal)}`)).join('') || '<p>None.</p>'}
+    return `${calls}<div class="card"><h3>Team options for ${SEASON(s)}</h3>${opts.map((p) => row('opt', p, `pick up ${$M(C.yearOf(p.contract, s).sal)}`)).join('') || '<p>None.</p>'}
 <h3>Qualifying offers</h3><p class="note">Tendering one makes the player a restricted free agent: you may match any offer sheet.</p>
 ${qos.map((p) => row('qo', p, 'tender')).join('') || '<p>None.</p>'}
 <h3>First-round picks</h3><p class="note">Sign one to his rookie-scale deal, or stash him abroad: you keep his rights and can bring him over in a later summer on the scale for his slot (for up to four summers).</p>

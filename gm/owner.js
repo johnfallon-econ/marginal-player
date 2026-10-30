@@ -102,10 +102,15 @@ export function review(G, h, r) {
     G.owner = { ...G.owner, type: Object.keys(OWNERS)[Math.floor(r() * 3)], conf: 40 };
     G.ownerSay = `The club has been sold. Your new owner: ${OWNERS[G.owner.type].label.toLowerCase()}. New owners usually want their own GM; his confidence in you starts at 40.`;
   }
+  // still in the job, other clubs may call: each club changing GMs this summer, at the chance the
+  // re-entry model gives a GM with his record in his first season out -- the rate at which clubs offer
+  // a man who will take the job, as an out-of-work GM all but always does; whether to take it is his
+  if (!G.fired) { const o = GM.offers(G, r, 1); G.calls = o.clubs; }
   return b;
 }
 // Taking a job: the club is his, with a new owner of the kind he asked for; his career goes with him
 export function move(G, ab, r) {
-  G.user = ab; hire(G, G.owner.pick, r);
+  if (!G.fired) GM.hire(G, G.user, r);              // leaving a job: his old club hires a GM of its own
+  G.user = ab; hire(G, G.owner.pick, r); delete G.calls;
   delete G.fired; G.offers = []; G.choices = {}; G.myOffers = [];
 }
