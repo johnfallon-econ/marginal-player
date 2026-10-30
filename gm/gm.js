@@ -82,6 +82,7 @@ export function closeSeason(G, h, pay) {
     const g = T.gm, [w, l] = h.record[ab], pct = w / (w + l);
     g.ten += 1;
     g.rec.push({ s: h.season, pct, vs_exp: pct - g.pre, d_pct: pct - G.lastPct[ab], new_owner: +[h.season, h.season - 1].includes(T.sold), playoffs: +(ab in won), po_w: won[ab] || 0,
+      rounds: h.rounds.reduce((a, rd) => a + Object.values(rd).filter((v) => v.winner === ab).length, 0),
       champ: +(h.champion === ab), pay_rel: pay[ab] / med, trade_proc: g.proc || 0, draft_left: g.left || 0, trades: g.nt || 0, sent_less_got: g.net || 0 });
     // the GMs tab's all-time table (G.K.gm.records, the real ones to 2025-26) gets the season too: yours
     // under 'you' while you hold the job
@@ -99,6 +100,14 @@ export function pExit(G, g) {
   return lgt(c.Intercept + (t > 1 ? c[`C(ten)[T.${t === 6 ? '6+' : t}]`] : 0) + c.pct * x.pct + c.vs_exp * x.vs_exp + c.d_pct * x.d_pct
     + c.playoffs * x.playoffs + c.po_w * x.po_w + c.pay_rel * x.pay_rel + c.trade_proc * x.trade_proc + c.draft_left * x.draft_left + c.new_owner * x.new_owner
     + c.champ * x.champ + c.title_recent * +g.rec.slice(-5, -1).some((r) => r.champ));
+}
+// P(the user is fired after the season just closed): the model of involuntary exits alone (K.gm.fired:
+// fired, forced to resign, not renewed, moved aside; data/_gm_exit_kinds.json), the playoffs by how far
+// his club went; recent: a title with this club in the four seasons before
+export function pFired(G, x, ten, recent) {
+  const c = G.K.gm.fired, t = Math.min(ten, 6), st = x.playoffs ? ['r1', 'r2', 'cf', 'finals', 'champ'][Math.min(x.rounds, 4)] : null;
+  return lgt(c.Intercept + (t > 1 ? c[`C(ten)[T.${t === 6 ? '6+' : t}]`] : 0) + c.pct * x.pct + c.vs_exp * x.vs_exp + c.d_pct * x.d_pct
+    + (st ? c[`C(stage, Treatment('miss'))[T.${st}]`] : 0) + c.pay_rel * x.pay_rel + c.trade_proc * x.trade_proc + c.draft_left * x.draft_left + c.new_owner * x.new_owner + c.title_recent * recent);
 }
 // what the re-entry model reads off a spell
 export function spellOf(g) {

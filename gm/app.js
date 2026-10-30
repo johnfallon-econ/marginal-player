@@ -153,15 +153,15 @@ const ACT = {
   autopick: () => step('The draft', () => { if (L.onClock(G)?.holder === G.user) L.draftNext(G, r, G.draft.avail.map(P).sort((a, b) => sp(b).rate - sp(a).rate)[0].id, G.user, 0); }),
   dnext: (n) => step('The draft', () => { L.draftNext(G, r, null, G.user, +n || 1); }),
   dto: () => step('The draft', () => { L.draftNext(G, r); }),
-  enddraft: () => step('Wrapping up', () => { L.draftEnd(G); G.step = 'decisions'; G.choices = {}; view = 'decisions'; }),
-  toggle: (k) => { G.choices[k] = !G.choices[k]; render(); },
+  enddraft: () => step('Wrapping up', () => { L.draftEnd(G); G.step = 'decisions'; G.choices = defaults(); view = 'decisions'; }),
+  toggle: (k) => { G.choices[k] = !G.choices[k]; save(); render(); },   // kept at once: a reload must not drop a tick
   stash: (a) => { const [id, v] = a.split('|'); G.choices[`st|${id}`] = !!v; render(); },
   second: (a) => { const [id, v] = a.split('|'); G.choices[`sr|${id}`] = v; render(); },
   newyear: () => step('The new league year', () => {
     const c = G.choices || {};
     for (const id of me().roster.filter((x) => c[`st|${x}`])) L.stash(G, G.user, id);
     L.newLeagueYear(G, r, { teamOption: (p) => !!c[`opt|${p.id}`], qo: (p) => !!c[`qo|${p.id}`], second: (p) => (c[`sr|${p.id}`] ?? (p.abroad ? '' : 'deal')) || null });
-    delete G.step; G.choices = {}; G.offers = []; view = 'resign';
+    delete G.step; G.choices = resignDefaults(); G.offers = []; view = 'resign';
   }),
   market: () => step('Free agency opens', () => {
     const no = [];
@@ -244,6 +244,19 @@ const ACT = {
   renounce: (pid) => { const T = me(); T.holds = T.holds.filter((h) => h.pid !== pid); T.rfa = (T.rfa || []).filter((x) => x !== pid); ui = {}; save(); render(); },
   renounceall: () => { if (confirm('Renounce every one of your free agents? You lose their Bird rights.')) { const T = me(); T.rfa = (T.rfa || []).filter((x) => !T.holds.some((h) => h.pid === x)); T.holds = []; ui = {}; save(); render(); } },
 };
+// The summer's ticks to start from, as a computer GM would decide them: a team option picked up, a
+// qualifying offer tendered and a free agent of yours re-signed when he is worth it to your club
+function defaults() {
+  const s = G.season + 1, c = {};
+  for (const p of me().roster.map(P)) {
+    const y = C.yearOf(p.contract, s);
+    if (y?.opt === 'tm') c[`opt|${p.id}`] = L.teamValue(G, G.user, p) >= y.sal;
+    else if (!y && p.contract?.rookie && p.draft?.round === 1)
+      c[`qo|${p.id}`] = L.teamValue(G, G.user, p) >= C.rookieQO(p.draft.pick, L.capAt(G, p.draft.year), (G.lastMins?.[p.id] || 0) / 82 >= 2000 / 82);
+  }
+  return c;
+}
+const resignDefaults = () => Object.fromEntries(me().holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id)).map((p) => [`re|${p.id}`, L.teamValue(G, G.user, p) >= L.resignTerms(G, G.user, p).sal]));
 // what a free agent takes today: his ask, falling 2.5% a day through the summer
 const need = (p) => Math.ceil(L.askOf(G, p, F()).sal * (1 - 0.025 * G.fa_.day) / 1e5) * 1e5;
 function reoffer(pid, salOf) {
@@ -355,12 +368,26 @@ const nm = (id) => `<a class="pl" data-act="card" data-arg="${id}">${esc(P(id).n
 const honors = (id) => G.history.flatMap((h) => { const a = h.awards; if (!a) return [];
   return [a.mvp[0]?.[0] === id && 'MVP', ...a.allNba.map((t, i) => t.includes(id) && `All-NBA ${['First', 'Second', 'Third'][i]} Team`), a.roy[0]?.[0] === id && 'Rookie of the Year',
     a.smoy[0]?.[0] === id && 'Sixth Man of the Year', a.dpoy?.[0] === id && 'Defensive Player of the Year', a.mip?.[0] === id && 'Most Improved'].filter(Boolean).map((x) => `${x} ${SEASON(h.season)}`); });
+// What he is worth past his pay, and where he is headed: his surplus over his deal and the re-signings
+// after it, to your club (trades.js playerWorth) and at the market's price (marketWorth); then each
+// season ahead, his rating as your club reads it (his trend, as far as you know it, and the age curve)
+// with the tenth to ninetieth percentile of where he could be, his mWAR and market value at the
+// median, and on his deal, his pay and the surplus
+function outlook(p) {
+  const q = sp(p), K = G.K, rho = K.dev.rho, t = G.reveal ? p.trend : L.trendRead(G, G.user, p).trend, s0 = G.season + (['offseason', 'draft'].includes(G.phase) ? 1 : 0);
+  const sur = p.contract ? `<p>Surplus <b>${$M(X.playerWorth(G, G.user, p, X.mode(L.projWins(G, G.user))))}</b> to you · ${$M(X.marketWorth(G, p))} on the market <small>(his deal and the re-signings after it, discounted)</small></p>` : '';
+  const rows = [0, 1, 2, 3, 4, 5].filter((h) => p.age + h < 40).map((h) => {
+    const x = { ...q, rate: q.rate + t * (1 - rho ** h) / (1 - rho) }, mid = M.projRate(x, h, K), u = 1.2816 * M.uncertainty(q, h, K), cap = L.capAt(G, s0 + h);
+    const mv = M.marketValue(x, h, cap, K), sal = C.yearOf(p.contract, s0 + h)?.sal;
+    return `<tr><td>${SEASON(s0 + h)}</td><td class="n">${Math.floor(p.age) + h}</td><td class="n">${sg(mid)} <small>${sg(mid - u)} to ${sg(mid + u)}</small></td><td class="n">${M.war(x, h, K).toFixed(1)}</td><td class="n">${$M(mv)}</td><td class="n">${sal == null ? '–' : $M(sal)}</td><td class="n">${sal == null ? '–' : $M(mv - sal)}</td></tr>`; }).join('');
+  return `${sur}<div class="scroll"><table class="t"><thead><tr><th>Season</th><th class="n">Age</th><th class="n">Rating <small>p10–p90</small></th><th class="n">mWAR</th><th class="n">Market value</th><th class="n">Salary</th><th class="n">Surplus</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
 const card = (id) => { const p = P(id), h = honors(id);
   return `<div class="ov" data-act="closecard"><div class="ovc" data-act="noop" role="dialog" aria-label="${esc(p.nm)}"><button class="x" data-act="closecard" aria-label="Close">&times;</button>
 <h3>${esc(p.nm)}</h3><p>${[p.pos, p.ht, `${Math.floor(p.age)} years old`, p.tm ? esc(NAME(p.tm)) : p.retired ? `retired ${SEASON(p.retired)}` : 'free agent'].filter(Boolean).join(' · ')}</p>
 <p>mPM <b>${sg(sp(p).rate)}</b> <small>${od(sp(p).rate, p.lean)}</small> · ${wr(p)}${p.tm ? ` · ${usage(p)}` : ''}</p>
 <p class="sub">${p.draft ? `Drafted ${p.draft.year}, round ${p.draft.round}, pick ${p.draft.pick}. ` : ''}${p.yos} years of service.</p>
-${trajectory(p)}${p.contract ? `<p>${contract(p)}</p>` : ''}${h.length ? `<p><b>Honors</b><br>${h.join('<br>')}</p>` : ''}${logTable(p)}</div></div>`; };
+${trajectory(p)}${p.contract ? `<p>${contract(p)}</p>` : ''}${p.retired ? '' : outlook(p)}${h.length ? `<p><b>Honors</b><br>${h.join('<br>')}</p>` : ''}${logTable(p)}</div></div>`; };
 // Where he is heading as your club reads it (L.trendRead): a season's gain beyond the league's aging,
 // fading by the year; your own man's, as far as you have seen him play; another club's, the league's
 // expectation less what his club, knowing more, would keep to itself

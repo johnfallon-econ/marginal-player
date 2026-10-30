@@ -91,7 +91,7 @@ export function review(G, h, r) {
   G.owner.books.push({ ...b, w, won, grade });
   const x = T.gm.rec.at(-1);                       // the season as the exit model reads it (gm.js)
   (G.career ||= []).push({ ab: G.user, s, w, l: h.record[G.user][1], won, champ: h.champion === G.user, vs_exp: x.vs_exp, po_w: x.po_w, proc: x.trade_proc, left: x.draft_left });
-  const ten = G.career.length - G.career.findLastIndex((c) => c.ab !== G.user) - 1, p = GM.pExit(G, { ten, rec: [x] });
+  const ten = G.career.length - G.career.findLastIndex((c) => c.ab !== G.user) - 1, p = GM.pFired(G, x, ten, +G.career.slice(-5, -1).some((c) => c.ab === G.user && c.champ));
   G.exitOdds = p;
   if ({ never: false, simple: G.owner.conf < 20, realistic: r() < p }[G.fireMode]) {
     const o = GM.offers(G, r);
