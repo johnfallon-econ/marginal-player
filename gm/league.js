@@ -9,6 +9,7 @@ import * as M from './value.js';
 import * as X from './trades.js';
 import * as A from './awards.js';
 import * as GM from './gm.js';
+import * as ST from './staff.js';
 import * as PL from './plan.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -48,7 +49,8 @@ export function newGame(L, cal, opts) {
     for (const p of Object.values(G.players)) { p.rate -= G.centred; p.talent -= G.centred; } }
   G.scoutSd = D.solveScoutSd(L, r);
   G.names = L.names; G.draftData = L.draft;
-  GM.init(G, L, r);                               // each club's real lead executive (gm.js)
+  GM.init(G, L, r);
+  if (G.hidden) ST.init(G, r);                    // every club's scouts and analysts (staff.js)                               // each club's real lead executive (gm.js)
   setLeagueNet(G);                                // projected wins average 41 from the start
   G.rngState = r.state();
   return G;
@@ -89,13 +91,14 @@ export function trendRead(G, ab, p) {
 }
 // an outsider's read before its own noise is the same for every club: kept for the day, by holder
 const _out = new WeakMap();
-// his market value h seasons on, as a club reading that trend sees him, and his wins then
-const valueAt = (G, p, trend, h) => { const q = { ...p, rate: p.talent + trend * (1 - G.K.dev.rho ** h) / (1 - G.K.dev.rho) };
+// his market value h seasons on, as a club reading that trend sees him, and his wins then: from his
+// rating as the club reads it (rate: the league's read and its staff's) -- his talent itself, hidden, is no club's to see
+const valueAt = (G, p, trend, h) => { const q = { ...p, rate: p.rate + trend * (1 - G.K.dev.rho ** h) / (1 - G.K.dev.rho) };
   return { mv: M.marketValue(q, h, capAt(G, G.season + 1 + h), G.K), w: M.war(q, h, G.K) }; };
 function outside(G, ab, p, h) {
   let c = _out.get(G);
   if (c?.d !== `${G.season}|${G.date}`) _out.set(G, (c = { d: `${G.season}|${G.date}`, m: new Map() }));
-  const key = `${p.id}|${h}|${holder(G, p)}`;
+  const key = `${p.id}|${h}|${holder(G, p)}|${G.hidden ? ab : ''}`;
   if (!c.m.has(key)) c.m.set(key, valueAt(G, p, trendRead(G, ab, p).trend, h));
   return c.m.get(key);
 }
@@ -103,6 +106,7 @@ function outside(G, ab, p, h) {
 export function teamValue(G, ab, p, h = 0) {
   const g = G.teams[ab].gm, u = M.uncertainty(p, h, G.K), z = g.noise * hashNoise(`${ab}|${p.id}|${G.season}`), t = trendRead(G, ab, p);
   const stray = z * u / (1 + u * u);                       // an outsider's; his own club's half as far
+  if (G.hidden) p = { ...p, rate: ST.read(G, p, ab) };
   const v = t.own ? valueAt(G, p, t.trend, h) : outside(G, ab, p, h);
   return v.mv * (1 + (t.own ? stray / 2 : stray)) + winWorth(G, ab, h) * Math.max(v.w, 0);
 }
@@ -422,6 +426,8 @@ export function endSeason(G, r) {
   // each GM's season on the books; the computer clubs' GMs who lose their jobs, and who replaces them (gm.js)
   GM.closeSeason(G, G.history.at(-1), pays);
   GM.summer(G, r);
+  // the staffs: some hired away, a computer club's seats refilled, the user's market (staff.js)
+  if (G.hidden) { const gone = ST.summer(G, G.history.at(-1), r); G.staffSay = gone.map((h) => `${h.nm} (${ST.KINDS[h.t].label.toLowerCase()}) was hired away.`).join(' '); }
 }
 // a second-apron team's first-round pick seven drafts out is frozen (Art. VII §2(f))
 function freezePick(G, ab, s) { const k = `${ab}|${s + 8}|1`; G.picks[k] = { ...(G.picks[k] || { t: 'clear' }), frozen: true }; }
@@ -513,11 +519,11 @@ export function settleDraft(G) {
 // seasons 1-6, as the game's own leagues have kept such men (K.stick).
 export const QL = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99];
 const FANS = new Map();
-// known: his talent is known (yours, shown the truth: G.reveal), so no board miss
-export function fans(G, p, known = false, n = 400) {
-  const key = `${G.draft.year}|${p.id}|${known}`;
+// k: the share of the board's miss left in the read (0: yours, shown the truth, G.reveal; below 1 with a staff, staff.js)
+export function fans(G, p, k = 1, n = 400) {
+  const key = `${G.draft.year}|${p.id}|${k}`;
   if (FANS.has(key)) return FANS.get(key);
-  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = known ? [0] : G.draft.resid, cap = capAt(G, G.draft.year);
+  const K = G.K, sd = G.hidden ? K.trendHidden : K.dev.trend, rho = K.dev.rho, res = G.draft.resid.map((x) => k * x), cap = capAt(G, G.draft.year);
   const r = S.rng([...p.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7));
   const mins = (x) => K.beta * 82 * M.mpgFor(x, K) / 48;
   // the board's contract model at a season's wins w (its keepP, holdP, dealMax)

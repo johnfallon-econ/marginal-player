@@ -11,6 +11,7 @@ import * as O from './owner.js';
 import * as P_ from './picks.js';
 import * as GM from './gm.js';
 import * as V from './dev.js';
+import * as ST from './staff.js';
 
 let G = null, r = null, view = 'home', ui = {};
 // a trade window's offers spread over workers, one a core but this page's (worker.js): each holds the
@@ -31,7 +32,8 @@ const P = (id) => G.players[id], me = () => G.teams[G.user], F = () => G.f[G.sea
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // a man's wins above replacement this season, at the minutes and availability he is projected for
 // a player as you see him: with the truth shown only to you (G.reveal), his talent, not the league's read
-const sp = (p) => (G.reveal ? { ...p, rate: p.talent, se: 0 } : p);
+// or, in the hidden game, the league's read and your staff's together (staff.js)
+const sp = (p) => (G.reveal ? { ...p, rate: p.talent, se: 0 } : G.hidden ? { ...p, rate: ST.read(G, p) } : p);
 const wr = (p) => `${M.war(sp(p), 0, G.K).toFixed(1)} mWAR`;
 const $M = (x) => `$${(x / 1e6).toFixed(1)}M`, sg = (x) => { x = Math.round(x * 10) / 10 || 0; return (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1); };
 const std = (T) => T.roster.filter((id) => !P(id).contract?.twoWay);
@@ -161,6 +163,7 @@ const ACT = {
     const c = G.choices || {};
     for (const id of me().roster.filter((x) => c[`st|${x}`])) L.stash(G, G.user, id);
     L.newLeagueYear(G, r, { teamOption: (p) => !!c[`opt|${p.id}`], qo: (p) => !!c[`qo|${p.id}`], second: (p) => (c[`sr|${p.id}`] ?? (p.abroad ? '' : 'deal')) || null });
+    if (G.renewal) renew();                         // a renewal left standing is taken as offered
     delete G.step; delete G.calls; G.choices = resignDefaults(); G.offers = []; view = 'resign';
   }),
   market: () => step('Free agency opens', () => {
@@ -228,7 +231,7 @@ const ACT = {
     a.href = URL.createObjectURL(new Blob([JSON.stringify(G)], { type: 'application/json' }));
     a.download = `gm-${G.user}-${SEASON(G.season)}.json`; a.click(); },
   import: () => $('#importf').click(),
-  takejob: (ab) => { O.move(G, ab, r); if (G.step === 'decisions') G.choices = defaults(); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
+  takejob: (ab) => { O.move(G, ab, r, offersOpen().find((o) => o.ab === ab)); if (G.step === 'decisions') G.choices = defaults(); G.ownerSay = `Welcome to the ${NAME(ab)}. Your new owner: ${O.OWNERS[G.owner.type].label.toLowerCase()}.`; view = 'home'; ui = {}; save(); render(); },
   retire: () => { G.fired.retired = true; save(); render(); },
   path: (k) => { G.fired.path = k; save(); render(); },
   // a season out, on the path chosen (simmed lightly: no one is at your controls); all: until a club calls
@@ -236,7 +239,7 @@ const ACT = {
     step(`${f.out > 1 ? `Season ${f.out} out` : 'A season out'}: ${GM.PATHS[k].label.toLowerCase()}`, async () => {
       G.lite = true; try { await L.toNextDraft(G, r, (date, k) => tradeWindow(date, L.TRADES[k], null)); } finally { delete G.lite; }
       (f.log ||= []).push({ s: G.season, path: k }); f.out += 1; f.s = G.season;
-      const o = GM.offers(G, r, f.out, k); f.offers = o.clubs; f.h = o.h;
+      const o = GM.offers(G, r, f.out, k); f.offers = o.clubs.map((ab) => ({ ab, ...O.terms(G, r, G.season + 1) })); f.h = o.h;
       if (all && !f.offers.length) setTimeout(() => ACT.away(true), 50);
     }); },
   staff: () => { G.staffSigns = G.staffSigns === false; save(); render(); },
@@ -295,7 +298,7 @@ const tradeOf = () => {
 const judgeTrade = (t, g = structuredClone(G)) => { for (const [ab, pid] of t.sat) L.satSign(g, ab, g.players[pid]); return X.judge(g, { moves: t.moves, picks: t.picks, swaps: t.swaps }); };
 
 // ---- views -------------------------------------------------------------------------------------
-const TABS = [['home', 'Home'], ['roster', 'Roster'], ['league', 'League'], ['gms', 'GMs'], ['trade', 'Trade'], ['log', 'Moves'], ['menu', 'Game']];
+const TABS = [['home', 'Home'], ['roster', 'Roster'], ['league', 'League'], ['gms', 'GMs'], ['staff', 'Staff'], ['trade', 'Trade'], ['log', 'Moves'], ['menu', 'Game']];
 function render() {
   if (!G) { root().innerHTML = newGame(); return; }
   if (G.fired) { root().innerHTML = fired(); return; }
@@ -303,7 +306,7 @@ function render() {
   const extra = G.phase === 'draft' ? [['draft', 'Draft']] : G.phase === 'playoffs' ? [['playoffs', 'Playoffs']] : ['freeagency', 'preseason', 'season'].includes(G.phase) ? [['fa', 'Free agents']] : G.step === 'decisions' ? [['decisions', 'Decisions']] : [];
   root().innerHTML = `<div class="top"><strong>${esc(NAME(G.user))}</strong> <span>${SEASON(G.season)} · ${phase} · ${G.date}</span></div>
 ${capStrip()}
-<div class="tabs" role="navigation">${[...TABS.slice(0, 1), ...extra, ...TABS.slice(1)].map(([k, n]) => `<button data-act="go" data-arg="${k}"${view === k ? ' aria-current="page"' : ''}>${n}</button>`).join('')}</div>
+<div class="tabs" role="navigation">${[...TABS.slice(0, 1), ...extra, ...TABS.slice(1)].filter(([k]) => k !== 'staff' || (G.hidden && !G.reveal)).map(([k, n]) => `<button data-act="go" data-arg="${k}"${view === k ? ' aria-current="page"' : ''}>${n}</button>`).join('')}</div>
 <section>${(VIEWS[view] || VIEWS.home)()}</section>${ui.card && P(ui.card) ? card(ui.card) : ''}`;
   cheer();
 }
@@ -554,7 +557,7 @@ ${summer.length ? `<details class="card"><summary>Every signing this summer (${s
 // drafts him, each prospect's value violin, quality fans and the game's own odds; open one for his
 // career arc and what his club keeps season by season.
 function board(pool, onMe, tn, th, c) {
-  const F_ = new Map(pool.map((p) => [p.id, L.fans(G, sp(p), !!G.reveal)])), f = (p) => F_.get(p.id), list = pool.slice().sort((a, b) => f(b).EV - f(a).EV).slice(0, 60);
+  const F_ = new Map(pool.map((p) => [p.id, L.fans(G, sp(p), G.reveal ? 0 : ST.miss(G, 0))])), f = (p) => F_.get(p.id), list = pool.slice().sort((a, b) => f(b).EV - f(a).EV).slice(0, 60);
   const all = [...F_.values()], VD = [Math.floor(Math.min(...all.map((x) => x.v[1]))), Math.ceil(Math.max(...all.map((x) => x.v[6])))];
   const QD = [Math.floor(Math.min(...all.flatMap((x) => ['r', 'q', 'k', 'o', 'd'].map((k) => x[k][1])))), Math.ceil(Math.max(...all.flatMap((x) => ['r', 'q', 'k', 'o', 'd'].map((k) => x[k][5]))))];
   const chip = (d) => `<span class="chip ${d > 0 ? 'up' : d < 0 ? 'dn' : 'na'}">${d > 0 ? '+' : ''}${d}</span>`;
@@ -577,18 +580,44 @@ function ownerBooks() {
   return b.length ? `<table class="t"><thead><tr><th>Season</th><th class="n">W</th><th class="n">Revenue</th><th class="n">Payroll</th><th class="n">Tax</th><th class="n">Other</th><th class="n">Profit</th></tr></thead><tbody>${b.slice().reverse().map((x) => `<tr><td>${SEASON(x.s)}</td><td class="n">${x.w}</td><td class="n">${$m(x.rev)}${x.n ? ` <small>(${x.n} home playoff games)</small>` : ''}</td><td class="n">${$m(x.pay)}</td><td class="n">${$m(x.tax)}</td><td class="n">${$m(x.other)}</td><td class="n ${x.profit < 0 ? 'bad' : ''}">${$m(x.profit)}</td></tr>`).join('')}</tbody></table>` : '';
 }
 // fired: the owner's verdict, the clubs that call, and the career so far
+// A club's offer: its terms, a job to take (or, for your own owner's renewal, to sign), and your counter
+const offersOpen = () => G.fired?.offers || G.calls || [];
+function offerRow(o, rec) {
+  const own = o.ab === 'renew', yr = (y) => `<option${y === o.years ? ' selected' : ''}>${y}</option>`;
+  return `<div class="off">${own ? '' : `<b>${esc(NAME(o.ab))}</b> <small>${rec[o.ab][0]}-${rec[o.ab][1]} last season · payroll ${$m(O.payroll(G, o.ab) / 1e6)}</small> `}<b>${$M(o.sal)} a season × ${o.years}</b>
+${own ? btn('renew', 'Sign it') : btn('takejob', 'Take the job', o.ab)} <span class="ask">or ask $<input id="ask-${o.ab}" type="number" step="0.1" min="0" value="${(o.sal / 1e6).toFixed(1)}" style="width:5em">M × <select id="yrs-${o.ab}">${[3, 4, 5].map(yr).join('')}</select> ${btn('counter', 'Counter', o.ab)}</span>${ui.said?.[o.ab] ? `<br><small>${esc(ui.said[o.ab])}</small>` : ''}</div>`;
+}
+function renew() { const o = G.renewal; G.deal = { sal: o.sal, from: G.season + 1, to: G.season + o.years }; delete G.renewal; }
+// out of work by his own choice or his owner's: the renewal turned down, or talks broken off
+function leave(why) {
+  GM.hire(G, G.user, r);
+  G.fired = { s: G.season, mode: why, from: G.user, out: 1, offers: G.calls || [], h: 0 };
+  delete G.renewal; delete G.deal; delete G.calls;
+}
+ACT.renew = () => { renew(); save(); render(); };
+ACT.walk = () => { if (confirm('Leave the club when your deal ends?')) { leave('walked'); save(); render(); } };
+ACT.counter = (ab) => {
+  const own = ab === 'renew', o = own ? G.renewal : offersOpen().find((x) => x.ab === ab), was = o.sal;
+  const said = O.counter(o, { sal: Math.round(+$(`#ask-${ab}`).value * 10) * 1e5, years: +$(`#yrs-${ab}`).value }, r);
+  (ui.said ||= {})[ab] = `${own ? 'Your owner' : `The ${NAME(ab)}`} ${said}${o.sal !== was ? `: ${$M(o.sal)} a season` : ''}.`;
+  if (o.gone) { if (own) leave('talks'); else if (G.fired) G.fired.offers = G.fired.offers.filter((x) => x !== o); else G.calls = G.calls.filter((x) => x !== o); }
+  save(); render();
+};
 function career() {
   const c = G.career || [];
-  return c.length ? `<table class="t"><thead><tr><th>Season</th><th>Club</th><th class="n">W-L</th><th>Playoffs</th></tr></thead><tbody>${c.slice().reverse().map((x) => `<tr><td>${SEASON(x.s)}</td><td>${esc(NAME(x.ab))}</td><td class="n">${x.w}-${x.l}</td><td>${x.champ ? '<b>Champions</b>' : x.won ? `won ${x.won} round${x.won > 1 ? 's' : ''}` : ''}</td></tr>`).join('')}</tbody></table>` : '';
+  const pay = `<p>${G.deal ? `Your deal: ${$M(G.deal.sal)} a season through ${SEASON(G.deal.to)}. ` : ''}Career earnings: ${$M(G.earned || 0)}.</p>`;
+  return pay + (c.length ? `<table class="t"><thead><tr><th>Season</th><th>Club</th><th class="n">W-L</th><th>Playoffs</th></tr></thead><tbody>${c.slice().reverse().map((x) => `<tr><td>${SEASON(x.s)}</td><td>${esc(NAME(x.ab))}</td><td class="n">${x.w}-${x.l}</td><td>${x.champ ? '<b>Champions</b>' : x.won ? `won ${x.won} round${x.won > 1 ? 's' : ''}` : ''}</td></tr>`).join('')}</tbody></table>` : '');
 }
 function fired() {
   const f = G.fired, rec = G.history.at(-1).record, pct = (x) => `${Math.round(100 * x)}%`;
   if (f.retired) return `<div class="card"><h2>Career over</h2>${career()}<div class="row">${btn('newgame', 'New game')}${btn('export', 'Export the save')}</div></div>`;
   const why = f.out > 1 ? `You have been out of the game ${f.out - 1} season${f.out > 2 ? 's' : ''}.`
+    : f.mode === 'walked' ? `You turned down a new deal with the ${esc(NAME(f.from))} and left when your contract ran out.`
+    : f.mode === 'talks' ? `Talks on a new deal with the ${esc(NAME(f.from))} broke down, and the owner let your contract run out.`
     : f.mode === 'realistic' ? `After the ${SEASON(f.s)} season the ${esc(NAME(f.from))} let you go. Real GMs are let go most when their club falls short of what it was expected to win; the model put the odds at ${pct(G.exitOdds)}.`
     : `After the ${SEASON(f.s)} season the ${esc(NAME(f.from))}' owner's confidence fell to ${Math.round(f.conf)} of 100, and he let you go.`;
-  return `<div class="card"><h2>${f.out > 1 ? 'Out of work' : "You're fired"}</h2><p>${why}</p>${f.out > 1 ? '' : ownerBooks()}
-<h3>Clubs that want you</h3>${f.offers.length ? f.offers.map((ab) => `<div class="off"><b>${esc(NAME(ab))}</b> <small>${rec[ab][0]}-${rec[ab][1]} last season · payroll ${$m(O.payroll(G, ab) / 1e6)}</small> ${btn('takejob', 'Take the job', ab)}</div>`).join('') : '<p>No one calls.</p>'}
+  return `<div class="card"><h2>${f.out > 1 || f.mode === 'walked' ? 'Out of work' : "You're fired"}</h2><p>${why}</p>${f.out > 1 || !G.owner.books?.length ? '' : ownerBooks()}
+<h3>Clubs that want you</h3>${f.offers.length ? f.offers.map((o) => offerRow(o, rec)).join('') : '<p>No one calls.</p>'}
 <p class="note">Only clubs that changed GMs this summer are hiring (${G.openSeats.filter((ab) => ab !== f.from).length} of them). Real GMs who lose a job get another one at a rate that falls the longer they are out; for a career like yours, the model's chance of a job this summer is ${pct(f.h)}. Your new owner is the kind you asked for when you started.</p>
 <h3>While you wait</h3><p class="note">Television puts you in front of the big markets (the ten clubs with the most revenue); a front-office job in front of the rest; a podcast in front of everyone, less strongly. The other seasons are simmed lightly while you are out: fewer trade talks, so they go faster.</p>
 <div class="row">${Object.entries(GM.PATHS).map(([k, p]) => btn('path', `${(f.path || 'away') === k ? '✓ ' : ''}${p.label}`, k, (f.path || 'away') === k ? '' : 'ghost')).join('')}</div>
@@ -699,11 +728,12 @@ ${board(pool, onMe, tn, th, c)}
   decisions: () => {
     const T = me(), s = G.season + 1, c = G.choices ||= {}, rec = G.history.at(-1).record;
     const calls = G.calls?.length ? `<div class="card"><h3>Clubs calling</h3><p class="note">Clubs changing GMs this summer call a sitting GM as often as they hire one out of work with his record. Take a job and your club hires a GM of its own; the offers lapse when the new league year starts.</p>
-${G.calls.map((ab) => `<div class="off"><b>${esc(NAME(ab))}</b> <small>${rec[ab][0]}-${rec[ab][1]} last season · payroll ${$m(O.payroll(G, ab) / 1e6)}</small> ${btn('takejob', 'Take the job', ab)}</div>`).join('')}</div>` : '';
+${G.calls.map((o) => offerRow(o, rec)).join('')}</div>` : '';
+    const renewal = G.renewal ? `<div class="card"><h3>Your contract</h3><p>Your deal ends with this season. The owner offers to renew it.</p>${offerRow({ ...G.renewal, ab: 'renew' }, rec)}<div class="row">${btn('walk', 'Turn it down and leave', '', 'warn')}</div><p class="note">A renewal left standing is taken as offered when the new league year starts.</p></div>` : '';
     const opts = T.roster.map(P).filter((p) => C.yearOf(p.contract, s)?.opt === 'tm');
     const qos = T.roster.map(P).filter((p) => p.contract?.rookie && p.draft?.round === 1 && !C.yearOf(p.contract, s));
     const row = (k, p, what) => `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="${k}|${p.id}"${c[`${k}|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(sp(p).rate)} · ${wr(p)} · ${what}</small></label>`;
-    return `${calls}<div class="card"><h3>Team options for ${SEASON(s)}</h3>${opts.map((p) => row('opt', p, `pick up ${$M(C.yearOf(p.contract, s).sal)}`)).join('') || '<p>None.</p>'}
+    return `${renewal}${calls}<div class="card"><h3>Team options for ${SEASON(s)}</h3>${opts.map((p) => row('opt', p, `pick up ${$M(C.yearOf(p.contract, s).sal)}`)).join('') || '<p>None.</p>'}
 <h3>Qualifying offers</h3><p class="note">Tendering one makes the player a restricted free agent: you may match any offer sheet.</p>
 ${qos.map((p) => row('qo', p, 'tender')).join('') || '<p>None.</p>'}
 <h3>First-round picks</h3><p class="note">Sign one to his rookie-scale deal, or stash him abroad: you keep his rights and can bring him over in a later summer on the scale for his slot (for up to four summers).</p>
@@ -763,6 +793,22 @@ function allGMs() {
     t.pct = t.w / (t.w + t.l);
     return t; });
 }
+// Your staff (staff.js): who you have, who is out there, and what they add to your read
+const staffRow = (h, b) => `<tr><td>${esc(h.nm)}</td><td>${ST.KINDS[h.t].label}</td><td class="n">${h.q.toFixed(2)}</td><td class="n">$${Math.round(h.sal / 1e3)}k</td><td>${b}</td></tr>`;
+const STH = '<thead><tr><th>Name</th><th>Role</th><th class="n">Quality</th><th class="n">Pay</th><th></th></tr></thead>';
+VIEWS.staff = () => {
+  const st = ST.of(G), pool = G.staffPool || [], pct = (k) => Math.round(100 * ST.miss(G, k)), avg = (k) => Math.round(100 * Object.keys(G.teams).filter((ab) => ab !== G.user).reduce((a, ab) => a + ST.miss(G, k, ab), 0) / (Object.keys(G.teams).length - 1));
+  return `<div class="card"><h3>Your staff</h3><p>Your read of a prospect misses by <b>${pct(0)}%</b> of what the league's does, of an NBA player by <b>${pct(1)}%</b> (the average club's: ${avg(0)}% and ${avg(1)}%). Pay this season: ${$M(ST.cost(G))}, with the club's other costs.</p>
+${st.length ? `<table class="t">${STH}<tbody>${st.map((h) => staffRow(h, btn('stfire', 'Let go', h.id, 'warn'))).join('')}</tbody></table>` : '<p>No one: you see only what the league sees, and every other club sees more.</p>'}${G.staffSay ? `<p class="note">${esc(G.staffSay)}</p>` : ''}</div>
+<div class="card"><h3>Available</h3>${pool.length ? `<table class="t">${STH}<tbody>${pool.map((h) => staffRow(h, btn('sthire', 'Hire', h.id))).join('')}</tbody></table>` : '<p>No one until the summer.</p>'}${ui.stsay ? `<p class="note">${esc(ui.stsay)}</p>` : ''}</div>
+<p class="note">Each hire reads every player's true talent with an error of his own. Part of that error is shared by everyone on your staff, more of it by hires of the same kind (scouts watch the same games, analysts run the same numbers), so a second hire of a kind adds less than the first. Your ratings weigh the league's read and each hire's by how often they miss. Quality 1 is an average hire. In the game an average analyst is worth about 0.6 wins a season (a real study found up to 1.25: Wang, Sarker and Hosoi, 2025); scouts read prospects better and analysts NBA players. Every club has a staff, about 4 analysts (as real clubs had in 2023) and 6 scouts, and values players by its own read. Each summer some are hired away, more after a deep playoff run, and a new market opens. A staff stays with its club: take another job and you inherit that club's.</p>`;
+};
+ACT.sthire = (id) => {
+  const h = G.staffPool.find((x) => x.id === id), b = O.projected(G), l = O.line(G, b.s);
+  if (b.profit - h.sal / 1e6 < l) { ui.stsay = `The owner won't approve it: it would take this season below his line of ${$m(l)}.`; render(); return; }
+  G.staffPool = G.staffPool.filter((x) => x !== h); (me().staff ||= []).push(h); ui.stsay = `${h.nm} joins your staff.`; save(); render();
+};
+ACT.stfire = (id) => { const h = ST.of(G).find((x) => x.id === id); me().staff = ST.of(G).filter((x) => x !== h); ui.stsay = `${h.nm} is let go.`; save(); render(); };
 VIEWS.gms = () => {
   const cap = F().cap, per = ui.gmPer ?? true, key = ui.gmSort || 'seasons', dir = ui.gmDir ?? -1;
   const val = (t, k, f) => (k === 'n' ? t.n : k === 'pct' || k === 'seasons' || !f ? t[k] : per ? t[k] / (k === 'vs_w' ? t.lined || 1 : t.seasons) : t[k]);
@@ -816,6 +862,10 @@ async function data() { return (await fetch('gm/league.json')).json(); }
 // A save from before the clubs had their real GMs gets them now, on the season under way.
 const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.league.const, ...d.cal } }; if (G_.draft) L.settleDraft(G_);
   M.setDisc(G_.K);
+  // a save from before contracts: its calls and offers were clubs alone, now each with its terms
+  const withTerms = (L) => L.map((x) => (typeof x === 'string' ? { ab: x, ...O.terms(G_, S.rng(1), G_.season + 1) } : x));
+  if (G_.calls) G_.calls = withTerms(G_.calls); if (G_.fired?.offers) G_.fired.offers = withTerms(G_.fired.offers);
+  if (G_.hidden && !G_.teams[G_.user].staff) ST.init(G_, S.rng(1));     // a save from before staffs
   for (const p of Object.values(G_.players)) V.initSeen(p, G_.K);   // a save from before ratings kept what they stand on
   if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'simple'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
   return G_; };
@@ -827,7 +877,7 @@ async function create() {
   const d = await data(), seed = Math.floor(Math.random() * 2 ** 31);
   adopt(L.newGame(d.league, d.cal, { team, hidden, seed }));
   if (truth) Object.assign(G, clubs === 'scout' ? { reveal: true } : { clubs });
-  O.hire(G, $('#owner').value, r); G.fireMode = $('#fire').value;
+  O.hire(G, $('#owner').value, r); G.fireMode = $('#fire').value; G.deal = { sal: O.terms(G, r, G.season).sal, from: G.season, to: G.season + 4 };
   view = 'home'; await save(); render();
 }
 async function boot() {

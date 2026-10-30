@@ -69,7 +69,10 @@ export function seasonForm(teams, players, K, r) {
 export function hashNoise(s) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  const u = ((h >>> 0) + 0.5) / 4294967296, v = ((Math.imul(h, 2654435761) >>> 0) + 0.5) / 4294967296;
+  // murmur3's finalizer: without it keys differing in their last characters (seasons, stat indices)
+  // drew correlated noise (2026 against 2028: -0.83)
+  const fmix = (x) => { x = Math.imul(x ^ (x >>> 16), 0x85ebca6b); x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35); return (x ^ (x >>> 16)) >>> 0; };
+  const a = fmix(h), u = (a + 0.5) / 4294967296, v = (fmix(a ^ 0x9e3779b9) + 0.5) / 4294967296;
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 // linear through a table of [x, y] points, flat past either end

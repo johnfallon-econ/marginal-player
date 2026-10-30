@@ -21,7 +21,7 @@ const lgt = (z) => 1 / (1 + Math.exp(-z));
 // a window has room for only so many), the value of a man shed in a trade (x cap), the mPM pay slope (% of cap)
 function person(x, K) {
   return { id: x.id, n: x.n, b: x.b, trades: x.trades, consolidate: x.consolidate, sign_rate: x.sign_rate,
-    noise: NOISE * (x.b.includes('analytics') ? 0.5 : 1), taxTol: x.taxTol, ten: x.ten ?? 0, rec: [] };
+    noise: NOISE * NOISE_X * (x.b.includes('analytics') ? 0.5 : 1), taxTol: x.taxTol, ten: x.ten ?? 0, rec: [] };
 }
 export const activity = (g, K) => Math.exp(ACT * g.trades / K.gm.tradesMean);
 export const shed = (g) => CONS * g.consolidate;
@@ -189,8 +189,8 @@ export function offers(G, r, out = 1, path = 'away') {
 // draw each rival's pick with that spread. (READ 250 with no lean also reached 14, but every club then
 // saw the same thing, so the room's odds were all 0% or 100%.) Draft-night trades: about 1 a draft
 // (real 6.6) at every setting
-export let READ = 1000, LEAN = 0.17;
-export const tune = (o) => ({ READ = READ, LEAN = LEAN } = o);   // for calibration runs
+export let READ = 1000, LEAN = 0.17, NOISE_X = 1;
+export const tune = (o) => ({ READ = READ, LEAN = LEAN, NOISE_X = NOISE_X } = o);   // for calibration runs
 export const GRID = 41;
 export const readSd = (g) => READ * g.noise;
 const grid = (G, q, i) => q.rate + (G.draft.hold + LEAN) * (-4 + 8 * i / (GRID - 1));
