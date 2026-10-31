@@ -85,9 +85,12 @@ const holder = (G, p) => p.tm || Object.keys(G.teams).find((ab) => G.teams[ab].r
 // The trend club ab reads in p, a season's gain beyond the league's aging: its own man's, the
 // expectation plus what it knows of his own; another club's, the expectation less the lemons'
 // discount for what his club knows. known: the share of his trend his club has seen.
+// With hidden talent its staff read the trend too (staff.js), against that read missing by the trend's
+// spread less what the club has seen of its own man.
 export function trendRead(G, ab, p) {
-  const hb = holder(G, p), tp = p.tp ?? 0, known = hb ? knows(p, hb) : 0;
-  return { own: hb === ab, known, trend: hb === ab ? tp + known * (p.trend - tp) : tp - 0.8 * known * edge(G) };
+  const hb = holder(G, p), tp = p.tp ?? 0, known = hb ? knows(p, hb) : 0, own = hb === ab;
+  const t0 = own ? tp + known * (p.trend - tp) : tp - 0.8 * known * edge(G);
+  return { own, known, trend: ST.readTrend(G, p, ab, t0, (own ? 1 - known : 1) * edge(G)) };
 }
 // an outsider's read before its own noise is the same for every club: kept for the day, by holder
 const _out = new WeakMap();

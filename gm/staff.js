@@ -5,14 +5,15 @@
 // his alone; none of it shared with the league's read. Precision
 // is in units of the league's read of the man: a hire of quality q reads a man with LAMBDA x q x SPEC of
 // its precision, SPEC 1 on his own kind of man (scouts prospects, analysts NBA players) and a third on
-// the other. A club sees the league's read and its staff's, weighted by precision (GLS), and values men
+// the other. A club sees the league's read and its staff's, of a man's rating and his trend, weighted by precision (GLS), and values men
 // from it (league.js teamValue); the draft stays on the draft model's reads (gm.js), which order talent
 // no better than the board, as real drafts do.
 // Clubs: analysts about 4.4 a club (132 in the league in 2023: Wang, Sarker and Hosoi, J. Sports Econ.
 // 2025), scouts about 6 (the game's; no count found). What staff are worth, against rivals with staffs
 // of their own (staff_cal.mjs: a club with nine analysts against none, eight seasons, paired seeds): about
 // 5 wins a season at LAMBDA 0.091 (+5.1, se 2.4, six seeds) and much the same at 0.9 (+6.3, se 2.7, four),
-// since a sharper read sharpens every club's; about 0.6 wins an analyst, against the paper's 1.25, an
+// since a sharper read sharpens every club's; with the trend read too, +2.3 (se 2.6, six seeds) at 0.091,
+// no detectable change. Over all sixteen, about 4.4 wins: half a win an analyst, against the paper's 1.25, an
 // estimate within a club over time that a club hiring as it wins would also give. LAMBDA stays at 0.091,
 // what one analyst adds were the paper right and wins linear in the error removed. The correlations, SPEC, the spread of quality and
 // the rate staff leave are the game's. Pay as reported (job listings, thin): scouts $30k-100k, analysts
@@ -84,14 +85,19 @@ function sdL(G, p) {
   }
   return c.v[+(p.seen >= 500)];
 }
-// his rating as club ab's front office reads it: the league's read and its staff's, by precision
-export function read(G, p, ab = G.user) {
-  if (!G.hidden || !of(G, ab).length) return p.rate;
-  const k = +!prospect(G, p), { a, A } = weights(G, ab, k), sd = sdL(G, p), key = `${p.id}|${G.season}`, z0 = hashNoise(`${key}|all`), zc = hashNoise(`${key}|${ab}`);
+// what club ab's front office reads of a man, its prior read (prior, missing truth by sd) and its staff's
+// reads of the truth, by precision; tag keeps the staff's errors on his rating and his trend apart
+function post(G, p, ab, prior, truth, sd, tag) {
+  const k = +!prospect(G, p), { a, A } = weights(G, ab, k), key = `${p.id}|${G.season}${tag}`, z0 = hashNoise(`${key}|all`), zc = hashNoise(`${key}|${ab}`);
   const zt = { scout: hashNoise(`${key}|${ab}|scout`), analytics: hashNoise(`${key}|${ab}|analytics`) };
   let s = 0;
-  of(G, ab).forEach((h, i) => { s += a[i] * (p.talent + sd * (Math.sqrt(RHO_L) * z0 + Math.sqrt(RHO_C - RHO_L) * zc + Math.sqrt(RHO_IN - RHO_C) * zt[h.t] + Math.sqrt(1 - RHO_IN) * hashNoise(`${key}|${h.id}`)) / Math.sqrt(lam(h, k))); });
-  return (p.rate + s) / (1 + A);
+  of(G, ab).forEach((h, i) => { s += a[i] * (truth + sd * (Math.sqrt(RHO_L) * z0 + Math.sqrt(RHO_C - RHO_L) * zc + Math.sqrt(RHO_IN - RHO_C) * zt[h.t] + Math.sqrt(1 - RHO_IN) * hashNoise(`${key}|${h.id}`)) / Math.sqrt(lam(h, k))); });
+  return (prior + s) / (1 + A);
 }
+// his rating as club ab reads it: the league's read and its staff's
+export const read = (G, p, ab = G.user) => (!G.hidden || !of(G, ab).length ? p.rate : post(G, p, ab, p.rate, p.talent, sdL(G, p), ''));
+// his trend as club ab reads it: its read before staff (league.js trendRead, missing by sd) and its staff's,
+// each hire reading it as well as he reads talent (the same share of the prior read's precision)
+export const readTrend = (G, p, ab, t0, sd) => (!G.hidden || !ab || !of(G, ab).length ? t0 : post(G, p, ab, t0, p.trend, sd, '|tr'));
 // the share of the league's miss club ab's read still has (1 with no staff): kind 0 prospects, 1 NBA players
 export const miss = (G, k, ab = G.user) => (of(G, ab).length ? 1 / Math.sqrt(1 + weights(G, ab, k).A) : 1);
