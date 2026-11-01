@@ -772,7 +772,7 @@ export function newLeagueYear(G, r, decide = {}) {
   retire(G, r);
 }
 // Retirements, each summer before free agency: every man draws his chance of walking away from the
-// fitted model (K.retire, _gm_retire.py: age, rating, last season's minutes per game played), and a
+// fitted model (K.retire, _gm_retire.py: age, rating, last season's minutes per game played, log and linear), and a
 // man under contract who retires forfeits the rest of it -- but not a man under 30 with guaranteed
 // money still to come: the model reads every exit from the league, and a young one is a fringe man
 // going overseas, which a guaranteed deal keeps him from (he is waived first, then goes unsigned). A
@@ -780,7 +780,7 @@ export function newLeagueYear(G, r, decide = {}) {
 function retire(G, r) {
   const K = G.K.retire, P = G.players;
   const pRet = (p) => { const l = p.log?.at(-1); if (!l?.mpg || (p.age < 30 && C.yearOf(p.contract, G.season)?.gtd > 0)) return 0;
-    return 1 / (1 + Math.exp(-(K.const + K.age_27 * (p.age - 27) + K.rating * p.rate + K.log_mpg * Math.log(l.mpg)))); };
+    return 1 / (1 + Math.exp(-(K.const + K.age_27 * (p.age - 27) + K.rating * p.rate + K.log_mpg * Math.log(l.mpg) + K.mpg * l.mpg))); };
   const out = (p, ab) => { p.retired = G.season; delete p.tm; p.contract = null; G.log.push({ date: G.date, type: 'retire', team: ab, pid: p.id }); };
   for (const [ab, T] of Object.entries(G.teams)) T.roster = T.roster.filter((id) => { const p = P[id]; if (r() < pRet(p)) { out(p, ab); return false; } return true; });
   G.fa = G.fa.filter((id) => { const p = P[id]; if ((p.idle || 0) >= 1 || r() < pRet(p)) { out(p, p.freeFrom || null); return false; } return true; });
