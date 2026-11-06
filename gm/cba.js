@@ -405,6 +405,12 @@ export function prorate(amt, date) {
   return Math.round(amt * Math.max(0, days(date, d.seasonEnd)) / days(d.opening, d.seasonEnd));
 }
 
+// The share of the regular season still to come on a date: a contract signed after opening night is
+// prorated by it (Art. I §1(kk)), the minimum with it
+export function seasonLeft(date) {
+  const d = seasonDates(seasonOf(date)), days = (a, b) => (new Date(b) - new Date(a)) / 864e5;
+  return date <= d.opening ? 1 : Math.max(0, days(date, d.seasonEnd)) / days(d.opening, d.seasonEnd);
+}
 // offer: { team, pid, how, years: [{ sal, gtd, opt }], date, prior, starter }
 // Returns { ok, errors, hardCap, uses: { exception: amount } }
 export function validateSigning(league, o) {
@@ -424,7 +430,7 @@ export function validateSigning(league, o) {
     if (y1 !== twoWaySalary(f.cap)) errors.push('two-way salary is fixed at half the rookie minimum');
     if (o.date > d.mar4) errors.push('two-way contracts cannot be signed after March 4');
   } else {
-    if (y1 < minSalary(p.yos, f.cap)) errors.push('below his minimum salary');
+    if (y1 < Math.floor(minSalary(p.yos, f.cap) * (o.how === 'tenDay' ? 0 : seasonLeft(o.date)))) errors.push('below his minimum salary');
     if (y1 > maxSalary(p.yos, f, o.prior || 0, o.supermax)) errors.push('above his maximum salary');
   }
   const after = teamSalary(T, league, s) + (o.how === 'twoWay' ? 0 : (o.years.length === 1 && o.how === 'min' ? vetMinCharge(p.yos, f.cap) : y1));
@@ -451,7 +457,7 @@ export function validateSigning(league, o) {
     case 'bae': if (E.baeUsed.includes(s - 1)) errors.push('the bi-annual exception was used last season');
       if (E.usedRoom) errors.push('the bi-annual exception is gone once cap room is used');
       if (y1 > amt('bae')) errors.push('more than the bi-annual exception left'); uses.bae = y1; hc('apron1'); break;
-    case 'min': if (y1 !== minSalary(p.yos, f.cap)) errors.push('minimum deals pay exactly his minimum'); break;
+    case 'min': if (Math.abs(y1 - minSalary(p.yos, f.cap) * seasonLeft(o.date)) > 1) errors.push('minimum deals pay exactly his minimum'); break;   // prorated in season
     case 'rookie': {
       const sc = rookieScale(p.draft.pick, f.cap, 1);
       o.years.forEach((y, i) => { if (y.sal < 0.8 * sc[i] - 1 || y.sal > 1.2 * sc[i] + 1) errors.push(`year ${i + 1} is outside 80-120% of scale`); });

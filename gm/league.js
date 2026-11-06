@@ -312,7 +312,7 @@ export function seasonStart(G, r) {
 // a week at a time, so clubs short of bodies can sign help between weeks (shorthanded)
 export const seasonTo = (G, r, frac) => {
   const to = Math.floor(G.cur.days.length * frac);
-  while (G.cur.d < to) { S.simDays(lg(G), G.cur, r, Math.min(G.cur.d + 7, to)); shorthanded(G, r); }
+  while (G.cur.d < to) { S.simDays(lg(G), G.cur, r, Math.min(G.cur.d + 7, to)); shorthanded(G, r); seasonMarket(G); }
   if (frac <= WINDOWS[0].frac) grantDPE(G);                         // applications close Jan 15: by the Dec 15 stop
 };
 // In-season help, as real clubs sign it: a club down to fewer than 13 healthy men on standard deals
@@ -341,6 +341,61 @@ export function shorthanded(G, r) {
       p.play = p.talent;                                  // his form, for the games he plays
       sign(G, ab, p, 'min', sal, 1, date, 0);
       p.contract.tenDay = g + TEN; p.contract.how = 'tenDay';
+    }
+  }
+}
+// The season's market. Once the summer's closes (faEnd), a man still unsigned takes the minimum for the
+// rest of the season (the game's: what real ones signed in season is not in the data): each week a
+// computer club signs the free agent it gains most from, his worth to it over the games left less his
+// pay and the tax it brings -- after the deadline a full club waiving its least valuable man on a minimum deal to make room -- never a man it let go this season
+// (Art. VII §7(d)(5)). The few good men the summer leaves unsigned go here, and the bought out.
+export function seasonMarket(G, human = G.autoUser ? null : G.user) {
+  const st = G.cur, s = G.season, F = fig(G, s), P = G.players, date = dayDate(G, st.d);
+  const pool = G.fa.slice().sort((a, b) => v3(G, P[b]) - v3(G, P[a])).slice(0, 20);
+  for (const [ab, T] of Object.entries(G.teams)) {
+    if (ab === human) continue;
+    const left = C.seasonLeft(date), std = T.roster.filter((id) => !P[id].contract?.twoWay);
+    // after the deadline, the buyout market, a full roster opens a spot by waiving its least valuable
+    // man on a minimum deal, who is paid anyway; before it a club signs only into an open spot
+    const cut = std.length < 15 || date <= C.seasonDates(s).deadline ? null : std.filter((id) => (C.yearOf(P[id].contract, s)?.sal ?? Infinity) <= 0.024 * F.cap && !P[id].contract.tenDay)
+      .map((id) => [id, teamValue(G, ab, P[id])]).sort((a, b) => a[1] - b[1])[0];
+    if (std.length >= 15 && !cut) continue;
+    if (cut) T.roster = T.roster.filter((x) => x !== cut[0]);    // the signing checked with his spot open
+    let best = null;
+    for (const id of pool) {
+      const p = P[id], sal = Math.ceil(C.minSalary(p.yos, F.cap) * left);
+      if (!G.fa.includes(id) || (p.waived?.s === s && p.waived.team === ab)) continue;
+      if (!C.validateSigning(G, { team: ab, pid: id, how: 'min', date, years: years5(sal, 1, 0), prior: (p.prior || 0) * 1e6 }).ok) continue;
+      const gain = left * (teamValue(G, ab, p) - (cut ? cut[1] : 0)) - sal - today(G).tax(ab, [sal]);
+      if (gain > 0 && (!best || gain > best.gain)) best = { id, sal, gain };
+    }
+    if (cut) T.roster.push(cut[0]);
+    if (!best) continue;
+    if (cut) release(G, ab, cut[0], date, false);
+    const p = P[best.id]; p.play = p.talent; sign(G, ab, p, 'min', best.sal, 1, date, 0);
+  }
+}
+// The buyout market (_gm_buyout.py, K.buyout): just after the trade deadline, by March 1, a computer club
+// waives a man whose deal runs out that summer and pays more than the minimum, at the fitted odds -- on
+// his age, rating, salary and its record: older, worse, better paid men on losing clubs -- two or three
+// a season; he is paid the rest of his deal less what he gives back, and goes to the season's market, where a contender's title odds make him worth
+// more to it than to anyone (seasonMarket).
+export function buyouts(G, r, human = G.autoUser ? null : G.user) {
+  const K = G.K.buyout, s = G.season, F = fig(G, s), P = G.players;
+  for (const [ab, T] of Object.entries(G.teams)) {
+    if (ab === human) continue;
+    const { w, l } = G.cur.record[ab], wp = w / Math.max(w + l, 1);
+    for (const id of T.roster.slice()) {
+      const p = P[id], y = C.yearOf(p.contract, s);
+      if (!y || p.contract.twoWay || p.contract.tenDay || C.yearOf(p.contract, s + 1) || y.sal <= 0.024 * F.cap) continue;   // above the minimum (_gm_buyout.py)
+      const z = K.const + K.age_30 * (p.age - 30) + K.rating * p.rate + K.sal_cap * y.sal / F.cap + K.wpct * wp;
+      if (r() < 1 / (1 + Math.exp(-z))) {
+        // he gives back the minimum for the games left, about what he will earn elsewhere: his old
+        // club's charge falls by as much (the size is the game's; the give-backs are not in the data)
+        const back = Math.round(C.minSalary(p.yos, F.cap) * C.seasonLeft(G.date));
+        release(G, ab, id, G.date, false); G.log.at(-1).buyout = true;
+        const x = T.dead.find((e) => e.pid === id && e.s === s); if (x) x.amt -= Math.min(back, x.amt);
+      }
     }
   }
 }
@@ -389,7 +444,7 @@ export function postseason(G, r) { postseasonStart(G, r); while (!G.po.champion)
 export function playSeason(G, r, window = (date, k) => X.tradeWindow(G, r, date, TRADES[k], null)) {
   seasonStart(G, r);
   const d = C.seasonDates(G.season);
-  for (const w of WINDOWS) { seasonTo(G, r, w.frac); G.date = d[w.date]; window(G.date, w.date); assignRoles(G); }
+  for (const w of WINDOWS) { seasonTo(G, r, w.frac); G.date = d[w.date]; window(G.date, w.date); if (w.date === 'deadline') buyouts(G, r); assignRoles(G); }
   seasonTo(G, r, 1);
   return postseason(G, r);
 }
@@ -998,8 +1053,9 @@ export function fillRosters(G, clubs = Object.keys(G.teams), date = G.phase === 
     const T = G.teams[ab];
     while (T.roster.filter((id) => !P[id].contract?.twoWay).length < 14) {
       // the best man a minimum deal can bring in: a hard-capped club can't pass its apron even for him
-      const id = byRate().find((x) => C.validateSigning(G, { team: ab, pid: x, how: 'min', date, years: years5(C.minSalary(P[x].yos, F.cap), 1, 0), prior: (P[x].prior || 0) * 1e6 }).ok); if (!id) break;
-      sign(G, ab, P[id], 'min', C.minSalary(P[id].yos, F.cap), 1, date, 0);
+      const mn = (x) => Math.ceil(C.minSalary(P[x].yos, F.cap) * C.seasonLeft(date));     // prorated in season
+      const id = byRate().find((x) => C.validateSigning(G, { team: ab, pid: x, how: 'min', date, years: years5(mn(x), 1, 0), prior: (P[x].prior || 0) * 1e6 }).ok); if (!id) break;
+      sign(G, ab, P[id], 'min', mn(id), 1, date, 0);
     }
     // its own two-way men first, whose deals ran out: a two-way qualifying offer keeps them restricted
     // (up to three seasons on two-ways with one club)

@@ -4,26 +4,25 @@
 // $6M. Other costs are 28% of a club's revenue (the clubs that paid no tax, 2023-25). Profit is
 // revenue less payroll (never under the salary floor: a club below it pays its players the shortfall), luxury tax and other costs, the operating income Forbes reports.
 // Projected books count the home playoff games the club can expect from its projected wins.
-// An owner has a line, the least profit he will stand for a season, and weighs winning against it:
-// he blocks moves that take the projected season below his line, orders payroll cut by the trade
-// deadline when the season opens below it, and grades each season; his confidence falls with bad
-// ones and he warns below 40. When the club is sold (gm.js), a new owner of any kind takes over, his
-// confidence starting at 40. Whether the user can lose the job is the new game's choice (G.fireMode):
-// never; simple, when the owner's confidence ends a season below 20; or realistic, by the exit model
-// the computer clubs' GMs face (gm.js), on the user's season and years in the job.
+// An owner has a line, the least profit he will stand for a season: he blocks moves that take the
+// projected season below it and orders payroll cut by the trade deadline when the season opens below
+// it. When the club is sold (gm.js), a new owner of any kind takes over. Whether the user can lose the
+// job is the new game's choice (G.fireMode): never, or realistic, by the model of real GMs fired
+// (gm.js pFired) on his season against expectations, how far his club went, his years in the job, a
+// recent title and a new owner.
 import * as C from './cba.js';
 import * as GM from './gm.js';
 import * as ST from './staff.js';
 import { capAt, projWins } from './league.js';
 
 export const OWNERS = {
-  cheap: { label: 'Cheap', line: 50, money: 0.7, say: 'wants a profit of at least $50M a season (in 2024-25 dollars) and cares more for money than for winning' },
-  average: { label: 'Average', line: 0, money: 0.5, say: 'wants the club to break even and weighs winning and money alike' },
-  spender: { label: 'Big spender', line: -100, money: 0.3, say: 'will lose up to $100M a season (in 2024-25 dollars) to win, and cares more for winning than for money' },
+  cheap: { label: 'Cheap', line: 50, say: 'wants a profit of at least $50M a season (in 2024-25 dollars)' },
+  average: { label: 'Average', line: 0, say: 'wants the club to break even' },
+  spender: { label: 'Big spender', line: -100, say: 'will lose up to $100M a season (in 2024-25 dollars) to win' },
 };
 export function hire(G, type, r) {
   const t = type === 'random' ? Object.keys(OWNERS)[Math.floor(r() * 3)] : type;
-  G.owner = { type: t, pick: type, conf: 60, books: [] };
+  G.owner = { type: t, pick: type, books: [] };
 }
 const scale = (G, s) => capAt(G, s) / 140.588e6;                     // 2024-25 dollars to season s's
 
@@ -94,42 +93,42 @@ export function opening(G) {
   G.owner.order = { s: b.s, target };
   return `The owner projects a ${$(b.profit)} season against his line of ${$(l)}: get payroll down to ${$(target / 1e6)} by the trade deadline.`;
 }
-// the deadline: an order missed costs a fifth of his confidence
+// the deadline: whether the order was met. Missed, it raises his odds of losing the job at the
+// season's end as much as a new owner does (the exit model's new_owner; the size is the game's, as
+// the real exits record no such order)
 export function deadline(G) {
   const o = G.owner.order; if (!o) return null;
   delete G.owner.order;
   const pay = C.teamSalary(G.teams[G.user], G, o.s);
   if (pay <= o.target) return `You met the owner's order: payroll is ${$(pay / 1e6)}.`;
-  G.owner.conf -= 20;
-  return `You missed the owner's order to get payroll to ${$(o.target / 1e6)} (it is ${$(pay / 1e6)}); his confidence falls 20.`;
+  G.owner.missed = o.s;
+  return `You missed the owner's order to get payroll to ${$(o.target / 1e6)} (it is ${$(pay / 1e6)}). He won't forget it: your odds of losing the job at the season's end rise as much as a new owner's would make them.`;
 }
-// the season's review, once its books close (after endSeason): winning, a playoff run, and money
-// against his line, weighted by what he cares for
+// the season's review, once its books close (after endSeason): the books, and whether he keeps the job
 export function review(G, h, r) {
   const s = h.season, T = G.teams[G.user], [w] = h.record[G.user];
   const games = Object.entries(Object.assign({}, ...h.rounds)).filter(([k]) => k.split('-').includes(G.user)).map(([, v]) => v.games.split('-').map(Number).reduce((a, b) => a + b));
   const won = Object.values(Object.assign({}, ...h.rounds)).filter((v) => v.winner === G.user).length;
   const b = books(G, s, (C.teamSalary(T, G, s) + (T.short?.[s] || 0)) / 1e6, (T.tax?.[s] || 0) / 1e6, games.reduce((a, n) => a + Math.round(n / 2), 0));
-  const O = OWNERS[G.owner.type], win = Math.max(-1, Math.min(1, (w - 41) / 20 + won / 4)), money = Math.max(-1, Math.min(1, (b.profit - line(G, s)) / (50 * scale(G, s))));
-  const grade = (1 - O.money) * win + O.money * money;
-  G.owner.conf = Math.max(0, Math.min(100, G.owner.conf + 20 * grade));
-  G.owner.books.push({ ...b, w, won, grade });
+  G.owner.books.push({ ...b, w, won });
   const x = T.gm.rec.at(-1);                       // the season as the exit model reads it (gm.js)
   G.deal ||= { sal: terms(G, r, s).sal, from: s, to: s + 4 };                     // a save from before contracts
   G.earned = (G.earned || 0) + G.deal.sal;          // the season's pay
   (G.career ||= []).push({ ab: G.user, s, w, l: h.record[G.user][1], won, champ: h.champion === G.user, vs_exp: x.vs_exp, po_w: x.po_w, proc: x.trade_proc, left: x.draft_left });
-  const ten = G.career.length - G.career.findLastIndex((c) => c.ab !== G.user) - 1, p = GM.pFired(G, x, ten, +G.career.slice(-5, -1).some((c) => c.ab === G.user && c.champ));
+  const ten = G.career.length - G.career.findLastIndex((c) => c.ab !== G.user) - 1, p0 = GM.pFired(G, x, ten, +G.career.slice(-5, -1).some((c) => c.ab === G.user && c.champ));
+  const p = G.owner.missed === s ? 1 / (1 + (1 - p0) / p0 * Math.exp(-G.K.gm.fired.new_owner)) : p0;   // a missed order (deadline)
+  delete G.owner.missed;
   G.exitOdds = p;
-  if ({ never: false, simple: G.owner.conf < 20, realistic: r() < p }[G.fireMode]) {
+  if (G.fireMode !== 'never' && r() < p) {
     const o = GM.offers(G, r);
     G.earned += G.deal.sal * Math.max(0, G.deal.to - s);   // the rest of his deal, paid out (as reported for those let go)
     delete G.deal;
-    G.fired = { s, conf: G.owner.conf, mode: G.fireMode, from: G.user, out: 1, offers: o.clubs.map((ab) => ({ ab, ...terms(G, r, s + 1) })), h: o.h };
+    G.fired = { s, mode: G.fireMode, from: G.user, out: 1, offers: o.clubs.map((ab) => ({ ab, ...terms(G, r, s + 1) })), h: o.h };
     GM.hire(G, G.user, r);                         // his old club hires a GM of its own
   } else if (T.sold === s + 1) {
     // the club is sold: a new owner, of any kind, who would rather have his own GM
-    G.owner = { ...G.owner, type: Object.keys(OWNERS)[Math.floor(r() * 3)], conf: 40 };
-    G.ownerSay = `The club has been sold. Your new owner: ${OWNERS[G.owner.type].label.toLowerCase()}. New owners usually want their own GM; his confidence in you starts at 40.`;
+    G.owner = { ...G.owner, type: Object.keys(OWNERS)[Math.floor(r() * 3)] };
+    G.ownerSay = `The club has been sold. Your new owner: ${OWNERS[G.owner.type].label.toLowerCase()}. New owners often want their own GM: your odds of losing the job are higher this season and next.`;
   }
   // still in the job, other clubs may call: each club changing GMs this summer, at the chance the
   // re-entry model gives a GM with his record in his first season out -- the rate at which clubs offer

@@ -133,7 +133,7 @@ const ACT = {
   }),
   sim: () => step('Simulating', async () => {
     const w = G.cur.win++, d = C.seasonDates(G.season), before = { ...G.cur.record[G.user], log: G.log.length };
-    if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; await tradeWindow(G.date, L.TRADES[L.WINDOWS[w].date]); L.assignRoles(G); G.offers = X.offersFor(G); if (w === 1) G.ownerSay = O.deadline(G); }
+    if (w < 2) { L.seasonTo(G, r, L.WINDOWS[w].frac); G.date = d[L.WINDOWS[w].date]; await tradeWindow(G.date, L.TRADES[L.WINDOWS[w].date]); L.assignRoles(G); G.offers = X.offersFor(G); if (w === 1) { L.buyouts(G, r); G.ownerSay = O.deadline(G); } }
     else L.seasonTo(G, r, 1);
     G.news = news(before);
     if (w >= 2) { L.postseasonStart(G, r); G.offers = []; view = 'home'; }
@@ -501,7 +501,7 @@ ${rows.map(([ab, x]) => `<tr${ab === G.user ? ' class="me"' : ''}><td>${esc(NAME
 const logLine = (x) => x.type === 'trade' ? `${x.teams.join(' / ')}: ${x.moves ? x.moves.map((m) => `${nm(m.pid)} to ${m.to}`).join(', ') : x.players.map(nm).join(', ')}${x.picks.length ? `; picks ${x.picks.map((k, i) => `${k.startsWith('op|') ? `${k.split('|')[1]} claim` : `${k.split('|').slice(0, 2).join(' ')} ${k.endsWith('|1') ? '1st' : '2nd'}`}${x.prot?.find(([id]) => id === k) ? ' (protected)' : ''} to ${x.pickTo?.[i] ?? ''}`).join(', ')}` : ''}${x.swaps ? `; swap rights ${x.swaps.map((w) => `${w.y} to ${w.to}`).join(', ')}` : ''}`
   : x.type === 'owner' ? `${x.team} sold to new owners`
   : x.type === 'gm' ? (x.out ? `${x.team} part with GM ${esc(x.out)}` : `${x.team} hire ${esc(x.in)} as GM${x.back ? ' (back in the game)' : ''}`)
-  : x.type === 'sign' ? `${x.team} sign ${nm(x.pid)}, ${$M(x.sal)} × ${x.years}` : x.type === 'extend' ? `${x.team} extend ${nm(x.pid)}, ${$M(x.sal)} × ${x.years} more` : x.type === 'retire' ? `${nm(x.pid)} retires${x.team ? ` (${x.team})` : ''}` : `${x.team} waive ${nm(x.pid)}`;
+  : x.type === 'sign' ? `${x.team} sign ${nm(x.pid)}, ${$M(x.sal)} × ${x.years}` : x.type === 'extend' ? `${x.team} extend ${nm(x.pid)}, ${$M(x.sal)} × ${x.years} more` : x.type === 'retire' ? `${nm(x.pid)} retires${x.team ? ` (${x.team})` : ''}` : `${x.team} ${x.buyout ? 'buy out' : 'waive'} ${nm(x.pid)}`;
 // What happened while the season was simmed: your stretch, who is hurt, the league's trades
 function news(before) {
   const rec = G.cur.record[G.user], w = rec.w - before.w, l = rec.l - before.l, T = me(), g = G.cur.played[G.user];
@@ -573,7 +573,7 @@ ${open ? `<div class="bdet">${p.pre ? `<p class="note">${pre(p)}</p>` : ''}${B.a
 <p class="note">The board as the site's draft model draws it, from the game's own development: 400 careers each, his talent the league's read (the scouts' board) plus what boards like it miss (this class's misses, busts included), then the age curve, his own trend and the season-to-season noise. The violin is his value over his first four seasons, in wins a season (p5–p99, the tick the median); R, 4 and P are his quality as a rookie, over four seasons and at his peak, in wins a season at full health, and O and D split the four-year figure. The dollars are his worth to the club that drafts him at this summer's cap, on the board's contract model: his rookie deal at market while the club holds him, then at each deal's end it keeps him or not and pays him the max or what a player like him signs for. The chip is the league's rank of him (where the scouts' board would take him) less this board's. Goes at is his chance the club on the clock takes him now, There at his chance he is still there at your next pick.</p>
 `;
 }
-// The owner: who he is, his confidence in you, and the books, this season's projection and the past
+// The owner: who he is, your odds of keeping the job, and the books, this season's projection and the past
 const $m = (v) => `${v < 0 ? '−' : ''}$${Math.abs(v).toFixed(0)}M`;
 function ownerBooks() {
   const b = G.owner.books;
@@ -614,8 +614,7 @@ function fired() {
   const why = f.out > 1 ? `You have been out of the game ${f.out - 1} season${f.out > 2 ? 's' : ''}.`
     : f.mode === 'walked' ? `You turned down a new deal with the ${esc(NAME(f.from))} and left when your contract ran out.`
     : f.mode === 'talks' ? `Talks on a new deal with the ${esc(NAME(f.from))} broke down, and the owner let your contract run out.`
-    : f.mode === 'realistic' ? `After the ${SEASON(f.s)} season the ${esc(NAME(f.from))} let you go. Real GMs are let go most when their club falls short of what it was expected to win; the model put the odds at ${pct(G.exitOdds)}.`
-    : `After the ${SEASON(f.s)} season the ${esc(NAME(f.from))}' owner's confidence fell to ${Math.round(f.conf)} of 100, and he let you go.`;
+    : `After the ${SEASON(f.s)} season the ${esc(NAME(f.from))} let you go. Real GMs are let go most when their club falls short of what it was expected to win; the model put the odds at ${pct(G.exitOdds)}.`;
   return `<div class="card"><h2>${f.out > 1 || f.mode === 'walked' ? 'Out of work' : "You're fired"}</h2><p>${why}</p>${f.out > 1 || !G.owner.books?.length ? '' : ownerBooks()}
 <h3>Clubs that want you</h3>${f.offers.length ? f.offers.map((o) => offerRow(o, rec)).join('') : '<p>No one calls.</p>'}
 <p class="note">Only clubs that changed GMs this summer are hiring (${G.openSeats.filter((ab) => ab !== f.from).length} of them). Real GMs who lose a job get another one at a rate that falls the longer they are out; for a career like yours, the model's chance of a job this summer is ${pct(f.h)}. Your new owner is the kind you asked for when you started.</p>
@@ -626,8 +625,8 @@ ${f.log?.length ? `<p><small>${f.log.map((x) => `${SEASON(x.s)}: ${esc(GM.PATHS[
 }
 function ownerCard() {
   if (!G.owner) return '';
-  const o = O.OWNERS[G.owner.type], b = O.projected(G), c = Math.round(G.owner.conf), l = O.line(G, b.s);
-  return `<div class="card"><h3>The owner</h3><p>${o.label}: he ${o.say}. Confidence in you: <b class="${c < 40 ? 'bad' : 'good'}">${c}</b> of 100${c < 40 && G.fireMode === 'simple' ? ' — he is losing patience; below 20 at a season\'s end you are fired' : ''}.${G.fireMode === 'realistic' && G.exitOdds != null ? ` After last season, the model put your odds of losing the job at ${Math.round(100 * G.exitOdds)}% (it is decided at each season's end).` : ''}</p>
+  const o = O.OWNERS[G.owner.type], b = O.projected(G), l = O.line(G, b.s);
+  return `<div class="card"><h3>The owner</h3><p>${o.label}: he ${o.say}.${G.fireMode !== 'never' && G.exitOdds != null ? ` After last season, your odds of losing the job were <b class="${G.exitOdds > 0.25 ? 'bad' : 'good'}">${Math.round(100 * G.exitOdds)}%</b>, as real GMs are let go: on how the season went against what the club was expected to win, how far it went in the playoffs, your years in the job and a new owner. It is decided at each season's end.` : ''}</p>
 <p>${SEASON(b.s)} as it stands: revenue ${$m(b.rev)} (${b.n.toFixed(1)} home playoff games expected), payroll ${$m(b.pay)}, tax ${$m(b.tax)}, other costs ${$m(b.other)}: <b class="${b.profit < l ? 'bad' : 'good'}">${$m(b.profit)}</b> against his line of ${$m(l)}. ${G.owner.order ? `<b class="bad">He has ordered payroll down to ${$m(G.owner.order.target / 1e6)} by the trade deadline.</b>` : ''}</p>
 ${G.ownerSay ? `<p class="note">${esc(G.ownerSay)}</p>` : ''}${ownerBooks()}
 <p class="note">Revenue is the club's (Forbes, 2024-25, net of revenue sharing) growing with the cap, plus about $6M a home playoff game; regular-season wins don't measurably move it. Other costs are 28% of revenue.</p></div>`;
@@ -837,14 +836,14 @@ ACT.logall = () => { ui.all = !ui.all; render(); };
 ACT.famore = () => { ui.more = true; render(); };
 
 function newGame() {
-  return `<div class="card"><h2>Run a club</h2><p>Take over any team on the eve of the 2026-27 season, with its real roster, contracts and picks.
-Every rule of the collective bargaining agreement applies; the other 29 clubs are run by computer GMs who value players the way this site does, each with his own leanings.</p>
-<label>Club <select id="team">${Object.entries(TEAMS).sort((a, b) => a[1].localeCompare(b[1])).map(([ab, n]) => `<option value="${ab}">${esc(n)}</option>`).join('')}</select></label>
-<fieldset><legend>Talent</legend><label class="ck"><input type="radio" name="mode" value="hidden" checked> Hidden: ratings are estimates, and players turn out better or worse</label>
-<label class="ck"><input type="radio" name="mode" value="truth"> The truth: every player is exactly his projection</label>
-<label>With the truth, the other clubs <select id="clubs"><option value="lean">know it too, each with his own leanings</option><option value="exact">know it exactly, as you do</option><option value="scout">scout as in the hidden game: only you see the truth</option></select></label></fieldset>
-<label>Owner <select id="owner"><option value="random">Random</option>${Object.entries(O.OWNERS).map(([k, o]) => `<option value="${k}">${o.label}</option>`).join('')}</select></label>
-<label>Can you be fired? <select id="fire"><option value="simple">Simple: when the owner's confidence ends a season below 20</option><option value="realistic">Realistic: as real GMs lose their jobs, by the record against expectations</option><option value="never">Never</option></select></label>
+  const opt = (v, t, sel) => `<option value="${v}"${sel ? ' selected' : ''}>${t}</option>`;
+  return `<div class="card start"><h2>Run a club</h2><p>Take over any team on the eve of the 2026-27 season, with its real roster, contracts and picks. The other 29 clubs are run by computer GMs.</p>
+<label>Club <select id="team">${Object.entries(TEAMS).sort((a, b) => a[1].localeCompare(b[1])).map(([ab, n]) => opt(ab, esc(n))).join('')}</select></label>
+<label>What you know <select id="mode">${opt('hidden', 'Realistic: every rating is an estimate, for you and every club', true)}${opt('scout', 'Inside info: you see true talent, the other clubs estimate')}${opt('lean', 'Open book: every club sees true talent')}</select></label>
+<details><summary>More options</summary>
+<label>Owner <select id="owner">${opt('random', 'Random', true)}${Object.entries(O.OWNERS).map(([k, o]) => opt(k, o.label)).join('')}</select></label>
+<label>Can you be fired? <select id="fire">${opt('realistic', 'Yes, as often as real GMs are', true)}${opt('never', 'Never')}</select></label>
+<label>In an open book, other clubs <select id="clubs">${opt('lean', 'each value players their own way', true)}${opt('exact', 'all value players exactly as you see them')}</select></label></details>
 <div class="row"><button class="b" id="create">Start</button>${btn('import', 'Import a save')}</div></div>`;
 }
 let TEAMS = {};
@@ -865,12 +864,13 @@ const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.le
   // a save from before contracts: its calls and offers were clubs alone, now each with its terms
   const withTerms = (L) => L.map((x) => (typeof x === 'string' ? { ab: x, ...O.terms(G_, S.rng(1), G_.season + 1) } : x));
   if (G_.calls) G_.calls = withTerms(G_.calls); if (G_.fired?.offers) G_.fired.offers = withTerms(G_.fired.offers);
+  if (G_.fireMode === 'simple') G_.fireMode = 'realistic';     // owner confidence is gone: a simple game is fired as real GMs are
   if (G_.hidden && !G_.teams[G_.user].staff) ST.init(G_, S.rng(1));     // a save from before staffs
   for (const p of Object.values(G_.players)) V.initSeen(p, G_.K);   // a save from before ratings kept what they stand on
-  if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'simple'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
+  if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'realistic'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
   return G_; };
 async function create() {
-  const team = $('#team').value, truth = document.querySelector('input[name=mode]:checked').value === 'truth', clubs = $('#clubs').value;
+  const team = $('#team').value, mode = $('#mode').value, truth = mode !== 'hidden', clubs = mode === 'scout' ? 'scout' : $('#clubs').value;
   // the clubs scouting while you see the truth: the hidden game, its talent shown to you alone (G.reveal)
   const hidden = !truth || clubs === 'scout';
   root().insertAdjacentHTML('beforeend', '<div class="busy" role="status">Building the league…</div>');
