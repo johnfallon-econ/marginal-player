@@ -317,9 +317,11 @@ export const seasonTo = (G, r, frac) => {
 };
 // In-season help, as real clubs sign it: a club down to fewer than 13 healthy men on standard deals
 // signs the best young free agent it can (under three seasons in, as real 10-day men mostly come up
-// from the G League) on a 10-day contract (about five games, the minimum prorated),
-// past 15 under the hardship exception once four or more are out. A 10-day runs out and the man
-// is a free agent again; a club still short signs again, him or another. The fringe players this
+// from the G League) on a 10-day contract (about five games, the minimum prorated), from Jan 5,
+// past 15 under the hardship exception once four or more are out (which also allows one earlier). A
+// 10-day runs out and the man is a free agent again; a club still short signs again, him or another,
+// but a man only twice: after two it signs him, or another, for the rest of the season, as it does
+// before Jan 5 without a hardship (CBA_REFERENCE.md). The fringe players this
 // brings in for a handful of games are a sixth of a real league's player-seasons. The user's
 // staff does it for him unless he turns it off (G.staffSigns).
 const TEN = 5;
@@ -334,13 +336,18 @@ export function shorthanded(G, r) {
       T.roster = T.roster.filter((x) => x !== id); P[id].contract = null; P[id].tm = null; G.fa.push(id);
     }
     if (ab === G.user && !G.autoUser && G.staffSigns === false) continue;
-    const std = () => T.roster.filter((id) => !P[id].contract?.twoWay), out = std().filter((id) => st.hurt[id]?.[g]).length;
+    const std = () => T.roster.filter((id) => !P[id].contract?.twoWay), out = std().filter((id) => [0, 1, 2].every((k) => st.hurt[id]?.[g + k])).length;   // out the next three games, as the hardship exception counts them
+    // a 10-day from Jan 5, or before it under the hardship exception, and two per man with a club
+    const tens = (id) => (P[id].tens?.s === s ? P[id].tens[ab] || 0 : 0), canTen = (id) => (date >= `${s + 1}-01-05` || out >= 4) && tens(id) < 2;
     while (std().length - out < 13 && std().length < 15 + (out >= 4)) {
-      const young = G.fa.filter((x) => P[x].yos < 3), id = (young.length ? young : G.fa).slice().sort((a, b) => v3(G, P[b]) - v3(G, P[a]))[0]; if (!id) break;
-      const p = P[id], sal = Math.round(C.minSalary(p.yos, F.cap) * TEN / 82);
+      const young = G.fa.filter((x) => P[x].yos < 3), id = (young.length ? young : G.fa).slice().sort((a, b) => v3(G, P[b]) - v3(G, P[a]))
+        .find((x) => canTen(x) || std().length < 15); if (!id) break;
+      const p = P[id];
       p.play = p.talent;                                  // his form, for the games he plays
-      sign(G, ab, p, 'min', sal, 1, date, 0);
-      p.contract.tenDay = g + TEN; p.contract.how = 'tenDay';
+      if (canTen(id)) {
+        sign(G, ab, p, 'min', Math.round(C.minSalary(p.yos, F.cap) * TEN / 82), 1, date, 0);
+        p.contract.tenDay = g + TEN; p.contract.how = G.log.at(-1).how = 'tenDay'; p.tens = { ...(p.tens?.s === s ? p.tens : { s }), [ab]: tens(id) + 1 };
+      } else sign(G, ab, p, 'min', Math.ceil(C.minSalary(p.yos, F.cap) * C.seasonLeft(date)), 1, date, 0);   // the rest of the season
     }
   }
 }

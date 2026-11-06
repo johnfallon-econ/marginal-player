@@ -501,7 +501,7 @@ ${rows.map(([ab, x]) => `<tr${ab === G.user ? ' class="me"' : ''}><td>${esc(NAME
 const logLine = (x) => x.type === 'trade' ? `${x.teams.join(' / ')}: ${x.moves ? x.moves.map((m) => `${nm(m.pid)} to ${m.to}`).join(', ') : x.players.map(nm).join(', ')}${x.picks.length ? `; picks ${x.picks.map((k, i) => `${k.startsWith('op|') ? `${k.split('|')[1]} claim` : `${k.split('|').slice(0, 2).join(' ')} ${k.endsWith('|1') ? '1st' : '2nd'}`}${x.prot?.find(([id]) => id === k) ? ' (protected)' : ''} to ${x.pickTo?.[i] ?? ''}`).join(', ')}` : ''}${x.swaps ? `; swap rights ${x.swaps.map((w) => `${w.y} to ${w.to}`).join(', ')}` : ''}`
   : x.type === 'owner' ? `${x.team} sold to new owners`
   : x.type === 'gm' ? (x.out ? `${x.team} part with GM ${esc(x.out)}` : `${x.team} hire ${esc(x.in)} as GM${x.back ? ' (back in the game)' : ''}`)
-  : x.type === 'sign' ? `${x.team} sign ${nm(x.pid)}, ${$M(x.sal)} × ${x.years}` : x.type === 'extend' ? `${x.team} extend ${nm(x.pid)}, ${$M(x.sal)} × ${x.years} more` : x.type === 'retire' ? `${nm(x.pid)} retires${x.team ? ` (${x.team})` : ''}` : `${x.team} ${x.buyout ? 'buy out' : 'waive'} ${nm(x.pid)}`;
+  : x.type === 'sign' ? `${x.team} sign ${nm(x.pid)}, ${x.how === 'tenDay' ? '10-day' : `${$M(x.sal)} × ${x.years}`}` : x.type === 'extend' ? `${x.team} extend ${nm(x.pid)}, ${$M(x.sal)} × ${x.years} more` : x.type === 'retire' ? `${nm(x.pid)} retires${x.team ? ` (${x.team})` : ''}` : `${x.team} ${x.buyout ? 'buy out' : 'waive'} ${nm(x.pid)}`;
 // What happened while the season was simmed: your stretch, who is hurt, the league's trades
 function news(before) {
   const rec = G.cur.record[G.user], w = rec.w - before.w, l = rec.l - before.l, T = me(), g = G.cur.played[G.user];
