@@ -169,7 +169,7 @@ export const askOf = (G, p, F, ext = 0) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask
 // his availability, over the nights each man is out as well as in (S.expNet: a club built on stars who
 // miss games loses more to their nights out than a deep one). adj: a man as he stands now, or null
 export const teamNet = (G, ab, adj = (p) => p) => S.expNet(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay)
-  .map(adj).filter(Boolean).map((p) => ({ ...p, play: p.rate })), G.K.maxMpg);
+  .map(adj).filter(Boolean).map((p) => ({ ...p, play: p.rate })));
 // Wins at net n against the league (its clubs' nets, G.nets): each game's chance as the season engine
 // plays it, half of them at home, so projections are what the games produce
 export function winsAt(G, n, self) {
@@ -290,7 +290,7 @@ export function rotation(G, ab, coach = G.rolesSet) {
     const x = pr ? lc(rating) + (G.K.roleShift || 0) + V_.dev * (Math.log(pr[0]) - lc(p.rate)) + V_.age_27 * (p.age - 27) + V_.age_over_30 * Math.max(p.age - 30, 0) + V_.moved * pr[1]
       + (V_.log_rank + V_.moved_log_rank * pr[1]) * Math.log(rank(p))
       : Rk.a + Rk.log_pick * Math.log(p.draft?.pick || 61);
-    return Math.min(Math.exp(x + (pr ? interp(V_.sd_by_mpg, pr[0]) : Rk.sd) * hashNoise(`coach|${p.id}|${G.season}`)), G.K.roleCap);
+    return Math.min(Math.exp(x + (pr ? interp(V_.sd_by_mpg, pr[0]) : Rk.sd) * hashNoise(`coach|${p.id}|${G.season}`)), 48);   // no cap but the game
   };
   // a role is set once a season with a club, and kept through the season's later reshuffles
   const role = (p) => (p.role?.s === G.season && p.role.tm === ab ? p.role.m : (p.role = { s: G.season, tm: ab, m: mpg(p) }).m);
@@ -428,7 +428,7 @@ export function postseasonStart(G, r) {
   const K = G.K, res = G.cur;
   const stand = S.standings(G.teams, res.record, r);
   const nets = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab,
-    S.net(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay), K.maxMpg)]));
+    S.net(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay))]));
   G.po = S.postseasonStart(G.teams, res.record, stand, nets, K, r);
   G.po.stand = stand;
   G.phase = 'playoffs'; G.date = `${G.season + 1}-04-18`;

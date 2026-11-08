@@ -437,7 +437,7 @@ const ROLE = (i, p) => p.contract?.twoWay ? 'two-way' : i < 5 ? 'starter' : i < 
 const rotationCard = () => {
   const out = (p) => G.cur && G.cur.hurt[p.id]?.[G.cur.played[G.user]];
   return `<div class="card"><h3>The coach's rotation</h3><p class="note">The coach sets it${G.rolesSet ? ': mostly last season\'s roles, nudged by each man\'s rating, age and a change of club, with his own read on top (fit to real seasons). Rookies by draft slot' : ' (for now, this season\'s real roles)'}.
-Minutes are per game when he plays: each night 240 go down the rotation among whoever is healthy, no one over 36, so the end of the bench plays when others are hurt.</p><ol class="rot">
+Minutes are per game when he plays: each night 240 go down the rotation among whoever is healthy; when men are hurt, the rest share their minutes by how much room each has left, so the end of the bench takes most of them.</p><ol class="rot">
 ${L.rotation(G, G.user).map(([p, m], i) => `<li><b>${nm(p.id)}</b> <small>${ROLE(i, p)} · ${m.toFixed(0)} min${out(p) ? ' · <span class="bad">out injured</span>' : ''}</small></li>`).join('')}</ol></div>`;
 };
 // Both conferences' standings: the record so far, else last season's, else projected wins
@@ -518,17 +518,19 @@ function spendCard() {
   const f = F(), T = me(), p = G.fa.map(P).find((q) => !q.retired);
   if (!p || !T.exc) return '';                                  // exceptions are set from the first new league year
   const pay = C.teamSalary(T, G, G.season), capPay = C.teamSalary(T, G, G.season, { holds: true, offseason: G.phase !== 'season' });
-  const holds = T.holds.reduce((a, h) => a + h.amt, 0), room = Math.max(0, f.cap - capPay), min = C.minSalary(p.yos, f.cap);
+  const holds = T.holds.reduce((a, h) => a + h.amt, 0), room = Math.max(0, Math.floor(f.cap - capPay)), min = C.minSalary(p.yos, f.cap);   // whole dollars: years5 rounds, and a half dollar over the cap read as no room
   const ways = [['room', 'Cap room', room], ['ntmle', 'Mid-level exception', T.exc.ntmle], ['tpmle', 'Taxpayer mid-level', T.exc.tpmle],
     ['roomMle', 'Room mid-level', T.exc.roomMle], ['bae', 'Bi-annual exception', T.exc.bae]];
   // each way tried on a free agent: at its full amount, and when that is barred, at the minimum;
   // the most it can pay is its amount, or what keeps the club under the apron that bars it
   const test = (how, sal) => C.validateSigning(G, { team: G.user, pid: p.id, how, date: G.date, years: L.years5(sal, 1, 0), prior: 0 });
   const usable = (how, amt) => { if (amt < min) return [0, how === 'room' ? 'no room' : 'used up'];
-    const full = test(how, amt); if (full.ok) return [amt, ''];
-    if (!test(how, min).ok) return [0, test(how, min).errors.join('; ')];
+    const full = test(how, amt); if (full.ok || !club(full.errors)) return [amt, ''];
+    if (!test(how, min).ok) return [0, club(test(how, min).errors)];
     const lvl = /first apron/.test(full.errors.join()) ? 'apron1' : /second apron/.test(full.errors.join()) ? 'apron2' : null;
-    return [lvl ? Math.max(min, f[lvl] - pay) : min, full.errors.join('; ')]; };
+    return [lvl ? Math.max(min, f[lvl] - pay) : min, club(full.errors)]; };
+  // the test man's own limits (his maximum and minimum) are his, not the club's: left out of the notes
+  const club = (es) => es.filter((e) => !/his (maximum|minimum) salary/.test(e)).join('; ');
   const rows = ways.map(([how, nm, amt]) => [nm, ...usable(how, amt)]);
   return `<div class="card"><h3>What you can spend</h3><div class="pay">${rows.map(([nm, a, w]) => `<div><span>${nm}</span><b class="${a ? '' : 'bad'}">${a ? `${w ? 'up to ' : ''}${$M(a)}` : '–'}</b></div>`).join('')}<div><span>Minimum contracts</span><b>any</b></div></div>
 ${rows.filter(([, , w]) => w && w !== 'used up' && w !== 'no room').map(([nm, a, w]) => `<p class="note">${nm}${a ? ', in full' : ''}: ${esc(w)}.</p>`).join('')}
@@ -762,7 +764,7 @@ ${btn('market', 'Open the market')}</div>`;
     const valid = (p, how) => C.validateSigning(G, { team: G.user, pid: p.id, how, date: G.date, prior: (p.prior || 0) * 1e6,
       years: L.years5(how === 'min' ? C.minSalary(p.yos, f.cap) : ask(p).sal, how === 'min' ? 1 : Math.min(ask(p).years, 2), 0.05) }).ok;
     const form = (p) => { const h0 = hows(p).find((h) => valid(p, h)) || 'min'; return `<div class="form"><label>Using <select id="how">${hows(p).map((h) => `<option${h === h0 ? ' selected' : ''}>${h}</option>`).join('')}</select></label>
-<label>Salary ($M) <input id="sal" type="number" step="0.1" value="${(ask(p).sal / 1e6).toFixed(1)}"></label>
+<label>Salary ($M) <input id="sal" type="number" step="0.01" value="${Math.floor(ask(p).sal / 1e4) / 100}"></label>
 <label>Years <input id="yrs" type="number" min="1" max="5" value="${ask(p).years}"></label>${btn('offer', 'Make the offer')}${lvl(p) ? btn('renounce', 'Renounce his rights', p.id, 'warn') : ''}${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}</div>`; };
     return `${sheets.map(([pid, o]) => `<div class="card"><p>${esc(NAME(o.ab))} offer ${esc(P(pid).nm)} ${$M(o.sal)} × ${o.years}.</p>${btn('match', 'Match', `${pid}|1`)}${btn('match', 'Let him go', `${pid}|0`)}${pid in G.matchAns ? ` <small>${G.matchAns[pid] ? 'matching' : 'declining'}</small>` : ''}</div>`).join('')}
 ${open ? `<div class="card"><p class="note">The market has closed: whoever is left signs on the spot for an offer at half his summer ask or better.</p></div>` : faCards()}${spendCard()}

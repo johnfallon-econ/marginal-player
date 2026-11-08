@@ -1,8 +1,8 @@
 // One NBA season, straight to results: schedule, games, standings, play-in, playoffs.
 //
 // Team strength is the site's own team projection (team_proj.py): net rating is each
-// available player's rating times his share of the 240 minutes (his demand scaled to 240,
-// at most MAX_MPG). A game's margin is netScale x the difference in nets plus the home edge,
+// available player's rating times his share of the 240 minutes (his demand, the night's shortfall
+// shared by the room each man has left; no cap but the game's 48). A game's margin is netScale x the difference in nets plus the home edge,
 // with the game-to-game spread measured from our games around it (12_gm_data.py); netScale
 // makes a point of net worth team_proj's fitted wins over a season.
 
@@ -70,10 +70,12 @@ export function schedule(teams, season, r) {
 
 // ---- team strength -------------------------------------------------------------------------
 // Minutes: each available player's demand (the minutes his role gives him when he plays), handed
-// out down the rotation until the night's 240 are gone -- the end of the bench gets a coach's DNP --
-// at most maxMpg each; if injuries leave the demands short of 240, everyone's are scaled up to fill
-// it. The Trade Lab's mpg is per TEAM game, availability already netted out; a man who is suiting
-// up plays mpg / av, or injuries would be charged twice.
+// out down the rotation until the night's 240 are gone -- the end of the bench gets a coach's DNP.
+// If injuries leave the demands short of 240, the healthy men take the rest in proportion to the room
+// each has left in the game (48 less his demand), so the deep bench takes most of it, as real absent
+// men's minutes mostly go (_who_absorbs.py: the rotation absorbs about 37%). No cap on a man's minutes
+// but the game itself. The Trade Lab's mpg is per TEAM game, availability already netted out; a man
+// who is suiting up plays mpg / av, or injuries would be charged twice.
 // A box score's minutes: the night's allocation (who plays is the rotation's), each man's varied by
 // a mean-one lognormal draw with real game minutes' spread around a season's average at his role
 // (K.nightCv, _gm_minutes.py), then scaled so the club's still sum to 240; none past 48.
@@ -84,30 +86,25 @@ export function boxMinutes(m, r, cv) {
 }
 const cvAt = (t, x) => { const i = t.findIndex((c) => c[0] >= x);
   return i < 0 ? t.at(-1)[1] : i === 0 ? t[0][1] : t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (x - t[i - 1][0]) / (t[i][0] - t[i - 1][0]); };
-export function minutes(players, maxMpg = 36) {
-  const dem = players.map((p) => Math.min(Math.max((p.mpg || 0) / (p.av ?? 1), 1), maxMpg));
-  if (dem.reduce((a, x) => a + x, 0) >= 240) {
+export function minutes(players) {
+  const dem = players.map((p) => Math.min(Math.max((p.mpg || 0) / (p.av ?? 1), 1), 48));
+  const tot = dem.reduce((a, x) => a + x, 0);
+  if (tot >= 240) {
     const m = dem.map(() => 0);
     let left = 240;
     for (const i of dem.map((x, i) => i).sort((a, b) => dem[b] - dem[a])) { m[i] = Math.min(dem[i], left); left -= m[i]; }
     return m;
   }
-  let m = dem.slice();
-  for (let k = 0; k < 6; k++) {                  // scale, cap, rescale the uncapped
-    const open = m.map((x, i) => (x < maxMpg ? i : -1)).filter((i) => i >= 0);
-    const fixed = m.reduce((a, x) => a + (x >= maxMpg ? maxMpg : 0), 0);
-    const s = (240 - fixed) / open.reduce((a, i) => a + dem[i], 0);
-    m = m.map((x, i) => (x >= maxMpg ? maxMpg : Math.min(dem[i] * s, maxMpg)));
-  }
-  return m;
+  const room = dem.reduce((a, x) => a + 48 - x, 0);
+  return dem.map((x) => (room > 0 ? x + (240 - tot) * (48 - x) / room : 48));
 }
 // A club's expected strength over its nights: each man plays on a night with his availability, and
 // the night's 240 go down the rotation among those who do (minutes above), so a man's expected
 // minutes are his availability times what the healthy men ahead of him leave, the distribution of
 // their minutes built up a man at a time, a minute at a time. (The nights so short-handed that
 // everyone is scaled up are left out: they are rare.) Projections use this; a night uses `net`.
-export function expNet(players, maxMpg = 36) {
-  const ps = players.map((p) => ({ p, d: Math.min(Math.max((p.mpg || 0) / (p.av ?? 1), 1), maxMpg), a: p.av ?? 1 }))
+export function expNet(players) {
+  const ps = players.map((p) => ({ p, d: Math.min(Math.max((p.mpg || 0) / (p.av ?? 1), 1), 48), a: p.av ?? 1 }))
     .sort((x, y) => y.d - x.d);
   let dist = new Float64Array(241); dist[0] = 1;                   // P(the healthy men ahead have taken k minutes), k capped at 240
   let out = 0;
@@ -121,8 +118,8 @@ export function expNet(players, maxMpg = 36) {
   }
   return out;
 }
-export const net = (players, maxMpg) => {
-  const m = minutes(players, maxMpg);
+export const net = (players) => {
+  const m = minutes(players);
   return players.reduce((a, p, i) => a + p.play * m[i] / 48, 0);
 };
 
@@ -161,11 +158,10 @@ export function simDays(league, st, r, to = st.days.length) {
   const { teams, players, const: K } = league;
   const strength = (ab) => {
     const g = st.played[ab]++;
-    const avail = teams[ab].roster.map((id) => players[id]).filter((p) => !(st.hurt[p.id] ??= injuries(p, 82, r, K.longInj))[g]), m = minutes(avail, K.maxMpg);
-    // the box score's minutes: the rotation up to the busiest real roles (K.roleCap), varied night to
-    // night (blowouts, fouls, overtime); the night's strength is the rotation's at the cap the wins
-    // model was fit with (maxMpg), as those swings mostly follow the score, not set it
-    const box = boxMinutes(minutes(avail, K.roleCap), r, K.nightCv);
+    const avail = teams[ab].roster.map((id) => players[id]).filter((p) => !(st.hurt[p.id] ??= injuries(p, 82, r, K.longInj))[g]), m = minutes(avail);
+    // the box score's minutes: the night's rotation, varied night to night (blowouts, fouls, overtime);
+    // the night's strength is the rotation's own, as those swings mostly follow the score, not set it
+    const box = boxMinutes(m, r, K.nightCv);
     avail.forEach((p, i) => { if (box[i] > 0) { st.gp[p.id] = (st.gp[p.id] || 0) + 1; st.mins[p.id] = (st.mins[p.id] || 0) + box[i]; } });
     return avail.reduce((a, p, i) => a + p.play * m[i] / 48, 0);
   };
