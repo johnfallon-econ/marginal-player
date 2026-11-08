@@ -436,7 +436,7 @@ export function validateSigning(league, o) {
   const after = teamSalary(T, league, s) + (o.how === 'twoWay' ? 0 : (o.years.length === 1 && o.how === 'min' ? vetMinCharge(p.yos, f.cap) : y1));
   const capAfter = teamSalary(T, league, s, { holds: true, offseason: o.date < d.opening }) + y1;
   const E = T.exc, amt = (k) => prorate(E[k], o.date);
-  const hc = (lvl) => { if (after > f[lvl]) errors.push(`this signing is barred above the ${lvl === 'apron1' ? 'first' : 'second'} apron`); hardCap = hardCap === 'apron1' ? hardCap : lvl; };
+  const hc = (lvl) => { if (after > f[lvl]) errors.push(`this signing would take payroll to $${(after / 1e6).toFixed(2)}M, above the ${lvl === 'apron1' ? 'first' : 'second'} apron ($${(f[lvl] / 1e6).toFixed(2)}M)`); hardCap = hardCap === 'apron1' ? hardCap : lvl; };
   switch (o.how) {
     case 'room': if (capAfter > f.cap) errors.push(`needs $${((capAfter - f.cap) / 1e6).toFixed(2)}M more cap room`); uses.room = true; break;
     case 'bird': if (birdLevel(p, o.team) !== 'full') errors.push('he does not have full Bird rights with this team'); break;

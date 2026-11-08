@@ -164,7 +164,9 @@ export function winWorth(G, ab, h = Infinity) {
 const hashNoise = V.hashNoise;
 // A player's ask this summer, with his max-or-not draw fixed for the summer (hashed, so asking twice
 // gives the same answer)
-export const askOf = (G, p, F, ext = 0) => M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)), ext);
+// an agent asks in round $10K (the offer form's step), down, though never under his minimum
+export const askOf = (G, p, F, ext = 0) => { const a = M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)), ext);
+  return { ...a, sal: Math.max(Math.floor(a.sal / 1e4) * 1e4, C.minSalary(p.yos, F.cap)) }; };
 // A club's net for the coming season: each man at his projection, in the role he is in line for, at
 // his availability, over the nights each man is out as well as in (S.expNet: a club built on stars who
 // miss games loses more to their nights out than a deep one). adj: a man as he stands now, or null

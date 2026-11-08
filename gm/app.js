@@ -35,7 +35,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // or, in the hidden game, the league's read and your staff's together (staff.js)
 const sp = (p) => (G.reveal ? { ...p, rate: p.talent, se: 0 } : G.hidden ? { ...p, rate: ST.read(G, p) } : p);
 const wr = (p) => `${M.war(sp(p), 0, G.K).toFixed(1)} mWAR`;
-const $M = (x) => `$${(x / 1e6).toFixed(1)}M`, sg = (x) => { x = Math.round(x * 10) / 10 || 0; return (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1); };
+// money to $10K, the offer form's step; a limit ($R: room, what an exception can pay) to the $10K below, so offering what it shows fits
+const $M = (x) => `$${(x / 1e6).toFixed(2)}M`, $R = (x) => `$${(Math.floor(x / 1e4) / 100).toFixed(2)}M`, sg = (x) => { x = Math.round(x * 10) / 10 || 0; return (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1); };
 const std = (T) => T.roster.filter((id) => !P(id).contract?.twoWay);
 const NAME = (ab) => G.teams[ab].name;
 const SEASON = (s) => `${s}-${String((s + 1) % 100).padStart(2, '0')}`;
@@ -188,7 +189,7 @@ const ACT = {
   unoffer: (pid) => { G.myOffers = G.myOffers.filter((x) => x.pid !== pid); save(); render(); },
   // answer the agent: meet his number, or beat the rival's offer (more in all, over the same years)
   meet: (pid) => reoffer(pid, (o) => need(P(pid))),
-  beat: (pid) => reoffer(pid, (o) => { const t = G.fa_.resp[pid].top; return Math.ceil((t.sal * t.years / o.years + 1e5) / 1e5) * 1e5; }),
+  beat: (pid) => reoffer(pid, (o) => { const t = G.fa_.resp[pid].top; return Math.ceil((t.sal * t.years / o.years + 1) / 1e4) * 1e4; }),
   card: (id) => { ui.card = id; render(); },
   closecard: () => { ui.card = null; render(); },
   noop: () => {},
@@ -261,7 +262,7 @@ function defaults() {
 }
 const resignDefaults = () => Object.fromEntries(me().holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id)).map((p) => [`re|${p.id}`, L.teamValue(G, G.user, p) >= L.resignTerms(G, G.user, p).sal]));
 // what a free agent takes today: his ask, falling 2.5% a day through the summer
-const need = (p) => Math.ceil(L.askOf(G, p, F()).sal * (1 - 0.025 * G.fa_.day) / 1e5) * 1e5;
+const need = (p) => Math.ceil(L.askOf(G, p, F()).sal * (1 - 0.025 * G.fa_.day) / 1e4) * 1e4;
 function reoffer(pid, salOf) {
   const o = G.myOffers.find((x) => x.pid === pid), sal = salOf(o), p = P(pid);
   const v = C.validateSigning(G, { team: G.user, pid, how: o.how, date: G.date, years: L.years5(sal, o.years, 0.05), prior: (p.prior || 0) * 1e6 });
@@ -336,8 +337,8 @@ const books = (ab = G.user) => {
   return { s, f, pay: C.teamSalary(T, Lg, s), capPay: C.teamSalary(T, Lg, s, { holds: true, offseason: G.phase !== 'season' }) };
 };
 const capStrip = (ab = G.user) => {
-  const { s, f, pay, capPay } = books(ab), d = (x) => `${$M(Math.abs(x))} ${x >= 0 ? 'under' : 'over'}`;
-  return `<div class="cap" role="status"><b>${ab === G.user ? '' : `${esc(NAME(ab))}: `}${SEASON(s)} payroll ${$M(pay)}</b><span>${capPay <= f.cap ? `${$M(f.cap - capPay)} cap room` : `${$M(capPay - f.cap)} over the cap`}</span>
+  const { s, f, pay, capPay } = books(ab), d = (x) => `${x >= 0 ? $R(x) : $M(-x)} ${x >= 0 ? 'under' : 'over'}`;
+  return `<div class="cap" role="status"><b>${ab === G.user ? '' : `${esc(NAME(ab))}: `}${SEASON(s)} payroll ${$M(pay)}</b><span>${capPay <= f.cap ? `${$R(f.cap - capPay)} cap room` : `${$M(capPay - f.cap)} over the cap`}</span>
 <span>${d(f.tax - pay)} the tax</span><span>${d(f.apron1 - pay)} the first apron</span><span>${d(f.apron2 - pay)} the second</span>${s > G.season ? '<span>(projected cap)</span>' : ''}</div>`;
 };
 const payroll = (ab = G.user) => {
@@ -428,7 +429,7 @@ const extForm = (p) => {
   if (t.errors.length) return '';
   const sal = Math.min(a.sal, t.maxY1);
   return `<div class="form"><p class="note">Eligible for an extension: he asks ${$M(a.sal)} a year from ${SEASON(start)}; the rules allow up to ${$M(t.maxY1)} for up to ${t.maxNew} more seasons.</p>
-<label>Year one ($M) <input id="xsal" type="number" step="0.1" value="${(sal / 1e6).toFixed(1)}"></label>
+<label>Year one ($M) <input id="xsal" type="number" step="0.01" value="${Math.floor(sal / 1e4) / 100}"></label>
 <label>Seasons <input id="xyrs" type="number" min="1" max="${t.maxNew}" value="${Math.min(a.years, t.maxNew)}"></label>${btn('extend', 'Offer the extension', p.id)}${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}</div>`;
 };
 // The coach's rotation: his order, the role it makes, the minutes he'd give a man when he plays,
@@ -532,7 +533,7 @@ function spendCard() {
   // the test man's own limits (his maximum and minimum) are his, not the club's: left out of the notes
   const club = (es) => es.filter((e) => !/his (maximum|minimum) salary/.test(e)).join('; ');
   const rows = ways.map(([how, nm, amt]) => [nm, ...usable(how, amt)]);
-  return `<div class="card"><h3>What you can spend</h3><div class="pay">${rows.map(([nm, a, w]) => `<div><span>${nm}</span><b class="${a ? '' : 'bad'}">${a ? `${w ? 'up to ' : ''}${$M(a)}` : '–'}</b></div>`).join('')}<div><span>Minimum contracts</span><b>any</b></div></div>
+  return `<div class="card"><h3>What you can spend</h3><div class="pay">${rows.map(([nm, a, w]) => `<div><span>${nm}</span><b class="${a ? '' : 'bad'}">${a ? `${w ? 'up to ' : ''}${$R(a)}` : '–'}</b></div>`).join('')}<div><span>Minimum contracts</span><b>any</b></div></div>
 ${rows.filter(([, , w]) => w && w !== 'used up' && w !== 'no room').map(([nm, a, w]) => `<p class="note">${nm}${a ? ', in full' : ''}: ${esc(w)}.</p>`).join('')}
 <p class="note">Payroll ${$M(pay)}${holds ? `, plus ${$M(holds)} in cap holds for ${T.holds.length} of your own free agents: the cap counts ${$M(capPay)}. Renounce a player's rights to free his hold` : ''}. Your own free agents can be re-signed over the cap with their Bird rights.</p>
 ${T.holds.map((h) => `<div class="ck">${nm(h.pid)} <small>hold ${$M(h.amt)}</small> ${btn('renounce', 'Renounce', h.pid, 'warn')}</div>`).join('')}${T.holds.length > 1 ? btn('renounceall', 'Renounce them all', '', 'warn') : ''}</div>`;
@@ -764,7 +765,7 @@ ${btn('market', 'Open the market')}</div>`;
     const valid = (p, how) => C.validateSigning(G, { team: G.user, pid: p.id, how, date: G.date, prior: (p.prior || 0) * 1e6,
       years: L.years5(how === 'min' ? C.minSalary(p.yos, f.cap) : ask(p).sal, how === 'min' ? 1 : Math.min(ask(p).years, 2), 0.05) }).ok;
     const form = (p) => { const h0 = hows(p).find((h) => valid(p, h)) || 'min'; return `<div class="form"><label>Using <select id="how">${hows(p).map((h) => `<option${h === h0 ? ' selected' : ''}>${h}</option>`).join('')}</select></label>
-<label>Salary ($M) <input id="sal" type="number" step="0.01" value="${Math.floor(ask(p).sal / 1e4) / 100}"></label>
+<label>Salary ($M) <input id="sal" type="number" step="0.01" value="${Math.ceil(ask(p).sal / 1e4) / 100}"></label>
 <label>Years <input id="yrs" type="number" min="1" max="5" value="${ask(p).years}"></label>${btn('offer', 'Make the offer')}${lvl(p) ? btn('renounce', 'Renounce his rights', p.id, 'warn') : ''}${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}</div>`; };
     return `${sheets.map(([pid, o]) => `<div class="card"><p>${esc(NAME(o.ab))} offer ${esc(P(pid).nm)} ${$M(o.sal)} × ${o.years}.</p>${btn('match', 'Match', `${pid}|1`)}${btn('match', 'Let him go', `${pid}|0`)}${pid in G.matchAns ? ` <small>${G.matchAns[pid] ? 'matching' : 'declining'}</small>` : ''}</div>`).join('')}
 ${open ? `<div class="card"><p class="note">The market has closed: whoever is left signs on the spot for an offer at half his summer ask or better.</p></div>` : faCards()}${spendCard()}
