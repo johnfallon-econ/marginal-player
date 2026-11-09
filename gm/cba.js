@@ -411,6 +411,22 @@ export function seasonLeft(date) {
   const d = seasonDates(seasonOf(date)), days = (a, b) => (new Date(b) - new Date(a)) / 864e5;
   return date <= d.opening ? 1 : Math.max(0, days(date, d.seasonEnd)) / days(d.opening, d.seasonEnd);
 }
+// The most a signing of this type can pay him in year one, by validateSigning's rules: the type's own
+// limit, his maximum, and the apron (or hard cap) it would cross. o: { team, pid, how, date, prior, qo }
+export function signLimit(league, o) {
+  const s = seasonOf(o.date), f = league.f[s], T = league.teams[o.team], p = league.players[o.pid], E = T.exc, amt = (k) => prorate(E[k], o.date);
+  const pay = teamSalary(T, league, s), under = (lvl) => f[lvl] - pay, prior = o.prior || 0;
+  const own = {
+    room: f.cap - teamSalary(T, league, s, { holds: true, offseason: o.date < seasonDates(s).opening }),
+    earlyBird: Math.max(1.75 * prior, 1.05 * avgSalary(f.cap)),
+    nonBird: Math.max(1.2 * prior, 1.2 * minSalary(p.yos, f.cap), o.qo || 0),
+    ntmle: Math.min(amt('ntmle'), under('apron1')), bae: Math.min(amt('bae'), under('apron1')),
+    tpmle: Math.min(amt('tpmle'), under('apron2')), roomMle: amt('roomMle'),
+    dpe: T.tpes.find((x) => x.dpe && x.expires >= o.date)?.amt ?? 0,
+    min: minSalary(p.yos, f.cap) * seasonLeft(o.date), twoWay: twoWaySalary(f.cap),
+  }[o.how] ?? Infinity;
+  return Math.max(0, Math.min(own, maxSalary(p.yos, f, prior, o.supermax), T.hardCap ? under(T.hardCap) : Infinity));
+}
 // offer: { team, pid, how, years: [{ sal, gtd, opt }], date, prior, starter }
 // Returns { ok, errors, hardCap, uses: { exception: amount } }
 export function validateSigning(league, o) {

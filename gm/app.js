@@ -193,7 +193,7 @@ const ACT = {
   card: (id) => { ui.card = id; render(); },
   closecard: () => { ui.card = null; render(); },
   noop: () => {},
-  sel: (pid) => { ui.pid = ui.pid === pid ? null : pid; ui.err = null; render(); },
+  sel: (pid) => { ui.pid = ui.pid === pid ? null : pid; ui.err = null; ui.how = null; render(); },
   rmode: (m) => { ui.rmode = m; render(); },
   // the stats table's order: a header sorts by it, again the other way; names and positions A to Z first
   rsort: (k) => { ui.rsort = [k, ui.rsort?.[0] === k ? -ui.rsort[1] : ['nm', 'pos'].includes(k) ? 1 : -1]; render(); },
@@ -210,6 +210,7 @@ const ACT = {
     ui = {}; save(); render();
   },
   partner: () => { ui.partner = $('#partner').value; ui.give = {}; ui.get = {}; ui.prot = {}; ui.swGive = {}; ui.swGet = {}; ui.verdict = null; render(); },
+  how: (el) => { ui.how = el.value; ui.err = null; render(); },
   prot: (el) => { const n = +el.value, [, id] = el.dataset.arg.split('#'), r = +id.split('|')[2]; ui.prot[id] = n ? [1 + 30 * (r - 1), n + 30 * (r - 1)] : null; ui.verdict = null; render(); },
   tsw: (k) => { const [side, y] = k.split('#'), m = side === 'give' ? ui.swGive : ui.swGet; m[y] = !m[y]; ui.verdict = null; render(); },
   tk: (k) => { const [side, id] = k.split('#'); ui[side][id] = !ui[side][id]; ui.verdict = null; render(); },
@@ -764,9 +765,17 @@ ${btn('market', 'Open the market')}</div>`;
     const hows = (p) => [...(lvl(p) ? [{ full: 'bird', early: 'earlyBird' }[lvl(p)] || 'nonBird'] : []), 'room', 'ntmle', 'tpmle', 'roomMle', 'bae', 'min', ...(p.yos < 4 ? ['twoWay'] : []), ...(me().tpes.some((x) => x.dpe && x.expires >= G.date) ? ['dpe'] : [])];
     const valid = (p, how) => C.validateSigning(G, { team: G.user, pid: p.id, how, date: G.date, prior: (p.prior || 0) * 1e6,
       years: L.years5(how === 'min' ? C.minSalary(p.yos, f.cap) : ask(p).sal, how === 'min' ? 1 : Math.min(ask(p).years, 2), 0.05) }).ok;
-    const form = (p) => { const h0 = hows(p).find((h) => valid(p, h)) || 'min'; return `<div class="form"><label>Using <select id="how">${hows(p).map((h) => `<option${h === h0 ? ' selected' : ''}>${h}</option>`).join('')}</select></label>
-<label>Salary ($M) <input id="sal" type="number" step="0.01" value="${Math.ceil(ask(p).sal / 1e4) / 100}"></label>
-<label>Years <input id="yrs" type="number" min="1" max="5" value="${ask(p).years}"></label>${btn('offer', 'Make the offer')}${lvl(p) ? btn('renounce', 'Renounce his rights', p.id, 'warn') : ''}${ui.err ? `<p class="bad">${esc(ui.err)}</p>` : ''}</div>`; };
+    // the most each type can pay him in year one; the form opens on the first type that can sign him at his ask, at that
+    // ask or, when the type cannot reach it, at its limit (to the $10K below)
+    const lim = (p, how) => C.signLimit(G, { team: G.user, pid: p.id, how, date: G.date, prior: (p.prior || 0) * 1e6 });
+    const form = (p) => { const h0 = ui.how || hows(p).find((h) => valid(p, h)) || 'min', l = lim(p, h0), a = Math.ceil(ask(p).sal / 1e4) * 1e4;
+      // the default offer checked as it stands, so what bars this type shows before an offer is made
+      const sal = h0 === 'min' ? C.minSalary(p.yos, f.cap) : h0 === 'twoWay' ? C.twoWaySalary(f.cap) : Math.min(a, Math.floor(l / 1e4) * 1e4);
+      const yrs = ['min', 'twoWay', 'bae', 'tpmle'].includes(h0) ? Math.min(ask(p).years, 2) : ask(p).years;
+      const v = C.validateSigning(G, { team: G.user, pid: p.id, how: h0, date: G.date, years: L.years5(sal, yrs, 0.05), prior: (p.prior || 0) * 1e6 });
+      return `<div class="form"><label>Using <select id="how" data-chg="how">${hows(p).map((h) => `<option${h === h0 ? ' selected' : ''}>${h}</option>`).join('')}</select></label>
+<label>Salary ($M) <input id="sal" type="number" step="0.01" value="${(sal / 1e6).toFixed(2)}"> <small>${['min', 'twoWay'].includes(h0) ? `fixed at ${$M(sal)}` : l > 0 ? `up to ${$R(l)}` : 'none left'}</small></label>
+<label>Years <input id="yrs" type="number" min="1" max="5" value="${yrs}"></label>${btn('offer', 'Make the offer')}${lvl(p) ? btn('renounce', 'Renounce his rights', p.id, 'warn') : ''}${ui.err || !v.ok ? `<p class="bad">${esc(ui.err || v.errors.join('; '))}</p>` : ''}</div>`; };
     return `${sheets.map(([pid, o]) => `<div class="card"><p>${esc(NAME(o.ab))} offer ${esc(P(pid).nm)} ${$M(o.sal)} × ${o.years}.</p>${btn('match', 'Match', `${pid}|1`)}${btn('match', 'Let him go', `${pid}|0`)}${pid in G.matchAns ? ` <small>${G.matchAns[pid] ? 'matching' : 'declining'}</small>` : ''}</div>`).join('')}
 ${open ? `<div class="card"><p class="note">The market has closed: whoever is left signs on the spot for an offer at half his summer ask or better.</p></div>` : faCards()}${spendCard()}
 <table class="t"><thead><tr><th>Free agent</th><th class="n">mPM</th><th class="n">mWAR</th><th class="n">Ask</th></tr></thead><tbody>
