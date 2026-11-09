@@ -231,6 +231,9 @@ export function capAt(G, s) {
   return G.caps[last] * (1 + G.K.capGrowth.mean) ** (s - last);
 }
 const fig = (G, s) => (G.f[s] ??= C.figures(s, capAt(G, s)));
+// whether a club's hard cap (if it has one) leaves room for sal more this season: the paths that sign
+// without validateSigning (matching an offer sheet, a qualifying offer taken, the in-season fill) check it here
+export const underHardCap = (G, ab, sal) => { const T = G.teams[ab]; return !T.hardCap || C.teamSalary(T, G, G.season) + sal <= fig(G, G.season)[T.hardCap]; };
 
 // ---- preseason: cut to 15 standard contracts and 3 two-way ---------------------------------
 // The rule the cutdown predictor uses: keep = value next season less non-guaranteed salary (a
@@ -346,6 +349,7 @@ export function shorthanded(G, r) {
         .find((x) => canTen(x) || std().length < 15); if (!id) break;
       const p = P[id];
       p.play = p.talent;                                  // his form, for the games he plays
+      if (!underHardCap(G, ab, Math.ceil(C.minSalary(p.yos, F.cap) * (canTen(id) ? TEN / 82 : C.seasonLeft(date))))) break;
       if (canTen(id)) {
         sign(G, ab, p, 'min', Math.round(C.minSalary(p.yos, F.cap) * TEN / 82), 1, date, 0);
         p.contract.tenDay = g + TEN; p.contract.how = G.log.at(-1).how = 'tenDay'; p.tens = { ...(p.tens?.s === s ? p.tens : { s }), [ab]: tens(id) + 1 };
@@ -908,7 +912,7 @@ export function faDay(G, r, user = {}, human = G.user) {
   const matchSign = (ab, p, o) => sign(G, ab, p, C.birdLevel(p, ab) === 'full' ? 'bird' : 'earlyBird', o.sal, o.years, G.date, 0.05);
   for (const [pid, o] of Object.entries(st.sheets)) {                  // the user's answers to yesterday's sheets
     const ab = rfaClub(pid);
-    if (user.match?.[pid]) matchSign(ab, P[pid], o); else sign(G, o.ab, P[pid], o.how, o.sal, o.years, G.date, 0.05);
+    if (user.match?.[pid] && underHardCap(G, ab, o.sal)) matchSign(ab, P[pid], o); else sign(G, o.ab, P[pid], o.how, o.sal, o.years, G.date, 0.05);
   }
   st.sheets = {};
   const offers = {};
@@ -936,7 +940,7 @@ export function faDay(G, r, user = {}, human = G.user) {
     const club = p.qo && rfaClub(pid);
     if (club && club !== top.ab) {                                     // an offer sheet: does the club match?
       if (club === human) { st.sheets[pid] = top; continue; }
-      if (teamValue(G, club, p) >= top.sal) { matchSign(club, p, top); continue; }
+      if (teamValue(G, club, p) >= top.sal && underHardCap(G, club, top.sal)) { matchSign(club, p, top); continue; }
     }
     sign(G, top.ab, p, top.how, top.sal, top.years, G.date, 0.05);
   }
@@ -947,7 +951,7 @@ export function faEnd(G, r, human = G.user) {
   const s = G.season, P = G.players;
   // restricted free agents nobody signed take their qualifying offer
   for (const [ab, T] of Object.entries(G.teams)) for (const pid of T.rfa || []) {
-    if (G.fa.includes(pid)) sign(G, ab, P[pid], 'rfaQO', P[pid].qo, 1, faDate(s, 30), 0);
+    if (G.fa.includes(pid) && underHardCap(G, ab, P[pid].qo)) sign(G, ab, P[pid], 'rfaQO', P[pid].qo, 1, faDate(s, 30), 0);
   }
   fillRosters(G, Object.keys(G.teams).filter((ab) => ab !== human));
   extensions(G, r, `${s}-09-30`, human);

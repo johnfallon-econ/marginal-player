@@ -260,7 +260,8 @@ export function validateTrade(league, tr) {
       if (post > lim) errors.push(`${ab}: ${why} is barred above the ${lvl === 'apron1' ? 'first' : 'second'} apron`);
       else if (hardCaps[ab] !== 'apron1') hardCaps[ab] = lvl;
     };
-    if (T.hardCap && post > f[T.hardCap]) errors.push(`${ab} is hard-capped at the ${T.hardCap === 'apron1' ? 'first' : 'second'} apron`);
+    // a club over its hard cap may still trade, so long as the trade adds no salary
+    if (T.hardCap && post > f[T.hardCap] && post > pre) errors.push(`${ab} is hard-capped at the ${T.hardCap === 'apron1' ? 'first' : 'second'} apron`);
     // TPE absorptions: one player per TPE, within its amount; a prior-season TPE hard-caps (row F)
     for (const x of tr.tpe?.[ab] || []) {
       const e = T.tpes[x.tpeIndex], sal = charge(P[x.pid], s, f.cap);
