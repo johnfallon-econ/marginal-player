@@ -273,7 +273,10 @@ export function validateTrade(league, tr) {
       if (capPost <= f.cap + 250_000) { /* fits in cap room (§6(j)(1)(v)) */ }
       else {
         const m = maxIncoming(outSal, nOut, post, f);
-        if (inSal > m.amt) errors.push(`${ab} takes back $${(inSal / 1e6).toFixed(2)}M for $${(outSal / 1e6).toFixed(2)}M out; at most $${(m.amt / 1e6).toFixed(2)}M allowed`);
+        // the men who count for less than their salary going out, and why (§6(j)(5)-(6))
+        const after = tr.date > seasonDates(s).seasonEnd, why = out.filter((m) => outgoingSalary(P[m.pid], tr.date) < charge(P[m.pid], s, f.cap))
+          .map((m) => `${P[m.pid].nm} counts $${(outgoingSalary(P[m.pid], tr.date) / 1e6).toFixed(2)}M (${after ? 'after the season, only next season\'s guaranteed salary counts' : 'before January 8, only guaranteed salary counts'})`);
+        if (inSal > m.amt) errors.push(`${ab} takes back $${(inSal / 1e6).toFixed(2)}M for $${(outSal / 1e6).toFixed(2)}M out; at most $${(m.amt / 1e6).toFixed(2)}M allowed${why.length ? `: ${why.join('; ')}` : ''}`);
         else if (m.rule === 'expanded' && inSal > outSal + 250_000) cap('apron1', 'expanded salary matching');
       }
     }

@@ -303,7 +303,20 @@ export function rotation(G, ab, coach = G.rolesSet) {
 }
 // The season in steps, so the page can stop at the trade windows and a save can fall anywhere:
 // seasonStart, seasonTo(frac) as often as wanted, then postseason.
-export function seasonStart(G, r) {
+// Rookie-scale team options for next season are decided by October 31 (Art. XI §2(b)), a season ahead of
+// the year they cover: picked up, the year is guaranteed; declined, the deal ends with this season.
+// decide.teamOption(p) is the user's call for his own club.
+export function rookieOptions(G, decide = {}) {
+  const s = G.season + 1;
+  for (const [ab, T] of Object.entries(G.teams)) for (const id of T.roster) {
+    const p = G.players[id], c = p.contract, y = C.yearOf(c, s);
+    if (!c?.rookie || y?.opt !== 'tm') continue;
+    if ((ab === G.user && decide.teamOption) ? decide.teamOption(p) : teamValue(G, ab, p) >= y.sal) { y.opt = null; y.gtd = y.sal; }
+    else c.years = c.years.filter((x) => x.s < s);
+  }
+}
+export function seasonStart(G, r, decide = {}) {
+  rookieOptions(G, decide);
   // the first season keeps every club's real 2026-27 roles (the Trade Lab's minutes); after
   // that, coaches assign them
   if (G.history.length || G.log.some((x) => x.type === 'trade')) assignRoles(G);
@@ -792,10 +805,11 @@ export function newLeagueYear(G, r, decide = {}) {
       if (y?.opt === 'pl') {                                   // player option: in if the market won't beat it
         const inn = (decide.playerOption || ((pp) => y.sal >= askOf(G, pp, F).sal))(p);
         if (!inn) c.years = c.years.filter((x) => x.s < s);
+        else { y.opt = null; y.gtd = y.sal; }                 // an option taken up is guaranteed
       } else if (y?.opt === 'tm') {
         const keep = (ab === G.user && decide.teamOption) ? decide.teamOption(p) : teamValue(G, ab, p) >= y.sal;
         if (!keep) c.years = c.years.filter((x) => x.s < s);
-        else y.opt = null;
+        else { y.opt = null; y.gtd = y.sal; }
       }
       if (!C.yearOf(c, s)) {                                   // expiring: a free agent
         const prior = (C.yearOf(c, s - 1)?.sal || 0);

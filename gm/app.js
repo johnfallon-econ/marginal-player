@@ -62,9 +62,13 @@ function step(label, f) {
 const NEXT = {
   preseason: () => {
     const T = me(), n = std(T).length, tw = T.roster.length - n;
-    const ok = n >= 14 && n <= 15 && tw <= 3;
-    return [ok ? 'Opening night is next.' : n < 14 ? `Clubs open the season with at least 14 standard contracts: you carry ${n}.`
-      : `Cut to 15 standard contracts and 3 two-ways first: you carry ${n} and ${tw}.`,
+    const ok = n >= 14 && n <= 15 && tw <= 3, s = G.season + 1, c = G.choices ||= {};
+    // rookie-scale options for next season, due before opening night: ticked as a computer GM would to start
+    const ro = T.roster.map(P).filter((p) => p.contract?.rookie && C.yearOf(p.contract, s)?.opt === 'tm');
+    for (const p of ro) c[`ro|${p.id}`] ??= L.teamValue(G, G.user, p) >= C.yearOf(p.contract, s).sal;
+    const opts = ro.length ? `<br><b>Rookie-scale options for ${SEASON(s)}</b>, due October 31: ${ro.map((p) => `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="ro|${p.id}"${c[`ro|${p.id}`] ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(sp(p).rate)} · ${wr(p)} · pick up ${$M(C.yearOf(p.contract, s).sal)}</small></label>`).join('')}` : '';
+    return [(ok ? 'Opening night is next.' : n < 14 ? `Clubs open the season with at least 14 standard contracts: you carry ${n}.`
+      : `Cut to 15 standard contracts and 3 two-ways first: you carry ${n} and ${tw}.`) + opts,
       ok ? btn('start', 'Start the season') + (tw < 3 ? btn('autofill', 'Fill the two-way spots') : '') : n < 14 ? btn('autofill', 'Sign the best left at the minimum') : btn('autocut', 'Make the cuts for me'),
       !ok && btn('go', n < 14 ? 'Choose free agents' : 'Choose the cuts', n < 14 ? 'fa' : 'roster')];
   },
@@ -129,7 +133,8 @@ const ACT = {
   start: () => step('Opening night', () => {
     const ai = Object.keys(G.teams).filter((ab) => ab !== G.user);
     L.fillRosters(G, ai); for (const ab of ai) L.cutdown(G, r, ab);
-    L.seasonStart(G, r); G.cur.win = 0; G.offers = [];
+    L.seasonStart(G, r, { teamOption: (p) => !!G.choices?.[`ro|${p.id}`] }); G.cur.win = 0; G.offers = [];
+    for (const k of Object.keys(G.choices || {})) if (k.startsWith('ro|')) delete G.choices[k];   // decided: next year's start afresh
     G.ownerSay = O.opening(G);
   }),
   sim: () => step('Simulating', async () => {
