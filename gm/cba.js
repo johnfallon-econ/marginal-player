@@ -230,11 +230,11 @@ export function maxIncoming(out, nOut, post, f) {
 // trade: { date, moves: [{ pid, from, to }], picks: [{ id, from, to, prot? }], swaps: [{ y, r, from, to }], cash: [{ from, to, amt }],
 //          tpe: { [team]: [{ pid, tpeIndex }] } }   -- absorb an incoming player into a TPE
 // league: the game, its picks the assets in play (picks.js assets) and its ledger the pick ledger.
-// Returns { ok, errors: [...], hardCaps: { team: 'apron1'|'apron2' }, newTpes: { team: [...] }, waive: { team: n } }
+// Returns { ok, errors: [...], hardCaps: { team: 'apron1'|'apron2' }, capWhy: { team: [why] }, newTpes: { team: [...] }, waive: { team: n } }
 // (waive: men a club must let go to get back under the roster limit)
 export function validateTrade(league, tr) {
   const s = seasonOf(tr.date), f = league.f[s], d = seasonDates(s), P = league.players;
-  const errors = [], hardCaps = {}, newTpes = {}, waive = {};
+  const errors = [], hardCaps = {}, capWhy = {}, newTpes = {}, waive = {};
   if (tr.date > d.deadline && tr.date <= d.end && !league.seasonOver)
     errors.push('the trade deadline has passed');
   const teams = [...new Set([...tr.moves.flatMap((m) => [m.from, m.to]),
@@ -258,7 +258,7 @@ export function validateTrade(league, tr) {
     const cap = (lvl, why) => {                               // a transaction that hard-caps
       const lim = f[lvl];
       if (post > lim) errors.push(`${ab}: ${why} is barred above the ${lvl === 'apron1' ? 'first' : 'second'} apron`);
-      else if (hardCaps[ab] !== 'apron1') hardCaps[ab] = lvl;
+      else { if (hardCaps[ab] !== 'apron1') hardCaps[ab] = lvl; (capWhy[ab] ||= []).push(why); }
     };
     // a club over its hard cap may still trade, so long as the trade adds no salary
     if (T.hardCap && post > f[T.hardCap] && post > pre) errors.push(`${ab} is hard-capped at the ${T.hardCap === 'apron1' ? 'first' : 'second'} apron`);
@@ -311,12 +311,12 @@ export function validateTrade(league, tr) {
     if ((A.cashSent || 0) + c.amt > f.cash) errors.push(`${c.from} would exceed the $${(f.cash / 1e6).toFixed(3)}M cash limit`);
     if ((B.cashRecv || 0) + c.amt > f.cash) errors.push(`${c.to} would exceed the cash it may receive`);
     if (teamSalary(A, league, s) > f.apron2) errors.push(`${c.from} cannot send cash above the second apron`);
-    else hardCaps[c.from] ||= 'apron2';
+    else { hardCaps[c.from] ||= 'apron2'; (capWhy[c.from] ||= []).push('sending cash'); }
   }
   for (const pk of tr.picks || []) errors.push(...pickTradeErrors(league, pk, s));
   for (const sw of tr.swaps || []) errors.push(...swapErrors(league, sw, s));
   if ((tr.picks || []).length) for (const ab of teams) errors.push(...stepien(league, ab, tr, s));
-  return { ok: errors.length === 0, errors, hardCaps, newTpes, waive };
+  return { ok: errors.length === 0, errors, hardCaps, capWhy, newTpes, waive };
 }
 
 // Picks: no further than seven drafts out; a second-apron team's frozen first stays put

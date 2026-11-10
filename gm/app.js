@@ -221,6 +221,7 @@ const ACT = {
   tk: (k) => { const [side, id] = k.split('#'); ui[side][id] = !ui[side][id]; ui.verdict = null; render(); },
   take: (i) => { const j = X.judge(G, G.offers[+i].trade ?? G.offers[+i]);
     if (!j.ok) { alert(`No longer allowed: ${j.errors.join('; ')}`); G.offers.splice(+i, 1); return render(); }
+    if (hcText(j.res) && !confirm(hcText(j.res))) return;
     step('Trade', () => { X.complete(G, j); if (G.phase === 'season') L.assignRoles(G);
       // the other offers stand unless they share a player or a pick with this one
       const used = new Set([...j.trade.moves.map((m) => m.pid), ...j.trade.picks.map((k) => k.id)]);
@@ -302,6 +303,10 @@ const tradeOf = () => {
   return { moves, picks, sat, swaps };
 };
 // Judge a trade; any sign-and-trade is signed first, on a copy unless the trade is being made.
+// a trade that hard-caps the user's club, or tightens its hard cap, says so before it is made (text; '' if not)
+const hcText = (res) => { const lvl = res.hardCaps?.[G.user], cur = me().hardCap; if (!lvl || cur === 'apron1' || cur === lvl) return '';
+  return `This trade hard-caps you at the ${lvl === 'apron1' ? 'first' : 'second'} apron (${res.capWhy[G.user].join(', ')}): your payroll cannot go above ${$M(F()[lvl])} for the rest of the season, so no signing or trade can take it there. You are ${$R(F()[lvl] - C.teamSalary(me(), G, G.season))} under it now.`; };
+const hcWarn = (res) => (hcText(res) ? `<p class="bad">${esc(hcText(res))}</p>` : '');
 const judgeTrade = (t, g = structuredClone(G)) => { for (const [ab, pid] of t.sat) L.satSign(g, ab, g.players[pid]); return X.judge(g, { moves: t.moves, picks: t.picks, swaps: t.swaps }); };
 
 // ---- views -------------------------------------------------------------------------------------
@@ -645,7 +650,7 @@ const VIEWS = {
     const [say, ...b] = NEXT[G.phase]();
     const T = me(), rec = G.cur?.record[G.user], last = G.history.at(-1);
     return `<div class="card"><p>${say}</p><div class="row">${b.filter(Boolean).join('')}</div>${G.news && ['season', 'playoffs'].includes(G.phase) ? `<ul class="news">${G.news.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
-${(G.offers || []).map((t, i) => `<div class="card"><h3>Offer from ${esc(NAME(t.moves[0].to))}</h3>${tradeText(t)}<div class="row">${btn('take', 'Accept', i)}${btn('pass', 'Decline', i, 'warn')}</div></div>`).join('')}
+${(G.offers || []).map((t, i) => `<div class="card"><h3>Offer from ${esc(NAME(t.moves[0].to))}</h3>${tradeText(t)}${hcWarn(C.validateTrade(G, t.trade ?? t))}<div class="row">${btn('take', 'Accept', i)}${btn('pass', 'Decline', i, 'warn')}</div></div>`).join('')}
 ${G.phase === 'season' ? standings() : G.phase === 'playoffs' ? VIEWS.playoffs() : ''}
 ${['offseason', 'draft'].includes(G.phase) && last?.season === G.season ? `<div class="card"><h3>The ${SEASON(last.season)} season</h3><p><b>${esc(NAME(last.champion))}</b> are champions${finals(last) ? `, over the ${esc(NAME(finals(last).lo))}` : ''}. ${last.awards ? `MVP: ${who(last.awards.mvp[0][0])}.` : ''}</p>${awardsCard(last).replace(/<h3>.*?<\/h3>/, '')}</div>` : ''}
 <div class="card"><h3>${esc(NAME(G.user))}</h3><p>${rec ? `Record ${rec.w}-${rec.l}. ` : ''}Projected wins ${L.projWins(G, G.user).toFixed(1)}, title odds ${oddsPct(odds()[G.user])}; ${std(T).length} standard contracts, ${T.roster.length - std(T).length} two-way.
@@ -694,8 +699,8 @@ ${ps.map((p) => playerRow(p, `<td class="n">${$M(C.yearOf(p.contract, G.season)?
     };
     const v = ui.verdict, md = { contend: 'contending', middle: 'in the middle', rebuild: 'rebuilding' }[X.mode(L.projWins(G, B))];
     const say = !v ? '' : !v.ok ? `<p class="bad">Not allowed: ${esc(v.errors.join('; '))}.</p>`
-      : v.accept ? `<p class="good">${esc(NAME(B))} accept.</p>${Object.entries(v.res.waive || {}).map(([ab, n]) => `<p class="note">${ab === G.user ? `You will have to waive ${n}` : `${esc(NAME(ab))} will waive ${n}`} to get back to the roster limit.</p>`).join('')}${btn('accept', 'Make the trade')}`
-      : `<p class="bad">${esc(NAME(B))} decline: they would want about ${$M(Math.max(v.need[B] - v.gains[B], 0))} more in value.</p>`;
+      : v.accept ? `<p class="good">${esc(NAME(B))} accept.</p>${hcWarn(v.res)}${Object.entries(v.res.waive || {}).map(([ab, n]) => `<p class="note">${ab === G.user ? `You will have to waive ${n}` : `${esc(NAME(ab))} will waive ${n}`} to get back to the roster limit.</p>`).join('')}${btn('accept', 'Make the trade')}`
+      : `${hcWarn(v.res)}<p class="bad">${esc(NAME(B))} decline: they would want about ${$M(Math.max(v.need[B] - v.gains[B], 0))} more in value.</p>`;
     const open = G.phase !== 'season' || G.date <= C.seasonDates(G.season).deadline;
     return `<div class="card"><label>Trade with <select id="partner" data-chg="partner">${others.map((ab) => `<option value="${ab}"${ab === B ? ' selected' : ''}>${esc(NAME(ab))}</option>`).join('')}</select></label>
 ${capStrip(B)}<details><summary>Their cap sheet</summary>${payroll(B)}</details><p class="note">${esc(NAME(B))} are ${md}.${open ? '' : ' The deadline has passed.'}${ui.done ? ' Trade done.' : ''}</p></div>
@@ -756,8 +761,12 @@ ${btn('newyear', 'Start the new league year')}</div>`;
     const mine = T.holds.map((h) => P(h.pid)).filter((p) => G.fa.includes(p.id));
     return `<div class="card"><h3>Your free agents</h3><p class="note">Each one's terms: his ask, as far as his Bird rights let you pay it.</p>
 ${(() => { let ex = 0;   // the owner judges each re-signing on top of the ones ticked before it, as the market will
+  const day0 = `${G.season}-07-06`, g = structuredClone(G);    // a copy the ticked re-signings are made in, in order
   return mine.map((p) => { const o = L.resignTerms(G, G.user, p), on = !!c[`re|${p.id}`], v = O.veto(G, ex + o.sal); if (on && !v) ex += o.sal;
-    return `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="re|${p.id}"${on ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(sp(p).rate)} · ${wr(p)} · ${$M(o.sal)} × ${o.years} (${o.how})${T.rfa?.includes(p.id) ? ' · restricted' : ''}</small>${v ? `<br><small class="bad">${on ? 'The owner will veto this' : 'The owner would veto this'}: ${esc(v.replace(/^The owner won't approve it: /, ''))}</small>` : ''}</label>`; }).join('') || '<p>None.</p>'; })()}
+    const rv = C.validateSigning(g, { team: G.user, pid: p.id, how: o.how, date: day0, years: L.years5(o.sal, o.years, o.raise), prior: (p.prior || 0) * 1e6 });
+    if (on && !v && rv.ok) L.sign(g, G.user, g.players[p.id], o.how, o.sal, o.years, day0, o.raise);
+    const blocked = rv.ok ? '' : `<br><small class="bad">With the re-signings ticked above it, this one would be refused: ${esc(rv.errors.join('; '))}.</small>`;
+    return `<label class="ck"><input type="checkbox" data-act="toggle" data-arg="re|${p.id}"${on ? ' checked' : ''}> <b>${esc(p.nm)}</b> <small>${Math.floor(p.age)} · ${sg(sp(p).rate)} · ${wr(p)} · ${$M(o.sal)} × ${o.years} (${o.how})${T.rfa?.includes(p.id) ? ' · restricted' : ''}</small>${v ? `<br><small class="bad">${on ? 'The owner will veto this' : 'The owner would veto this'}: ${esc(v.replace(/^The owner won't approve it: /, ''))}</small>` : ''}${blocked}</label>`; }).join('') || '<p>None.</p>'; })()}
 ${btn('market', 'Open the market')}</div>`;
   },
   fa: () => {
