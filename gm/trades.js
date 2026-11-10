@@ -327,6 +327,12 @@ export function judge(G, tr, human = G.user) {
 // offer is one a fair-minded club might take); the best few, one per club.
 // block: the men the user is shopping (the trading block): every club bids for them, one offer a club
 export function offersFor(G, human = G.user, n = 3, block = null) {
+  if (G._worth) return offersOn(G, human, n, block);
+  // the window's caches (windowSteps), held while the clubs draw up their offers: nothing changes hands meanwhile
+  G._worth = {}; G._wins = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab, projWins(G, ab)]));
+  try { return offersOn(G, human, n, block); } finally { delete G._worth; delete G._wins; }
+}
+function offersOn(G, human, n, block) {
   const x = market(G), P = G.players, clubs = Object.keys(G.teams).filter((ab) => ab !== human);
   const cands = (block ? block.map((id) => P[id]) : G.teams[human].roster.map((id) => P[id]).filter((p) => !p.contract?.twoWay && C.yearOf(p.contract, x.s)))
     .flatMap((p) => clubs.map((B) => [p, B, playerWorth(G, B, p, x.modes[B]) - playerWorth(G, human, p, x.modes[human])]))
