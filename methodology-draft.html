@@ -108,11 +108,11 @@ board the draft's own judgement and empty the comparison with draft order of mea
 season falls within its own projected distribution should be uniform; instead too few
 landed in the middle and too many in the tails, busts above all &mdash; for lottery
 picks in seasons 3&ndash;6, 10.8% fell below the projection's 5th
-percentile and 18.1% in its 50th&ndash;75th band, against 5% and 25%.
+percentile and 17.0% in its 50th&ndash;75th band, against 5% and 25%.
 Each distribution's levels are remapped (quantile recalibration): an outcome at level
 <em>u</em> is read at the level where realized seasons of prospects projected alike
 actually fell, by projected level and season group. Out of sample, on classes the
-remap never saw, those shares become 8.7% and 22.5%.
+remap never saw, those shares become 8.9% and 22.4%.
 The bust tail is only partly closed: projected level separates mid-lottery picks from
 the rest less cleanly than the pick would.</p>
 
@@ -122,7 +122,7 @@ prospects at $0, top-five picks returned more than projected and second-rounders
 table below shows the result after the fix, by pick range). An isotonic map from a
 prospect-season's projected price to what prospect-seasons projected at that price
 actually returned corrects it. Each outcome's price that season is scaled to match, so
-the outcomes keep their order. The map is convex &mdash; a season projected at 33% of the cap maps to 44%, one
+the outcomes keep their order. The map is convex &mdash; a season projected at 33% of the cap maps to 45%, one
 at 10% to 14%, one at 1% to 0.7% &mdash; and it applies to dollars; the career-trajectory chart shows the model's
 wins before either correction.</p>
 
@@ -186,25 +186,25 @@ season as each class's record (season 10 to 19).</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Picks</th><th>Value to club, predicted</th><th>Realized</th>
 <th>After the rookie deal, predicted</th><th>Realized</th><th>Kept past the rookie deal, predicted</th><th>Realized</th></tr></thead>
-<tbody><tr><td>1-5</td><td>$94.9M</td><td>$91.4M</td><td>$50.7M</td><td>$37.5M</td><td>57%</td><td>74%</td></tr><tr><td>6-14</td><td>$60.8M</td><td>$57.5M</td><td>$31.2M</td><td>$24.1M</td><td>47%</td><td>51%</td></tr><tr><td>15-30</td><td>$31.5M</td><td>$32.1M</td><td>$13.6M</td><td>$12.6M</td><td>32%</td><td>41%</td></tr><tr><td>31-60</td><td>$10.6M</td><td>$9.7M</td><td>$5.6M</td><td>$4.5M</td><td>26%</td><td>36%</td></tr></tbody></table></div>
+<tbody><tr><td>1-5</td><td>$91.2M</td><td>$91.8M</td><td>$47.7M</td><td>$37.8M</td><td>56%</td><td>74%</td></tr><tr><td>6-14</td><td>$60.7M</td><td>$57.8M</td><td>$30.9M</td><td>$24.2M</td><td>46%</td><td>51%</td></tr><tr><td>15-30</td><td>$31.9M</td><td>$32.3M</td><td>$13.8M</td><td>$12.7M</td><td>31%</td><td>41%</td></tr><tr><td>31-60</td><td>$10.6M</td><td>$9.7M</td><td>$5.6M</td><td>$4.5M</td><td>26%</td><td>36%</td></tr></tbody></table></div>
 
 <p><strong>Ranking the lottery</strong>, where the decision is and where re-signing value
-sits: within-class Spearman with realized value to the club is 0.427, against
-0.374 for the same valuation stopped at the rookie deal and 0.212 for
+sits: within-class Spearman with realized value to the club is 0.433, against
+0.401 for the same valuation stopped at the rookie deal and 0.212 for
 draft order (139 lottery picks). The whole career beats the rookie deal alone by
-+0.053 a class, a 90% class-bootstrap interval of -0.007 to
-+0.115 &mdash; not distinguishable from a tie &mdash; and draft order by
-+0.215 (+0.108 to +0.321), better in 8 of
-10 classes. Over every drafted player (595) the figures are 0.463,
-0.490 and 0.460. Mostly, the longer horizon gets the <em>level</em>
++0.033 a class, a 90% class-bootstrap interval of -0.016 to
++0.080 &mdash; not distinguishable from a tie &mdash; and draft order by
++0.221 (+0.120 to +0.315), better in 8 of
+10 classes. Over every drafted player (595) the figures are 0.467,
+0.491 and 0.458. Mostly, the longer horizon gets the <em>level</em>
 right and does not yet rank better: whether a given star re-signs is close to a coin flip,
 and that noise dilutes a ranking as much as the extra value informs it.</p>
 
 <p>What is still off: the very top of the draft. Top-five picks are kept past their rookie
-deal less often than they really are (57% predicted, 74%
-realized) but are valued higher once kept ($50.7M against
-$37.5M); the two partly offset, and the rest of the lottery is kept
-about as often as it really is (47% and 51%). The realized side is measured in this site's own units (its wins, its price curve), so this is
+deal less often than they really are (56% predicted, 74%
+realized) but are valued higher once kept ($47.7M against
+$37.8M); the two partly offset, and the rest of the lottery is kept
+about as often as it really is (46% and 51%). The realized side is measured in this site's own units (its wins, its price curve), so this is
 a test of the board's internal consistency with its own record, not against an outside
 measure of value.</p>
 
@@ -290,9 +290,9 @@ as the benchmark to beat:</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>Neural net</th><th>Gradient boosting</th><th>Draft order</th><th>n</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.374</td><td>0.378</td><td>0.154</td><td>786</td></tr>
-<tr><td>Four-year mean</td><td>0.377</td><td>0.430</td><td>0.175</td><td>973</td></tr>
-<tr><td>Peak</td><td>0.430</td><td>0.457</td><td>0.258</td><td>985</td></tr>
+<tr><td>Rookie year</td><td>0.392</td><td>0.372</td><td>0.156</td><td>786</td></tr>
+<tr><td>Four-year mean</td><td>0.380</td><td>0.411</td><td>0.179</td><td>973</td></tr>
+<tr><td>Peak</td><td>0.431</td><td>0.461</td><td>0.259</td><td>985</td></tr>
 </tbody></table></div>
 
 <p>Both models rank prospects substantially better than the league did, on every horizon.
@@ -312,16 +312,16 @@ below each predicted quantile should equal the nominal level.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>p5</th><th>p10</th><th>p25</th><th>p50</th><th>p75</th><th>p90</th><th>p95</th><th>p99</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.092</td><td>0.131</td><td>0.300</td><td>0.482</td><td>0.705</td><td>0.846</td><td>0.910</td><td>0.944</td></tr>
-<tr><td>Four-year mean</td><td>0.089</td><td>0.162</td><td>0.355</td><td>0.566</td><td>0.732</td><td>0.841</td><td>0.884</td><td>0.931</td></tr>
-<tr><td>Peak</td><td>0.074</td><td>0.146</td><td>0.345</td><td>0.563</td><td>0.726</td><td>0.825</td><td>0.860</td><td>0.866</td></tr>
+<tr><td>Rookie year</td><td>0.089</td><td>0.149</td><td>0.298</td><td>0.500</td><td>0.724</td><td>0.855</td><td>0.908</td><td>0.952</td></tr>
+<tr><td>Four-year mean</td><td>0.090</td><td>0.172</td><td>0.363</td><td>0.566</td><td>0.751</td><td>0.854</td><td>0.883</td><td>0.932</td></tr>
+<tr><td>Peak</td><td>0.074</td><td>0.170</td><td>0.349</td><td>0.563</td><td>0.737</td><td>0.831</td><td>0.864</td><td>0.871</td></tr>
 <tr><td><em>nominal</em></td><td><em>0.050</em></td><td><em>0.100</em></td><td><em>0.250</em></td><td><em>0.500</em></td><td><em>0.750</em></td><td><em>0.900</em></td><td><em>0.950</em></td><td><em>0.990</em></td></tr>
 </tbody></table></div>
 
 <p>Medians are well calibrated — close to 0.50 on every horizon, so the central projection
 is neither optimistic nor pessimistic on average. <strong>The intervals are too narrow at
-both tails.</strong> Around 15% of outcomes fall below the stated 10th percentile and
-around 16% land above the stated 90th, against 10% each.</p>
+both tails.</strong> Around 16% of outcomes fall below the stated 10th percentile and
+around 15% land above the stated 90th, against 10% each.</p>
 
 <p>The two outermost levels are the reason the fan was widened from five quantiles to eight.
 p95 and p99 are the region a draft pick's value actually lives in — one franchise player pays
