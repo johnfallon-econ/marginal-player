@@ -371,6 +371,7 @@ export function execute(G, trade, res) {
       if (e.origin === o && (e.slot <= 30) === (rd === '1')) e.holder = pk.to;
   }
   for (const [ab, lvl] of Object.entries(res.hardCaps || {})) if (G.teams[ab].hardCap !== 'apron1') G.teams[ab].hardCap = lvl;
+  for (const [ab, lvl] of Object.entries(res.capNext || {})) if (G.teams[ab].hardCapNext !== 'apron1') G.teams[ab].hardCapNext = lvl;   // next season's too
   for (const [ab, tp] of Object.entries(res.newTpes || {})) G.teams[ab].tpes.push(...tp);
   // a club over the roster limit waives its least valuable men (the user's club chooses its own cuts)
   for (const ab of Object.keys(res.waive || {})) if (ab !== G.user || G.autoUser) cutdown(G, null, ab);

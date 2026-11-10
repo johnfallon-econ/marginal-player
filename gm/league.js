@@ -826,7 +826,7 @@ export function newLeagueYear(G, r, decide = {}) {
     }
     T.dead = T.dead.filter((x) => x.s >= s);
     T.tpes = T.tpes.filter((e) => e.expires >= `${s}-07-01`);
-    T.hardCap = null; T.cashSent = 0; T.cashRecv = 0;
+    T.hardCap = T.hardCapNext || null; delete T.hardCapNext; T.cashSent = 0; T.cashRecv = 0;   // a hard cap carried from after last season holds
     T.exc = C.freshExceptions(T, F);
   }
   // second-round picks and the men a club keeps abroad, once every club's free agents are on the

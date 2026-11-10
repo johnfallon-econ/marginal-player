@@ -305,7 +305,7 @@ const tradeOf = () => {
 // Judge a trade; any sign-and-trade is signed first, on a copy unless the trade is being made.
 // a trade that hard-caps the user's club, or tightens its hard cap, says so before it is made (text; '' if not)
 const hcText = (res) => { const lvl = res.hardCaps?.[G.user], cur = me().hardCap; if (!lvl || cur === 'apron1' || cur === lvl) return '';
-  return `This trade hard-caps you at the ${lvl === 'apron1' ? 'first' : 'second'} apron (${res.capWhy[G.user].join(', ')}): your payroll cannot go above ${$M(F()[lvl])} for the rest of the season, so no signing or trade can take it there. You are ${$R(F()[lvl] - C.teamSalary(me(), G, G.season))} under it now.`; };
+  return `This trade hard-caps you at the ${lvl === 'apron1' ? 'first' : 'second'} apron (${res.capWhy[G.user].join(', ')}): your payroll cannot go above ${$M(F()[lvl])} for the rest of the season${res.capNext?.[G.user] ? ' and all of next season (made after the regular season, it binds next season too)' : ''}, so no signing or trade can take it there. You are ${$R(F()[lvl] - C.teamSalary(me(), G, G.season))} under it now.`; };
 const hcWarn = (res) => (hcText(res) ? `<p class="bad">${esc(hcText(res))}</p>` : '');
 const judgeTrade = (t, g = structuredClone(G)) => { for (const [ab, pid] of t.sat) L.satSign(g, ab, g.players[pid]); return X.judge(g, { moves: t.moves, picks: t.picks, swaps: t.swaps }); };
 
@@ -356,7 +356,7 @@ const payroll = (ab = G.user) => {
   const T = G.teams[ab], { s, f, pay, capPay } = books(ab);
   const line = (k, v) => `<div><span>${k}</span><b>${v}</b></div>`;
   return `<div class="pay">${line(`${SEASON(s)} payroll`, $M(pay))}${line('Cap', $M(f.cap))}${line('Tax line', $M(f.tax))}${line('First apron', $M(f.apron1))}${line('Second apron', $M(f.apron2))}
-${line('Cap room', $M(Math.max(f.cap - capPay, 0)))}${T.hardCap ? line('Hard cap', T.hardCap === 'apron1' ? 'first apron' : 'second apron') : ''}
+${line('Cap room', $M(Math.max(f.cap - capPay, 0)))}${T.hardCap ? line('Hard cap', T.hardCap === 'apron1' ? 'first apron' : 'second apron') : ''}${T.hardCapNext ? line('Hard cap next season', T.hardCapNext === 'apron1' ? 'first apron' : 'second apron') : ''}
 ${['ntmle', 'tpmle', 'roomMle', 'bae'].filter((k) => T.exc?.[k] > 0 && (k === 'tpmle' ? pay <= f.apron2 : k === 'roomMle' ? capPay <= f.cap : pay <= f.apron1)).map((k) => line({ ntmle: 'Mid-level', tpmle: 'Taxpayer MLE', roomMle: 'Room MLE', bae: 'Bi-annual' }[k], $M(T.exc[k]))).join('')}
 ${T.tpes.filter((e) => !e.dpe).length ? line('Trade exceptions', T.tpes.filter((e) => !e.dpe).map((e) => $M(e.amt)).join(', ')) : ''}${T.tpes.filter((e) => e.dpe && e.expires >= G.date).map((e) => line(`Disabled player exception (${esc(P(e.from).nm)})`, $M(e.amt))).join('')}${T.dead.filter((x) => x.s === s).length ? line('Dead money', $M(T.dead.filter((x) => x.s === s).reduce((a, x) => a + x.amt, 0))) : ''}</div>`;
 };
