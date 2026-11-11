@@ -78,6 +78,8 @@ const pickW = (G, x, ab, k, prot) => once(x, `${ab}|${k.id}|${prot ?? ''}`, () =
 const swapW = (G, x, ab, w) => once(x, `${ab}|${w.y}|${w.from}|${w.to}`, () => swapWorth(G, w, x.modes[ab]));
 // Every pick and claim in play, in the shape the rules engine reads.
 export const picksView = (G) => P.assets(G);
+// the league as the trade rules read it (cba.js validateTrade): the market's view of the picks, and the ledger
+export const rulesView = (G) => ({ ...G, picks: picksView(G), ledger: G.picks });
 
 // One trade window. Every pairing of clubs is in play: a player goes where he is worth more than
 // where he is (a veteran to a contender, a prospect to a rebuilder, a GM's favorite anywhere), a

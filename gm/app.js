@@ -650,7 +650,7 @@ const VIEWS = {
     const [say, ...b] = NEXT[G.phase]();
     const T = me(), rec = G.cur?.record[G.user], last = G.history.at(-1);
     return `<div class="card"><p>${say}</p><div class="row">${b.filter(Boolean).join('')}</div>${G.news && ['season', 'playoffs'].includes(G.phase) ? `<ul class="news">${G.news.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
-${(G.offers || []).map((t, i) => `<div class="card"><h3>Offer from ${esc(NAME(t.moves[0].to))}</h3>${tradeText(t)}${hcWarn(C.validateTrade(G, t.trade ?? t))}<div class="row">${btn('take', 'Accept', i)}${btn('pass', 'Decline', i, 'warn')}</div></div>`).join('')}
+${((lv) => (G.offers || []).map((t, i) => `<div class="card"><h3>Offer from ${esc(NAME(t.moves[0].to))}</h3>${tradeText(t)}${hcWarn(C.validateTrade(lv, t.trade ?? t))}<div class="row">${btn('take', 'Accept', i)}${btn('pass', 'Decline', i, 'warn')}</div></div>`).join(''))(G.offers?.length ? X.rulesView(G) : G)}
 ${G.phase === 'season' ? standings() : G.phase === 'playoffs' ? VIEWS.playoffs() : ''}
 ${['offseason', 'draft'].includes(G.phase) && last?.season === G.season ? `<div class="card"><h3>The ${SEASON(last.season)} season</h3><p><b>${esc(NAME(last.champion))}</b> are champions${finals(last) ? `, over the ${esc(NAME(finals(last).lo))}` : ''}. ${last.awards ? `MVP: ${who(last.awards.mvp[0][0])}.` : ''}</p>${awardsCard(last).replace(/<h3>.*?<\/h3>/, '')}</div>` : ''}
 <div class="card"><h3>${esc(NAME(G.user))}</h3><p>${rec ? `Record ${rec.w}-${rec.l}. ` : ''}Projected wins ${L.projWins(G, G.user).toFixed(1)}, title odds ${oddsPct(odds()[G.user])}; ${std(T).length} standard contracts, ${T.roster.length - std(T).length} two-way.
