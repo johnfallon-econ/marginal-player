@@ -159,7 +159,8 @@ function roundFor(G, dr, a, ops, ent, to, ab) {
 }
 const claimTo = (ops, a, to) => { if (a.kind !== 'claim') return ops; ops = ops.slice(); const op = { ...ops[a.op] }; op[op.k === 'give' ? 'to' : 'by'] = to; ops[a.op] = op; return ops; };
 export function worth(G, a, prot = null, ab = a.holder) {
-  const c = VAL.get(G)?.key === draws.key(G) ? VAL.get(G).v : (VAL.set(G, { key: draws.key(G), v: {} }), VAL.get(G).v);
+  let c = VAL.get(G)?.key === draws.key(G) ? VAL.get(G).v : (VAL.set(G, { key: draws.key(G), v: {} }), VAL.get(G).v);
+  if (G.phase === 'draft' && G.draft) { const rk = `#${a.year}|${a.round}`, sg = roundSig(G, a.year, a.round); c = (c[rk]?.sg === sg ? c[rk] : (c[rk] = { sg, v: {} })).v; }
   // a club with no other stake in that round values the asset as anyone would
   const ops0 = opsOf(G, a.year, a.round), pool = new Set(ops0.flatMap(picksIn)), stake = (c) => ops0.some((op) => owner(op) === c && op.k !== 'swap')
     || [...pool].some((o) => (G.picks[`${o}|${a.year}|${a.round}`]?.h || o) === c && !(a.kind === 'pick' && o === a.origin));
@@ -179,7 +180,18 @@ export function worth(G, a, prot = null, ab = a.holder) {
   }
   return (c[k] = v);
 }
-draws.key = (G) => `${G.date}|${G.phase}|${G.draft?.picks.length ?? ''}`;
+// What the draws stand on. On draft night nothing they read moves as the picks are made (the season is over,
+// the order set): only a first sent to the round's end (draft.js frozenLast) could, so they hold all night.
+const ENDS = new WeakMap();
+const ends = (G) => { let c = ENDS.get(G); if (c?.n !== G.log.length) ENDS.set(G, (c = { n: G.log.length, s: Object.keys(G.picks).filter((k) => G.picks[k]?.end).sort().join() })); return c.s; };
+draws.key = (G) => (G.phase === 'draft' && G.draft ? `draft|${G.draft.year}|${ends(G)}` : `${G.date}|${G.phase}|${G.draft?.picks.length ?? ''}`);
+// On draft night a worth holds until a trade changes its own round: the round's ledger entries and its swaps
+// and cascades, read again whenever the log has grown (every trade is logged)
+const RSIG = new WeakMap();
+function roundSig(G, y, r) {
+  let c = RSIG.get(G); if (c?.n !== G.log.length) RSIG.set(G, (c = { n: G.log.length, m: {} }));
+  return (c.m[`${y}|${r}`] ??= JSON.stringify([opsOf(G, y, r), Object.keys(G.teams).map((o) => G.picks[`${o}|${y}|${r}`] ?? 0)]));
+}
 // A new swap right, to the club given it: the better of its pick and the giver's, less its own
 export function swapWorth(G, s) {
   const sv = G.K.slotSurplus, R = draws(G);

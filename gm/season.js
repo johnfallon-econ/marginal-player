@@ -126,11 +126,13 @@ export const net = (players) => {
 // Injury: a two-state chain of short spells averaging SPELL games, and now and then (K.longInj a
 // season, calibrate.js) one long injury of 20-82 games from a random night, so a season's games
 // missed have real seasons' long tail; the short spells make up the rest, so the share of games
-// missed is 1 - av (the Trade Lab's availability) on average either way.
+// missed is 1 - av (the Trade Lab's availability) on average either way, moved by his club's head
+// trainer (tr: the share of games his men lose beyond expected, against the league's trainers; staff.js).
+const trainer = (league, ab) => (league.teams[ab].trainer ? league.teams[ab].trainer.q - league.const.bench.trainer.mean : 0);
 const SPELL = 8, LONG = [20, 82];
 const LONG_SHARE = (() => { let a = 0, n = 0; for (let st = 0; st < 82; st++) for (let l = LONG[0]; l <= LONG[1]; l++) { a += Math.min(l, 82 - st); n++; } return a / n / 82; })();
-function injuries(p, n, r, q = 0) {
-  const out = new Array(n).fill(false), miss = Math.min(Math.max(1 - (p.av ?? 0.9), 0), 0.95);
+function injuries(p, n, r, q = 0, tr = 0) {
+  const out = new Array(n).fill(false), miss = Math.min(Math.max(1 - (p.av ?? 0.9) + tr, 0), 0.95);
   if (r() < q) { const st = Math.floor(r() * n), l = LONG[0] + Math.floor(r() * (LONG[1] - LONG[0] + 1)); for (let g = st; g < Math.min(st + l, n); g++) out[g] = true; }
   const ms = Math.max((miss - q * LONG_SHARE) / (1 - q * LONG_SHARE), 0);
   const toHurt = ms / ((1 - ms) * SPELL), heal = 1 / SPELL;
@@ -149,7 +151,7 @@ export function startSeason(league, season, r) {
   const { teams, players } = league, days = schedule(teams, season, r), hurt = {}, played = {}, rec = {};
   for (const ab in teams) {
     played[ab] = 0;
-    for (const id of teams[ab].roster) hurt[id] = injuries(players[id], 82, r, league.const.longInj);
+    for (const id of teams[ab].roster) hurt[id] = injuries(players[id], 82, r, league.const.longInj, trainer(league, ab));
     rec[ab] = { w: 0, l: 0, h2h: {}, confW: 0, confL: 0, divW: 0, divL: 0 };
   }
   return { season, days, d: 0, hurt, played, record: rec, results: [], gp: {}, mins: {} };
@@ -158,7 +160,7 @@ export function simDays(league, st, r, to = st.days.length) {
   const { teams, players, const: K } = league;
   const strength = (ab) => {
     const g = st.played[ab]++;
-    const avail = teams[ab].roster.map((id) => players[id]).filter((p) => !(st.hurt[p.id] ??= injuries(p, 82, r, K.longInj))[g]), m = minutes(avail);
+    const avail = teams[ab].roster.map((id) => players[id]).filter((p) => !(st.hurt[p.id] ??= injuries(p, 82, r, K.longInj, trainer(league, ab)))[g]), m = minutes(avail);
     // the box score's minutes: the night's rotation, varied night to night (blowouts, fouls, overtime);
     // the night's strength is the rotation's own, as those swings mostly follow the score, not set it
     const box = boxMinutes(m, r, K.nightCv);

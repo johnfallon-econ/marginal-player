@@ -58,6 +58,15 @@ function step(label, f) {
   setTimeout(async () => { try { await f(); await save(); } catch (e) { console.error(e); alert(e.message); } render(); }, 30);
 }
 
+// The computer clubs' picks, one at a time with the page free between them: the busy note names each
+// pick as it is made (league.js draftSteps).
+async function drafting(...a) {
+  const it = L.draftSteps(G, r, ...a), note = root().querySelector('.busy:last-child');
+  for (let x = it.next(); !x.done; x = it.next()) {
+    if (note) note.textContent = `The draft: no. ${x.value.slot}, ${NAME(x.value.team)} take ${G.players[x.value.pid].nm}…`;
+    await new Promise((ok) => setTimeout(ok));
+  }
+}
 // ---- what happens next -------------------------------------------------------------------------
 const NEXT = {
   preseason: () => {
@@ -159,8 +168,8 @@ const ACT = {
   }),
   pick: (id) => step('The draft', () => { L.draftNext(G, r, id, G.user, 0); }),
   autopick: () => step('The draft', () => { if (L.onClock(G)?.holder === G.user) L.draftNext(G, r, G.draft.avail.map(P).sort((a, b) => sp(b).rate - sp(a).rate)[0].id, G.user, 0); }),
-  dnext: (n) => step('The draft', () => { L.draftNext(G, r, null, G.user, +n || 1); }),
-  dto: () => step('The draft', () => { L.draftNext(G, r); }),
+  dnext: (n) => step('The draft', () => drafting(null, G.user, +n || 1)),
+  dto: () => step('The draft', () => drafting()),
   enddraft: () => step('Wrapping up', () => { L.draftEnd(G); G.step = 'decisions'; G.choices = defaults(); view = 'decisions'; }),
   toggle: (k) => { G.choices[k] = !G.choices[k]; save(); render(); },   // kept at once: a reload must not drop a tick
   stash: (a) => { const [id, v] = a.split('|'); G.choices[`st|${id}`] = !!v; render(); },
@@ -318,7 +327,7 @@ function render() {
   const extra = G.phase === 'draft' ? [['draft', 'Draft']] : G.phase === 'playoffs' ? [['playoffs', 'Playoffs']] : ['freeagency', 'preseason', 'season'].includes(G.phase) ? [['fa', 'Free agents']] : G.step === 'decisions' ? [['decisions', 'Decisions']] : [];
   root().innerHTML = `<div class="top"><strong>${esc(NAME(G.user))}</strong> <span>${SEASON(G.season)} · ${phase} · ${G.date}</span></div>
 ${capStrip()}
-<div class="tabs" role="navigation">${[...TABS.slice(0, 1), ...extra, ...TABS.slice(1)].filter(([k]) => k !== 'staff' || (G.hidden && !G.reveal)).map(([k, n]) => `<button data-act="go" data-arg="${k}"${view === k ? ' aria-current="page"' : ''}>${n}</button>`).join('')}</div>
+<div class="tabs" role="navigation">${[...TABS.slice(0, 1), ...extra, ...TABS.slice(1)].map(([k, n]) => `<button data-act="go" data-arg="${k}"${view === k ? ' aria-current="page"' : ''}>${n}</button>`).join('')}</div>
 <section>${(VIEWS[view] || VIEWS.home)()}</section>${ui.card && P(ui.card) ? card(ui.card) : ''}`;
   cheer();
 }
@@ -821,11 +830,21 @@ function allGMs() {
 // Your staff (staff.js): who you have, who is out there, and what they add to your read
 const staffRow = (h, b) => `<tr><td>${esc(h.nm)}</td><td>${ST.KINDS[h.t].label}</td><td class="n">${h.q.toFixed(2)}</td><td class="n">$${Math.round(h.sal / 1e3)}k</td><td>${b}</td></tr>`;
 const STH = '<thead><tr><th>Name</th><th>Role</th><th class="n">Quality</th><th class="n">Pay</th><th></th></tr></thead>';
+// your head coach and head trainer (staff.js): skill in sds of the league's, and what that is worth
+const benchSay = (h) => { const z = ST.benchZ(G, h); return h.t === 'coach' ? `${sg(z)} sd: about ${sg(ST.PAYS * G.K.bench.coach.sd * z)} points a game` : `${sg(z)} sd: about ${sg(82 * (h.q - G.K.bench.trainer.mean))} games lost a man a season`; };
+const benchRow = (h, b) => `<tr><td>${esc(h.nm)}</td><td>${ST.BENCH[h.t].label}</td><td>${benchSay(h)}</td><td class="n">${$M(h.sal)}</td><td>${b}</td></tr>`;
+const BTH = '<thead><tr><th>Name</th><th>Role</th><th>Skill</th><th class="n">Pay</th><th></th></tr></thead>';
+const benchCards = () => { const mine = Object.keys(ST.BENCH).map((t) => me()[t]).filter(Boolean);
+  return `<div class="card"><h3>Your coach and trainer</h3>${mine.length ? `<table class="t">${BTH}<tbody>${mine.map((h) => benchRow(h, btn('bnfire', 'Let go', h.t, 'warn'))).join('')}</tbody></table>` : ''}${Object.keys(ST.BENCH).filter((t) => !me()[t]).map((t) => `<p>No ${ST.BENCH[t].label.toLowerCase()}: an interim does the job as the league's average one would.</p>`).join('')}</div>
+<div class="card"><h3>Coaches and trainers available</h3><table class="t">${BTH}<tbody>${(G.benchPool || []).map((h) => benchRow(h, btn('bnhire', me()[h.t] ? 'Hire in his place' : 'Hire', h.id))).join('')}</tbody></table>${ui.bnsay ? `<p class="note">${esc(ui.bnsay)}</p>` : ''}</div>
+<p class="note">A coach's skill is how closely he plays his better men: the average coach's rotation is the league's habit, a better one moves toward the best rotation and a worse one away. In the data a coach whose rotation follows the ratings one minute a game more per point is worth +0.22 points per 100, and coaches really differ by about 1.3 minutes (what their odd and even seasons share). A trainer's is how many games his men miss against what their own records predict; trainers really differ by about two games a man a season, about a win. Each opens with his record, shrunk to the league's average by how many seasons it rests on. Pay as reported, thin: head coaches $4M-$17.5M, trainers $120k-$300k (no reliable source). Each summer a coach loses his job as real ones have: more often after a season below the preseason line, under a new GM, and a few seasons into the job; deep playoff runs protect him, and how well he plays his men doesn't (in the data it doesn't either). About an eighth of clubs change trainer.</p>`; };
 VIEWS.staff = () => {
+  if (!G.hidden || G.reveal) return benchCards();
   const st = ST.of(G), pool = G.staffPool || [], pct = (k) => Math.round(100 * ST.miss(G, k)), avg = (k) => Math.round(100 * Object.keys(G.teams).filter((ab) => ab !== G.user).reduce((a, ab) => a + ST.miss(G, k, ab), 0) / (Object.keys(G.teams).length - 1));
   return `<div class="card"><h3>Your staff</h3><p>Your read of a prospect misses by <b>${pct(0)}%</b> of what the league's does, of an NBA player by <b>${pct(1)}%</b> (the average club's: ${avg(0)}% and ${avg(1)}%). Pay this season: ${$M(ST.cost(G))}, with the club's other costs.</p>
 ${st.length ? `<table class="t">${STH}<tbody>${st.map((h) => staffRow(h, btn('stfire', 'Let go', h.id, 'warn'))).join('')}</tbody></table>` : '<p>No one: you see only what the league sees, and every other club sees more.</p>'}${G.staffSay ? `<p class="note">${esc(G.staffSay)}</p>` : ''}</div>
 <div class="card"><h3>Available</h3>${pool.length ? `<table class="t">${STH}<tbody>${pool.map((h) => staffRow(h, btn('sthire', 'Hire', h.id))).join('')}</tbody></table>` : '<p>No one until the summer.</p>'}${ui.stsay ? `<p class="note">${esc(ui.stsay)}</p>` : ''}</div>
+${benchCards()}
 <p class="note">Each hire reads every player's true talent with an error of his own. Part of that error is shared by everyone on your staff, more of it by hires of the same kind (scouts watch the same games, analysts run the same numbers), so a second hire of a kind adds less than the first. Your ratings weigh the league's read and each hire's by how often they miss. Quality 1 is an average hire. In the game an average analyst is worth about half a win a season (a real study found up to 1.25: Wang, Sarker and Hosoi, 2025); scouts read prospects better and analysts NBA players. Every club has a staff, about 4 analysts (as real clubs had in 2023) and 6 scouts, and values players by its own read. Each summer some are hired away, more after a deep playoff run, and a new market opens. A staff stays with its club: take another job and you inherit that club's.</p>`;
 };
 ACT.sthire = (id) => {
@@ -833,6 +852,14 @@ ACT.sthire = (id) => {
   if (b.profit - h.sal / 1e6 < l) { ui.stsay = `The owner won't approve it: it would take this season below his line of ${$m(l)}.`; render(); return; }
   G.staffPool = G.staffPool.filter((x) => x !== h); (me().staff ||= []).push(h); ui.stsay = `${h.nm} joins your staff.`; save(); render();
 };
+ACT.bnhire = (id) => {
+  const h = G.benchPool.find((x) => x.id === id), was = me()[h.t], b = O.projected(G), l = O.line(G, b.s);
+  if (b.profit - (h.sal - (was?.sal || 0)) / 1e6 < l) { ui.bnsay = `The owner won't approve it: it would take this season below his line of ${$m(l)}.`; render(); return; }
+  G.benchPool = G.benchPool.filter((x) => x !== h); G.benchFree = (G.benchFree || []).filter((x) => x !== h);
+  if (was?.t === 'coach') G.benchFree.push(was);
+  me()[h.t] = { ...h, ten: 0 }; ui.bnsay = `${h.nm} is your ${ST.BENCH[h.t].label.toLowerCase()}.`; save(); render();
+};
+ACT.bnfire = (t) => { const h = me()[t]; if (t === 'coach') (G.benchFree ||= []).push(h); me()[t] = null; ui.bnsay = `${h.nm} is let go.`; save(); render(); };
 ACT.stfire = (id) => { const h = ST.of(G).find((x) => x.id === id); me().staff = ST.of(G).filter((x) => x !== h); ui.stsay = `${h.nm} is let go.`; save(); render(); };
 VIEWS.gms = () => {
   const cap = F().cap, per = ui.gmPer ?? true, key = ui.gmSort || 'seasons', dir = ui.gmDir ?? -1;
@@ -892,6 +919,7 @@ const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.le
   if (G_.calls) G_.calls = withTerms(G_.calls); if (G_.fired?.offers) G_.fired.offers = withTerms(G_.fired.offers);
   if (G_.fireMode === 'simple') G_.fireMode = 'realistic';     // owner confidence is gone: a simple game is fired as real GMs are
   if (G_.hidden && !G_.teams[G_.user].staff) ST.init(G_, S.rng(1));     // a save from before staffs
+  if (!('coach' in G_.teams[G_.user])) ST.initBench(G_, d.league, S.rng(1));     // a save from before coaches and trainers
   for (const p of Object.values(G_.players)) V.initSeen(p, G_.K);   // a save from before ratings kept what they stand on
   if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'realistic'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
   return G_; };

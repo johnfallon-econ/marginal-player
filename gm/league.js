@@ -50,7 +50,8 @@ export function newGame(L, cal, opts) {
   G.scoutSd = D.solveScoutSd(L, r);
   G.names = L.names; G.draftData = L.draft;
   GM.init(G, L, r);
-  if (G.hidden) ST.init(G, r);                    // every club's scouts and analysts (staff.js)                               // each club's real lead executive (gm.js)
+  if (G.hidden) ST.init(G, r);                    // every club's scouts and analysts (staff.js)
+  ST.initBench(G, L, r);                          // every club's head coach and head trainer (staff.js)
   setLeagueNet(G);                                // projected wins average 41 from the start
   G.rngState = r.state();
   return G;
@@ -290,12 +291,17 @@ export function rotation(G, ab, coach = G.rolesSet) {
   // teammates: each man's minutes rank among the men who have a prior
   const vets = ps.filter((p) => prior.get(p));
   const rank = (p) => { const m = prior.get(p)[0], above = vets.filter((q) => prior.get(q)[0] > m).length, tied = vets.filter((q) => prior.get(q)[0] === m).length; return above + (tied + 1) / 2; };
+  const sk = ST.coachPull(G, ab);
   const mpg = (p) => {
     const pr = prior.get(p), rating = p.rate + (tank ? (G.K.tankYouth || 0) * (26 - p.age) : 0);
     const x = pr ? lc(rating) + (G.K.roleShift || 0) + V_.dev * (Math.log(pr[0]) - lc(p.rate)) + V_.age_27 * (p.age - 27) + V_.age_over_30 * Math.max(p.age - 30, 0) + V_.moved * pr[1]
       + (V_.log_rank + V_.moved_log_rank * pr[1]) * Math.log(rank(p))
       : Rk.a + Rk.log_pick * Math.log(p.draft?.pick || 61);
-    return Math.min(Math.exp(x + (pr ? interp(V_.sd_by_mpg, pr[0]) : Rk.sd) * hashNoise(`coach|${p.id}|${G.season}`)), 48);   // no cap but the game
+    // the coach (staff.js): the league's average coach plays this default; a better one moves his minutes
+    // toward the best rotation (the league's curve on each man's true talent, none of a coach's own read or
+    // habits), a worse one away from it
+    const x0 = x + (pr ? interp(V_.sd_by_mpg, pr[0]) : Rk.sd) * hashNoise(`coach|${p.id}|${G.season}`), xo = lc(p.talent) + (G.K.roleShift || 0);
+    return Math.min(Math.exp(x0 + sk * (xo - x0)), 48);   // no cap but the game
   };
   // a role is set once a season with a club, and kept through the season's later reshuffles
   const role = (p) => (p.role?.s === G.season && p.role.tm === ab ? p.role.m : (p.role = { s: G.season, tm: ab, m: mpg(p) }).m);
@@ -509,8 +515,10 @@ export function endSeason(G, r) {
   for (const p of Object.values(P)) if (p.contract === null && G.lastMins?.[p.id] === undefined) p.idle = (p.idle || 0) + 1;
   // each GM's season on the books; the computer clubs' GMs who lose their jobs, and who replaces them (gm.js)
   GM.closeSeason(G, G.history.at(-1), pays);
+  const rec = Object.fromEntries(Object.entries(G.teams).map(([ab, T]) => [ab, T.gm.rec.at(-1)])), gm0 = Object.fromEntries(Object.entries(G.teams).map(([ab, T]) => [ab, T.gm.id]));
   GM.summer(G, r);
   // the staffs: some hired away, a computer club's seats refilled, the user's market (staff.js)
+  ST.benchSummer(G, r, rec, Object.fromEntries(Object.entries(G.teams).map(([ab, T]) => [ab, T.gm.id !== gm0[ab]])));                           // head coaches and trainers changing clubs (staff.js)
   if (G.hidden) { const gone = ST.summer(G, G.history.at(-1), r); G.staffSay = gone.map((h) => `${h.nm} (${ST.KINDS[h.t].label.toLowerCase()}) was hired away.`).join(' '); }
 }
 // a second-apron team's first-round pick seven drafts out is frozen (Art. VII §2(f))
@@ -650,6 +658,13 @@ export const onClock = (G) => G.draft.order[G.draft.picks.length] || null;
 // Make picks: the user's (choice) when he is on the clock, then the computer clubs', stopping at
 // the user's next pick or after n of theirs (so the user can trade between picks).
 export function draftNext(G, r, choice, human = G.user, n = Infinity) {
+  const it = draftSteps(G, r, choice, human, n);
+  let x = it.next(); while (!x.done) x = it.next();
+  return x.value;
+}
+// the same, a pick at a time: yields each pick as it is made ({ slot, team, pid }), so the page can draw
+// between them (app.js); returns what draftNext does
+export function* draftSteps(G, r, choice, human = G.user, n = Infinity) {
   const D_ = G.draft, s = G.season, year = D_.year;
   let made = 0;
   while (D_.picks.length < D_.order.length) {
@@ -674,6 +689,7 @@ export function draftNext(G, r, choice, human = G.user, n = Infinity) {
       G.teams[holder].roster.push(p.id);
     }
     D_.picks.push({ slot, team: holder, pid: p.id });
+    yield D_.picks.at(-1);
   }
   return null;
 }
@@ -705,8 +721,13 @@ const NIGHT = 20;
 // change); the picks still in play, every pick
 const NIGHTX = new WeakMap();
 function tradeUp(G, k, human) {
+  if (NIGHTX.get(G)?.n !== G.log.length || NIGHTX.get(G).k > k) NIGHTX.set(G, { n: G.log.length, k, x: { ...X.market(G), memo: new Map() }, worth: {} });   // its worths kept all night
+  NIGHTX.get(G).k = k;
+  G._worth = NIGHTX.get(G).worth;                              // and each man's worth to each club (trades.js playerWorth), until a trade
+  try { tradeUpAt(G, k, human); } finally { delete G._worth; }
+}
+function tradeUpAt(G, k, human) {
   const D_ = G.draft, e = D_.order[k], H = e.holder;
-  if (NIGHTX.get(G)?.n !== G.log.length) NIGHTX.set(G, { n: G.log.length, x: { ...X.market(G), memo: new Map() } });   // its worths kept all night
   const x0 = NIGHTX.get(G).x, used = new Set(D_.order.slice(0, D_.picks.length).map((o) => `${o.origin}|${D_.year}|${o.slot <= 30 ? 1 : 2}`));
   const x = { ...x0, pv: Object.fromEntries(Object.entries(x0.pv).filter(([id]) => !used.has(id))) }, cap = capAt(G, D_.year), league = { ...G, picks: x.pv, ledger: G.picks };
   const avail = D_.avail.map((id) => G.players[id]), memo = new Map();
