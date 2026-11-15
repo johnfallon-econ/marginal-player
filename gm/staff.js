@@ -125,17 +125,27 @@ export const miss = (G, k, ab = G.user) => (of(G, ab).length ? 1 / Math.sqrt(1 +
 // line, a new GM, his years in the job) and its trainer at the league's rate (12%), from the market:
 // out-of-work coaches who led a club since 2019-20 and first-timers. Pay as reported (thin): head
 // coaches $4M (Sportico's low end) to $17.5M (Kerr's), trainers $120k-$300k (no reliable source), up the
-// range with skill.
+// range with skill. A coach also has a scheme (K.bench.coach.scheme_sd; h.s): points per 100 his clubs play beyond
+// their players' ratings, his own effect apart from his club's (_coach_kss.py), added to his club's strength in
+// every game (season.js, league.js teamNet); the real coaches open at their own estimates, shrunk by their noise.
+// And his rookies (K.bench.coach.rookie_sd; h.r): points per 100 a rookie of his plays above the draft board in his
+// first season (dev.js seasonForm), the same model on rookies, its strict spread; that season only, as the data
+// measures nothing past it. Pay goes up the range with scheme and rotation together, each in points per 100.
 export const PAYS = 0.22;                   // points per 100 a minute of lean is worth (_coach_minutes.py)
-export const PULL = 0.21;                   // how far toward the best rotation a coach 1 sd better moves: calibrate-bench.js, 16 seeds, +0.26 a game (se 0.03; hidden +0.29) against the data's +0.28
+export const PULL = 0.16;                   // how far toward the best rotation a coach 1 sd better moves: calibrate-bench.js, 16 seeds, +0.18 a game (se 0.03; hidden +0.23) against the data's +0.19 (0.88 minutes of lean)
 // the share of the way from the default rotation to the best one club ab's coach moves (negative: away)
 export const coachPull = (G, ab) => (G.teams[ab].coach ? PULL * benchZ(G, G.teams[ab].coach) : 0);
 export const BENCH = { coach: { label: 'Head coach', pay: [4e6, 17.5e6], sign: 1 }, trainer: { label: 'Head trainer', pay: [120e3, 300e3], sign: -1 } };
 function benchMan(G, t, x, r) {
   const B = G.K.bench[t], q = x?.q ?? B.mean + B.sd * r.normal(), [lo, hi] = BENCH[t].pay;
-  return { id: `bn${(G.staffN = (G.staffN || 0) + 1)}`, nm: x?.n ?? `${r.pick(G.names.first)} ${r.pick(G.names.last)}`, t, q, ten: x?.ten ?? 0,
-    sal: Math.round((lo + (hi - lo) * Phi(BENCH[t].sign * (q - B.mean) / B.sd)) / 1e4) * 1e4 };
+  const s = t === 'coach' ? x?.s ?? B.scheme_sd * r.normal() : undefined, rk = t === 'coach' ? x?.r ?? B.rookie_sd * r.normal() : undefined;
+  const z = t === 'coach' ? (PAYS * (q - B.mean) + s) / Math.hypot(PAYS * B.sd, B.scheme_sd) : BENCH[t].sign * (q - B.mean) / B.sd;
+  return { id: `bn${(G.staffN = (G.staffN || 0) + 1)}`, nm: x?.n ?? `${r.pick(G.names.first)} ${r.pick(G.names.last)}`, t, q, ...(t === 'coach' && { s, r: rk }), ten: x?.ten ?? 0,
+    sal: Math.round((lo + (hi - lo) * Phi(z)) / 1e4) * 1e4 };
 }
+// club ab's coach's scheme in a club's strength: points per 100 beyond its men's ratings, so about that much a game's
+// margin, which is netScale times strength (an interim, or a save from before schemes: none)
+export const scheme = (G, ab) => (G.teams[ab].coach?.s ?? 0) / G.K.netScale;
 // skill against the league's mean, in sds (better positive)
 export const benchZ = (G, h) => BENCH[h.t].sign * (h.q - G.K.bench[h.t].mean) / G.K.bench[h.t].sd;
 export function initBench(G, L, r) {

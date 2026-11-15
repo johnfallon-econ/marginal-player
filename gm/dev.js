@@ -52,13 +52,13 @@ function stepTrend(p, K, r, hidden) {
   p.trend = rho * p.trend + Math.sqrt(1 - rho * rho) * trendSd(K, hidden, p) * r.normal();
 }
 
-// Before a season: each player's play rating for the year.
+// Before a season: each player's play rating for the year; a rookie's moved by his coach's rookie skill (staff.js)
 export function seasonForm(teams, players, K, r) {
   for (const ab in teams) {
-    const c = K.devScale * K.dev.common * r.normal();
+    const c = K.devScale * K.dev.common * r.normal(), rk = teams[ab].coach?.r ?? 0;
     for (const id of teams[ab].roster) {
       const p = players[id];
-      p.play = p.talent + K.devScale * K.dev.trans * r.normal() + c;
+      p.play = p.talent + K.devScale * K.dev.trans * r.normal() + c + (p.yos === 0 ? rk : 0);
     }
   }
 }

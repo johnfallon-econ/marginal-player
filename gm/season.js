@@ -165,7 +165,7 @@ export function simDays(league, st, r, to = st.days.length) {
     // the night's strength is the rotation's own, as those swings mostly follow the score, not set it
     const box = boxMinutes(m, r, K.nightCv);
     avail.forEach((p, i) => { if (box[i] > 0) { st.gp[p.id] = (st.gp[p.id] || 0) + 1; st.mins[p.id] = (st.mins[p.id] || 0) + box[i]; } });
-    return avail.reduce((a, p, i) => a + p.play * m[i] / 48, 0);
+    return avail.reduce((a, p, i) => a + p.play * m[i] / 48, 0) + (teams[ab].coach?.s ?? 0) / K.netScale;   // and his coach's scheme, about s a game (staff.js scheme)
   };
   for (; st.d < Math.min(to, st.days.length); st.d++) for (const [h, a] of st.days[st.d]) {
     const rec = st.record, margin = K.netScale * (strength(h) - strength(a)) + K.hca + K.sigma * r.normal();

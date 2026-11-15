@@ -172,7 +172,7 @@ export const askOf = (G, p, F, ext = 0) => { const a = M.ask(p, F, G.K, S.Phi(ha
 // his availability, over the nights each man is out as well as in (S.expNet: a club built on stars who
 // miss games loses more to their nights out than a deep one). adj: a man as he stands now, or null
 export const teamNet = (G, ab, adj = (p) => p) => S.expNet(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay)
-  .map(adj).filter(Boolean).map((p) => ({ ...p, play: p.rate })));
+  .map(adj).filter(Boolean).map((p) => ({ ...p, play: p.rate }))) + ST.scheme(G, ab);   // and his coach's scheme (staff.js)
 // Wins at net n against the league (its clubs' nets, G.nets): each game's chance as the season engine
 // plays it, half of them at home, so projections are what the games produce
 export function winsAt(G, n, self) {
@@ -453,7 +453,7 @@ export function postseasonStart(G, r) {
   const K = G.K, res = G.cur;
   const stand = S.standings(G.teams, res.record, r);
   const nets = Object.fromEntries(Object.keys(G.teams).map((ab) => [ab,
-    S.net(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay))]));
+    S.net(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay)) + ST.scheme(G, ab)]));
   G.po = S.postseasonStart(G.teams, res.record, stand, nets, K, r);
   G.po.stand = stand;
   G.phase = 'playoffs'; G.date = `${G.season + 1}-04-18`;
