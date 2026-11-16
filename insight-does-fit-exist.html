@@ -104,41 +104,40 @@ other’s way, which we don’t find, but cannot reject. This aligns with what w
 of offenses like the 2017-18 Rockets, where James Harden used 35.3% of
 possessions and they beat the sum of their player ratings by 5.0 points per 100 possessions.</p>
 
-<p>Shot creation clears the same bar, but it largely measures the same thing as usage. The lineup’s best shot creator
-is worth about 0.39 points per 100 more than mPM gives him for each extra unassisted basket per 36 minutes. The
+<p>Shot creation clears the same bar, but it largely measures the same thing as usage. An additional unassisted basket
+per 36 minutes from the lineup’s best shot creator is estimated to make the lineup 0.39 points per 100
+possessions better than what we would predict from mPM alone. The
 top creator and the top-usage player are the same person in about half of lineups, and when both are included in the
 same test, only usage remains.</p>
 
-<p>Rim protection shows a similar pattern to usage, where only one player in the lineup seems to matter. An additional
-block per 36 minutes from the lineup’s best shot blocker is estimated to make the lineup 0.66 points per 100
-possessions better than what we would predict from mPM alone, while blocks from the other four players add nothing we
-can detect.<sup class="fn"><a href="#fn12" id="fr12">12</a></sup><sup class="fn"><a href="#fn13" id="fr13">13</a></sup>
+<p>Rim protection shows a similar pattern to usage, where only one player in the lineup seems to matter. For only the
+lineup’s best shot blocker, an extra block per 36 minutes is estimated to be worth 0.66 points per 100
+possessions, while blocks from the other four players add nothing we can detect.<sup class="fn"><a href="#fn12" id="fr12">12</a></sup><sup class="fn"><a href="#fn13" id="fr13">13</a></sup>
 This aligns with the conventional wisdom that every lineup needs someone who can protect the rim. I think the effect is
 mostly that you are in trouble if you don’t have any rim protection in the lineup. It could also be a sign that mPM
 undervalues blocks.</p>
 
 <p>If you have two good defensive rebounders on the floor, they end up taking rebounds from each other. The more
-each of them rebounds, the less the pair is worth, about 0.42 points per 100 possessions per step, which is
-what most people would have guessed, although it only barely clears the bar.</p>
+each of them rebounds, the less the pair is worth, about 0.42 points per 100 possessions per step. That is
+what most people would have guessed, but it only barely clears the bar.</p>
 
-<p>Steals are harder to explain. A lineup’s second-best ballhawk is worth an extra 2.71 points per 100
+<p>A lineup’s second-best ballhawk is worth an extra 2.71 points per 100
 possessions for each steal per 36 minutes beyond his rating, while the third- and fourth-best look like they hurt,
 although neither of those is significant on its own. My guess is that one player pressuring the ball and one sitting in
-the passing lanes works, and a third gambler leaves the defense exposed, but I would want to see it hold up for a few
-more seasons before I bet on it.</p>
+the passing lanes works and a third just leaves the defense exposed, but the third and fourth aren’t significant, so it
+could easily be noise.</p>
 
 <h2>What it’s worth</h2>
 
 <p>None of these effects are large next to the ratings. If you sort the lineups teams actually play by the sum of their
 players’ mPM, the 10th percentile is 4.3 points per 100 possessions below average and the 90th is
-5.0 above. Moving a lineup’s top-usage player from the 10th to the 90th percentile of usage,
-20.5% to 29.6%, is estimated to be worth 1.4 points per 100 possessions. That
-is about a seventh of the spread in the ratings. The top shot creator and the top shot blocker come out a bit lower, at
-about 1.2 points each.<sup class="fn"><a href="#fn14" id="fr14">14</a></sup></p>
+5.0 above. The usage effect is the biggest one. Going from a 10th percentile
+top-usage player to a 90th percentile one, 20.5% to 29.6% usage, is worth about
+1.4 points per 100, or roughly a seventh of that spread, and the top shot creator and top shot blocker are a
+little lower at about 1.2 each.<sup class="fn"><a href="#fn14" id="fr14">14</a></sup></p>
 
-<p>For now the Trade Lab and the GM game will keep adding up player ratings. The usage effect is the biggest one we
-found, and it is still only about a seventh of the spread in the ratings. If it is still there after next season, I
-would probably start by docking lineups that don’t have anyone who can carry the offense.</p>
+<p>For now the Trade Lab and the GM game will keep adding up player ratings. If the usage effect is still there after next
+season, I would probably start by docking lineups that don’t have anyone who can carry the offense.</p>
 
 <p class="ins-src">Figures: every regular-season game, 1998-99 to 2025-26, from the play-by-play, with each player’s mPM and playing traits from the season before; who could play from the box scores’ comments; <code>_fit_margin_iv.py</code>, <code>_fit_spacing_e3.py</code>, <code>_fit_rank_per36.py</code>, <code>_fit_mech_usage.py</code> and <code>_fit_qvalues.py</code>, as of this build. Wins are on this model’s own scale and
 dollars at the open-market price of a win; <a href="methodology-value.html">the method</a> explains
@@ -173,7 +172,7 @@ both.</p>
 })();</script>
 <section class="h-sec"><div class="h-head"><div><div class="h-eyebrow">More insights</div></div>
 <a class="h-more" href="insights.html">All insights &rarr;</a></div>
-<div class="ins-grid"><a class="ins-card col has-img" href="insight-does-the-coach-matter.html"><img class="ins-thumb" src="art/f/playbook.webp" alt="A coach's clipboard with a play drawn on it, and a whistle" width="480" height="463" loading="lazy"><div><span class="ins-tag">Insights</span><b>Does the Coach Matter?</b><span class="ins-dek">Coaches get fired for losing. Do they actually change whether a team wins?</span><span class="ins-meta">Ben Stupendous &middot; Posted Nov 15, 2026 &middot; Updated Nov 16, 2026 &middot; 15 min read</span></div></a><a class="ins-card col has-img" href="insight-most-valuable-contracts.html"><img class="ins-thumb" src="art/f/free-agency.webp" alt="A suitcase tagged Free Agency, and a basketball" width="285" height="296" loading="lazy"><div><span class="ins-tag">Insights</span><b>The Best and Worst Contracts, Then and Now</b><span class="ins-dek">Every negotiated NBA deal since 1999, and every one still running, valued the same way: what a player was worth, minus what he was paid.</span><span class="ins-meta">Ben Stupendous &middot; Posted Oct 5, 2026 &middot; Updated Nov 15, 2026 &middot; 7 min read</span></div></a><a class="ins-card col has-img" href="insight-best-careers.html"><img class="ins-thumb" src="art/f/hourglass.webp" alt="A basketball in an hourglass" width="284" height="296" loading="lazy"><div><span class="ins-tag">Insights</span><b>The Best Careers on the Board</b><span class="ins-dek">Every season since 1999-00 on one ruler: who added the most, who did it fastest, and the one active player keeping pace with the leader.</span><span class="ins-meta">Ben Stupendous &middot; Posted Oct 5, 2026 &middot; Updated Nov 15, 2026 &middot; 4 min read</span></div></a></div></section>
+<div class="ins-grid"><a class="ins-card col has-img" href="insight-does-the-coach-matter.html"><img class="ins-thumb" src="art/f/playbook.webp" alt="A coach's clipboard with a play drawn on it, and a whistle" width="480" height="463" loading="lazy"><div><span class="ins-tag">Insights</span><b>Does the Coach Matter?</b><span class="ins-dek">Coaches get fired for losing. Do they actually change whether a team wins?</span><span class="ins-meta">Ben Stupendous &middot; Posted Nov 15, 2026 &middot; Updated Nov 16, 2026 &middot; 14 min read</span></div></a><a class="ins-card col has-img" href="insight-most-valuable-contracts.html"><img class="ins-thumb" src="art/f/free-agency.webp" alt="A suitcase tagged Free Agency, and a basketball" width="285" height="296" loading="lazy"><div><span class="ins-tag">Insights</span><b>The Best and Worst Contracts, Then and Now</b><span class="ins-dek">Every negotiated NBA deal since 1999, and every one still running, valued the same way: what a player was worth, minus what he was paid.</span><span class="ins-meta">Ben Stupendous &middot; Posted Oct 5, 2026 &middot; Updated Nov 15, 2026 &middot; 7 min read</span></div></a><a class="ins-card col has-img" href="insight-best-careers.html"><img class="ins-thumb" src="art/f/hourglass.webp" alt="A basketball in an hourglass" width="284" height="296" loading="lazy"><div><span class="ins-tag">Insights</span><b>The Best Careers on the Board</b><span class="ins-dek">Every season since 1999-00 on one ruler: who added the most, who did it fastest, and the one active player keeping pace with the leader.</span><span class="ins-meta">Ben Stupendous &middot; Posted Oct 5, 2026 &middot; Updated Nov 15, 2026 &middot; 4 min read</span></div></a></div></section>
 
 </main>
 <footer>
