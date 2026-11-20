@@ -228,6 +228,11 @@ function drawPlayer(id) {
   $("#finder").style.display = "none";
   $("#detail").style.display = "";
   $("#pname").textContent = c.nm;
+  // his own page to a search engine, not one more copy of player.html: else Google folds every
+  // player into one and picks a man to stand for the site (Kuzma, linked from the homepage)
+  document.title = `${c.nm} — The Marginal Player`;
+  document.querySelector('link[rel="canonical"]').href = `https://themarginalplayer.com/player.html?id=${id}`;
+  document.querySelector('meta[name="description"]').content = `${c.nm}: career value season by season, what he produced, what he was paid, and the gap between them.`;
   // his portrait, where there is one, credited under it (site_art.py)
   const fig = $("#part"), cr = Object.prototype.hasOwnProperty.call(ART, id) ? ART[id] : null;
   const sil = !cr && Object.prototype.hasOwnProperty.call(SIL, id) ? SK[SIL[id]] : null;
