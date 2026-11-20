@@ -115,7 +115,7 @@ export function review(G, h, r) {
   G.deal ||= { sal: terms(G, r, s).sal, from: s, to: s + 4 };                     // a save from before contracts
   G.earned = (G.earned || 0) + G.deal.sal;          // the season's pay
   (G.career ||= []).push({ ab: G.user, s, w, l: h.record[G.user][1], won, champ: h.champion === G.user, vs_exp: x.vs_exp, po_w: x.po_w, proc: x.trade_proc, left: x.draft_left });
-  const ten = G.career.length - G.career.findLastIndex((c) => c.ab !== G.user) - 1, p0 = GM.pFired(G, x, ten, +G.career.slice(-5, -1).some((c) => c.ab === G.user && c.champ));
+  const ten = G.career.length - G.career.findLastIndex((c) => c.ab !== G.user) - 1, p0 = GM.pFired(G, x, ten, G.career.slice(-ten, -1));
   const p = G.owner.missed === s ? 1 / (1 + (1 - p0) / p0 * Math.exp(-G.K.gm.fired.new_owner)) : p0;   // a missed order (deadline)
   delete G.owner.missed;
   G.exitOdds = p;

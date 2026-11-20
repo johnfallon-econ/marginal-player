@@ -125,7 +125,7 @@ export function teamValue(G, ab, p, h = 0) {
 //    the title: the model's small positive terms on share and change, left alone, would make it cost;
 //  - the title: one more win raises club ab's chance of it by the title model's slope there (the Trade
 //    Lab's logistic in its wins and its best man's mWAR, K.title.b), as a share of the whole league's
-//    chances, and a title lowers his exit odds that season (champ) and the four after (title_recent).
+//    chances, and a title lowers his exit odds that season (champ) and in every season after, fading geometrically (title_d, decay).
 // Its wins are expected to keep K.title.wins_carry of their distance from 41 a season, its best man's
 // mWAR likewise from the league's typical, and to be the less certain the further off (8 wins now,
 // widening toward the league's spread, K.title.wins_sd): a contender's next seasons are worth far more
@@ -143,10 +143,10 @@ function titleBase(G) {
   const S = abs.reduce((a, ab) => a + GH.reduce((s, [z, q]) => s + q * P(W[ab] + 8 * z, B[ab]), 0), 0);
   // seasons kept, discounted: by surviving one exit decision (keep), and by a title (title)
   const h = K.gm.hazard, p = M.EXIT, l = Math.log(p / (1 - p)), keep = 1 / (M.DISC - 1 + p);
-  const q = [lgt(l + h.champ), ...Array(4).fill(lgt(l + h.title_recent))];
+  const q = [lgt(l + h.champ), ...Array.from({ length: 30 }, (_, t) => lgt(l + h.title_d * h.decay ** t))];
   let s1 = 1, s0 = 1, title = 0;
   q.forEach((x, t) => { s1 *= 1 - x; s0 *= 1 - p; title += (s1 - s0) / M.DISC ** (t + 1); });
-  title += (s1 - s0) * (1 - p) / M.DISC ** 5 / (M.DISC - 1 + p);
+  title += (s1 - s0) * (1 - p) / M.DISC ** q.length / (M.DISC - 1 + p);
   const rec = -p * (1 - p) * keep * (h.pct + h.d_pct + h.vs_exp - h.d_pct * (1 - p) / M.DISC) / 82;
   const out = { d, W, B, bm, P, S, title, rec, m: new Map() };
   _ttl.set(G, out);
@@ -467,6 +467,7 @@ export function postseasonEnd(G) {
   G.lastMins = res.mins; G.lastGp = res.gp; G.lastRecord = res.record; G.lastPlayin = po.playin; G.lastStand = po.stand;
   // the season's leaders and awards, on its lines and the regular season's record
   Object.assign(G.history.at(-1), { leaders: A.leaders(G, s), awards: A.awards(G, s) });
+  A.induct(G);                                      // the Hall of Fame's class, of men retired four seasons
   delete G.cur; delete G.po;
   G.seasonOver = true;                              // trades reopen after the Finals
   G.phase = 'offseason'; G.date = `${s + 1}-06-15`;

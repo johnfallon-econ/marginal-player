@@ -69,3 +69,23 @@ export function awards(G, s) {
     smoy: vote(L.filter((x) => !starter(x)), rec, K.mvp, [5, 3, 1], seed('smoy')).slice(0, 3),
     dpoy: dp && [dp.p.id, +dp.def.toFixed(2)], mip: mi && [mi.p.id, +(mi.rate - prev(mi).rate).toFixed(2)] };
 }
+
+// ---- the Hall of Fame (K.hof, _gm_hof.py) ----------------------------------------------------
+// A man is up once he has been retired four seasons, as real players are, and goes in when the real
+// voters' choices -- a logit of induction on MVPs and All-NBA Teams -- give him better than even odds.
+// His real honors before the game (p.hon) count with the game's. Honors don't change once he has
+// retired, so he is judged once.
+export function honorsOf(G, p) {
+  const h = { mvp: 0, a1: 0, a2: 0, a3: 0, ...(p.hon || {}) };
+  for (const x of G.history) { const a = x.awards; if (!a) continue; h.mvp += +(a.mvp[0]?.[0] === p.id); a.allNba.forEach((t, i) => { h[`a${i + 1}`] += +t.includes(p.id); }); }
+  return h;
+}
+export const pHof = (G, h) => { const m = G.K.hof.model; return 1 / (1 + Math.exp(-(m.Intercept + m.mvp * h.mvp + m.a1 * h.a1 + m.a2 * h.a2 + m.a3 * h.a3))); };
+export function induct(G) {
+  const hof = (G.hof ||= []);
+  for (const p of Object.values(G.players)) {
+    if (p.retired == null || G.season - p.retired < 4 || p.hofDone) continue;
+    p.hofDone = true;
+    if (pHof(G, honorsOf(G, p)) > 0.5) hof.push({ id: p.id, y: G.season + 1 });
+  }
+}

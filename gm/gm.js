@@ -99,15 +99,17 @@ export function pExit(G, g) {
   const c = G.K.gm.hazard, x = g.rec.at(-1), t = Math.min(g.ten, 6);
   return lgt(c.Intercept + (t > 1 ? c[`C(ten)[T.${t === 6 ? '6+' : t}]`] : 0) + c.pct * x.pct + c.vs_exp * x.vs_exp + c.d_pct * x.d_pct
     + c.playoffs * x.playoffs + c.po_w * x.po_w + c.pay_rel * x.pay_rel + c.trade_proc * x.trade_proc + c.draft_left * x.draft_left + c.new_owner * x.new_owner
-    + c.champ * x.champ + c.title_recent * +g.rec.slice(-5, -1).some((r) => r.champ));
+    + c.champ * x.champ + c.title_d * titleStock(g.rec.slice(0, -1), c.decay));
 }
+// his titles with this club before the season just closed (R oldest first), each decaying by d a season (_gm_firing.py title_stock)
+export const titleStock = (R, d) => R.reduce((a, x, i) => a + x.champ * d ** (R.length - 1 - i), 0);
 // P(the user is fired after the season just closed): the model of involuntary exits alone (K.gm.fired:
 // fired, forced to resign, not renewed, moved aside; data/_gm_exit_kinds.json), the playoffs by how far
-// his club went; recent: a title with this club in the four seasons before
-export function pFired(G, x, ten, recent) {
+// his club went; R: his earlier seasons with this club, oldest first
+export function pFired(G, x, ten, R) {
   const c = G.K.gm.fired, t = Math.min(ten, 6), st = x.playoffs ? ['r1', 'r2', 'cf', 'finals', 'champ'][Math.min(x.rounds, 4)] : null;
   return lgt(c.Intercept + (t > 1 ? c[`C(ten)[T.${t === 6 ? '6+' : t}]`] : 0) + c.pct * x.pct + c.vs_exp * x.vs_exp + c.d_pct * x.d_pct
-    + (st ? c[`C(stage, Treatment('miss'))[T.${st}]`] : 0) + c.pay_rel * x.pay_rel + c.trade_proc * x.trade_proc + c.draft_left * x.draft_left + c.new_owner * x.new_owner + c.title_recent * recent);
+    + (st ? c[`C(stage, Treatment('miss'))[T.${st}]`] : 0) + c.pay_rel * x.pay_rel + c.trade_proc * x.trade_proc + c.draft_left * x.draft_left + c.new_owner * x.new_owner + c.title_d * titleStock(R, c.decay));
 }
 // what the re-entry model reads off a spell
 export function spellOf(g) {
