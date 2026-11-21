@@ -80,7 +80,7 @@
 .gm .t{width:100%;min-width:0;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .gm .t th,.gm .t td{padding:8px 6px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:middle}
 .gm .t th{font-size:12px;color:var(--muted);font-weight:500;background:none}
-.gm .t td,.gm .t th{white-space:normal;overflow-wrap:anywhere}
+.gm .t td,.gm .t th{white-space:normal;overflow-wrap:anywhere}.gm .t th{overflow-wrap:normal;word-break:keep-all}.gm .st td{white-space:nowrap;overflow-wrap:normal}
 .gm .t .n{text-align:right;white-space:nowrap}
 .gm .scroll{overflow-x:auto;max-width:100%}
 .gm .tabs.sub{border-bottom:0;margin:0 0 6px}.gm .tabs.sub button{padding:6px 10px;min-height:36px}
@@ -139,6 +139,7 @@
 .gm .bx small{font-size:10px;min-width:1.2em}
 @media(max-width:640px){.gm .two{grid-template-columns:1fr}}
 .gm .sticky{position:sticky;bottom:0;box-shadow:0 -2px 8px rgba(13,27,42,.08)}
+@media (max-width:640px){.gm .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.gm .sticky .help{display:none}.gm .sticky{padding:10px 12px}.gm .sticky .note{margin:0 0 6px}}
 .gm .note{color:var(--muted);font-size:13px;line-height:1.5;border:0;background:none;padding:0;margin:8px 0;box-shadow:none;max-width:60em}
 .gm .good{color:#166534;font-weight:600}.gm .bad{color:#9a3412;font-weight:600}
 .gm .form{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-top:8px}
