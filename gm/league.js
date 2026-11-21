@@ -270,7 +270,8 @@ const interp = V.interp;
 // A club's rotation as its coach sees it: [player, minutes per game when he plays], most first. Until
 // the coaches first set roles, the real 2026-27 roles stand (minutes per game played: mpg / av).
 // After that (K.roles, _gm_roles.py) a man's minutes are what his rating earns on the league's curve,
-// plus how far above or below it he played last season (carried over in part), moved by age, a
+// plus how far above or below it he played last season (carried over in part, and less of it past
+// big minutes: K.roles.vet.over_knot), moved by age, a
 // change of club and where his minutes rank among his club-mates', times the coach's own read of him
 // (the fit's residual, drawn once a season, steadier the more he played); a rookie's go by his draft slot. The fit's intercept
 // gives way to K.roleShift, set in calibrate.js to the league's mean minutes: the curve is everyone's
@@ -295,7 +296,7 @@ export function rotation(G, ab, coach = G.rolesSet) {
   const mpg = (p) => {
     const pr = prior.get(p), rating = p.rate + (tank ? (G.K.tankYouth || 0) * (26 - p.age) : 0);
     const x = pr ? lc(rating) + (G.K.roleShift || 0) + V_.dev * (Math.log(pr[0]) - lc(p.rate)) + V_.age_27 * (p.age - 27) + V_.age_over_30 * Math.max(p.age - 30, 0) + V_.moved * pr[1]
-      + (V_.log_rank + V_.moved_log_rank * pr[1]) * Math.log(rank(p))
+      + (V_.log_rank + V_.moved_log_rank * pr[1]) * Math.log(rank(p)) + (V_.over_knot || 0) * Math.max(Math.log(pr[0] / (V_.knot || 48)), 0)
       : Rk.a + Rk.log_pick * Math.log(p.draft?.pick || 61);
     // the coach (staff.js): the league's average coach plays this default; a better one moves his minutes
     // toward the best rotation (the league's curve on each man's true talent, none of a coach's own read or

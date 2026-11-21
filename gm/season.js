@@ -103,20 +103,19 @@ export function minutes(players) {
 // minutes are his availability times what the healthy men ahead of him leave, the distribution of
 // their minutes built up a man at a time, a minute at a time. (The nights so short-handed that
 // everyone is scaled up are left out: they are rare.) Projections use this; a night uses `net`.
-export function expNet(players) {
-  const ps = players.map((p) => ({ p, d: Math.min(Math.max((p.mpg || 0) / (p.av ?? 1), 1), 48), a: p.av ?? 1 }))
-    .sort((x, y) => y.d - x.d);
+export function expNet(players) { const em = expMinutes(players); return players.reduce((t, p, i) => t + p.play * (p.av ?? 1) * em[i] / 48, 0); }
+// each man's expected minutes on a night he plays, in the players' order (expNet's walk)
+export function expMinutes(players) {
+  const ps = players.map((p, i) => ({ i, d: Math.min(Math.max((p.mpg || 0) / (p.av ?? 1), 1), 48), a: p.av ?? 1 }))
+    .sort((x, y) => y.d - x.d), em = Array(players.length).fill(0);
   let dist = new Float64Array(241); dist[0] = 1;                   // P(the healthy men ahead have taken k minutes), k capped at 240
-  let out = 0;
-  for (const { p, d, a } of ps) {
-    let em = 0;
-    for (let k = 0; k <= 240; k++) if (dist[k]) em += dist[k] * Math.min(d, 240 - k);
-    out += p.play * a * em / 48;
+  for (const { i, d, a } of ps) {
+    for (let k = 0; k <= 240; k++) if (dist[k]) em[i] += dist[k] * Math.min(d, 240 - k);
     const next = new Float64Array(241), dk = Math.round(d);
     for (let k = 0; k <= 240; k++) if (dist[k]) { next[k] += dist[k] * (1 - a); next[Math.min(k + dk, 240)] += dist[k] * a; }
     dist = next;
   }
-  return out;
+  return em;
 }
 export const net = (players) => {
   const m = minutes(players);
