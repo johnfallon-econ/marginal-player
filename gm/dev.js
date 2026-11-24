@@ -16,9 +16,14 @@
 // learns it late, so the trend is scaled (K.trendHidden, calibrate.js) for the PROJECTION to
 // spread as the site's ratings do.
 
-export const agingStep = (K, age) => {
+// A year's aging at a rating: the league's average (K.aging, past the table its last year's decline)
+// and, from 29, more of the decline the better he is rated (K.ageRate: kappa(age) = k0 + k1 (age - 29)
+// per point of rating -- a good man past 28 declines faster than the pack; younger, the average curve
+// already does what the real league does; calibrate-age.js, to _gm_age_slope.py). Every projection the game makes
+// reads it: development, a man's worth seasons ahead (value.js), the draft board (league.js).
+export const agingStep = (K, age, rate = 0) => {
   const a = (x) => K.aging[String(Math.min(Math.max(Math.round(x), 18), 40))];
-  return age >= 40 ? a(40) - a(39) : a(age + 1) - a(age);    // past the table, its last year's decline
+  return (age >= 40 ? a(40) - a(39) : a(age + 1) - a(age)) + (age >= 29 ? K.ageRate.k0 + K.ageRate.k1 * (age - 29) : 0) * rate;
 };
 
 // At game start (and for every player who enters the league later).
@@ -44,8 +49,12 @@ export function growth(K, slot, x) {
   const [, , a, b, sd] = K.grow.find(([lo, hi]) => slot >= lo && slot <= hi), rho = K.dev.rho;
   return { tp: (a + b * x) / (1 + rho), dsd: sd / (Math.sqrt((1 + rho) ** 2 + 1 - rho * rho) * K.dev.trend) };
 }
+// How far talent moves grows with it (K.trendTal, calibrate.js): the trend's and the walk's spread are
+// exp(trendTal x talent) of the league's, as a real rating's change spreads wider the better he is rated
+// (_gm_change_het.py: a year's sd 0.38 below -1, 0.65 above +3)
+export const tsc = (K, x) => Math.exp(K.trendTal * x);
 // dsd: a recent draftee's own spread, from the draft model's range for him (12_gm_data.py)
-const trendSd = (K, hidden, p) => (hidden ? K.trendHidden : K.dev.trend) * (p.dsd ?? 1);
+const trendSd = (K, hidden, p) => (hidden ? K.trendHidden : K.dev.trend) * (p.dsd ?? 1) * tsc(K, p.talent);
 // a year of the fading trend: keeps rho of itself, refreshed so its spread stays put
 function stepTrend(p, K, r, hidden) {
   const rho = K.dev.rho;
@@ -118,16 +127,21 @@ function cholesky(V) {
     }
   return L;
 }
+// Talent is pulled toward the league's mean by K.pull a year (calibrate.js): with change spreading wider
+// the better a man is (tsc), nothing else held the best back and over decades a few ran away (12.8
+// against a real season's best of 6.3-7.9)
 export function endSeason(players, minutesPlayed, K, r, hidden) {
-  for (const p of Object.values(players)) {
-    const m = minutesPlayed[p.id] || 0, step = agingStep(K, p.age);
+  const P = Object.values(players), mu = P.reduce((a, p) => a + p.talent, 0) / P.length;
+  for (const p of P) {
+    const m = minutesPlayed[p.id] || 0;
     if (hidden) {
       const w = m && m / (m + p.seen);                // no minutes, nothing learned
-      p.rate = p.rate + w * ((p.play ?? p.talent) - p.rate) + step;
+      p.rate = p.rate + w * ((p.play ?? p.talent) - p.rate);
+      p.rate += agingStep(K, p.age, p.rate);           // the league ages its read as it ages a man at that rating
       p.seen = 1 / (1 / (p.seen + m) + 1 / K.learnMinutes);
-      p.talent = p.talent + step + p.trend + K.dev.walk * (p.dsd ?? 1) * r.normal();
+      p.talent = p.talent + agingStep(K, p.age, p.talent) - K.pull * (p.talent - mu) + p.trend + K.dev.walk * (p.dsd ?? 1) * tsc(K, p.talent) * r.normal();
     } else {
-      p.talent = p.talent + step + p.trend + K.dev.walk * (p.dsd ?? 1) * r.normal();
+      p.talent = p.talent + agingStep(K, p.age, p.talent) - K.pull * (p.talent - mu) + p.trend + K.dev.walk * (p.dsd ?? 1) * tsc(K, p.talent) * r.normal();
       p.rate = p.talent;
     }
     stepTrend(p, K, r, hidden);

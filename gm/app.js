@@ -463,8 +463,8 @@ const ROLE = (i, p) => p.contract?.twoWay ? 'two-way' : i < 5 ? 'starter' : i < 
 const rotationCard = () => {
   const out = (p) => G.cur && G.cur.hurt[p.id]?.[G.cur.played[G.user]];
   return `<div class="card"><h3>The coach's rotation</h3><p class="note">The coach sets it${G.rolesSet ? ': mostly last season\'s roles, nudged by each man\'s rating, age and a change of club, with his own read on top (fit to real seasons). Rookies by draft slot' : ' (for now, this season\'s real roles)'}.
-The coach's minutes for each man are what he gives him on a night he plays; each night the 240 go down this order among whoever is healthy, so the end of the bench plays only when men ahead are hurt. Shown: what each can expect a game, out of the 240, with the coach's number after it.</p><ol class="rot">
-${((rot) => { const em = S.expMinutes(rot.map(([p, m]) => ({ mpg: m * (p.av ?? 0.9), av: p.av ?? 0.9 }))), e = rot.map(([p], i) => em[i] * (p.av ?? 0.9));
+The coach's minutes for each man are what he gives him on a night he plays; each night he plays ten or eleven of whoever is healthy, as many as real coaches do, mostly down this order, so the end of the bench plays only when men ahead are hurt. A two-way man is with the club for at most 50 games. Shown: what each can expect a game, out of the 240, with the coach's number after it.</p><ol class="rot">
+${((rot) => { const em = L.projMinutes(G, G.user), e = rot.map(([p]) => em.get(p.id) || 0);
   return rot.map(([p, m], i) => `<li><b>${nm(p.id)}</b> <small>${ROLE(i, p)} · ${e[i].toFixed(0)} min a game <span class="muted">(${Math.min(m, 48).toFixed(0)} when he plays)</span>${out(p) ? ' · <span class="bad">out injured</span>' : ''}</small></li>`).join('') + `</ol><p class="note">Expected a game: ${e.reduce((a, x) => a + x, 0).toFixed(0)} of 240 minutes (the rest are the rare nights so short-handed that everyone plays more).</p>`; })(L.rotation(G, G.user))}</div>`;
 };
 // Both conferences' standings: the record so far, else last season's, else projected wins

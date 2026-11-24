@@ -289,8 +289,8 @@ export function buildOffer(G, x, B, S, p, date, asked = false, via = S) {
   const pairs = mine.slice(0, 12).flatMap((a, i, m) => m.slice(i + 1).map((b) => [a, b]))
     .sort(([a, b], [c, d]) => playerWorth(G, B, P[a], x.modes[B]) + playerWorth(G, B, P[b], x.modes[B]) - playerWorth(G, B, P[c], x.modes[B]) - playerWorth(G, B, P[d], x.modes[B]));
   let res = [...(via === S ? [[]] : []), ...mine.map((id) => [id]), ...pairs].reduce((r, ids) => (r?.ok ? r : send(ids)), null);
-  for (let k = 3; !res.ok && k <= mine.length; k++) res = send(mine.slice(0, k));
-  if (!res.ok) return null;
+  for (let k = 3; !res?.ok && k <= mine.length; k++) res = send(mine.slice(0, k));
+  if (!res?.ok) return null;                        // no contracts to send and no room to take him: no offer
   const g = (ab) => gain(G, x, ab, trade), nd = (ab) => need(G, x, ab, trade);
   trade.swaps = [];
   // the side behind pays in picks (payIn), paid up to what a deal must leave it ahead by, not merely to even

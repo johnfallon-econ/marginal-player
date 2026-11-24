@@ -11,6 +11,7 @@ import * as A from './awards.js';
 import * as GM from './gm.js';
 import * as ST from './staff.js';
 import * as PL from './plan.js';
+import * as MN from './minutes.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 // a window's ceiling on deals, near the real league's count in it (2015-16 to 2024-25: the draft and
@@ -35,6 +36,7 @@ export function newGame(L, cal, opts) {
   }
   for (const p0 of [...L.players, ...L.freeAgents]) {
     const p = { ...clone(p0) };
+    p.av = S.availability(K, p, L.season);           // his health from his real seasons (_gm_availability.py)
     V.initTalent(p, K, r, G.hidden);
     G.players[p.id] = p;
     if (p.tm) G.teams[p.tm].roster.push(p.id); else G.fa.push(p.id);
@@ -47,8 +49,8 @@ export function newGame(L, cal, opts) {
     for (const T of Object.values(G.teams)) for (const id of T.roster) { const p = G.players[id]; if (!p.contract?.twoWay) { a += p.rate * p.mpg; w += p.mpg; } }
     G.centred = a / w;
     for (const p of Object.values(G.players)) { p.rate -= G.centred; p.talent -= G.centred; } }
-  G.scoutSd = D.solveScoutSd(L, r);
-  G.names = L.names; G.draftData = L.draft;
+  G.names = L.names; G.draftData = { ...L.draft, slope: K.scoutSlope ?? 0 };   // the scouts' slope (calibrate-draft.js)
+  G.scoutSd = D.solveScoutSd({ ...L, draft: G.draftData }, r);
   GM.init(G, L, r);
   if (G.hidden) ST.init(G, r);                    // every club's scouts and analysts (staff.js)
   ST.initBench(G, L, r);                          // every club's head coach and head trainer (staff.js)
@@ -168,11 +170,19 @@ const hashNoise = V.hashNoise;
 // an agent asks in round $10K (the offer form's step), down, though never under his minimum
 export const askOf = (G, p, F, ext = 0) => { const a = M.ask(p, F, G.K, S.Phi(hashNoise(`ask|${p.id}|${G.season}`)), ext);
   return { ...a, sal: Math.max(Math.floor(a.sal / 1e4) * 1e4, C.minSalary(p.yos, F.cap)) }; };
-// A club's net for the coming season: each man at his projection, in the role he is in line for, at
-// his availability, over the nights each man is out as well as in (S.expNet: a club built on stars who
-// miss games loses more to their nights out than a deep one). adj: a man as he stands now, or null
-export const teamNet = (G, ab, adj = (p) => p) => S.expNet(G.teams[ab].roster.map((id) => G.players[id]).filter((p) => !p.contract?.twoWay)
-  .map(adj).filter(Boolean).map((p) => ({ ...p, play: p.rate }))) + ST.scheme(G, ab);   // and his coach's scheme (staff.js)
+// A club's net for the coming season: each man at his projection, at the minutes the minutes model
+// expects him over the club's nights, each man out as often as his availability says and his minutes
+// then going as they would on such a night (minutes.js project: to the men like him) -- a club built
+// on stars who miss games loses more to their nights out than a deep one. adj: a man as he stands
+// now, or null to leave him out.
+const proj = (G) => (['offseason', 'draft'].includes(G.phase) ? G.season + 1 : G.season);
+const SC = new WeakMap();
+const scale = (G) => { const k = proj(G), c = SC.get(G); if (c?.k === k) return c.v; const v = MN.charScale(Object.values(G.teams).flatMap((T) => T.roster.map((id) => G.players[id]))); SC.set(G, { k, v }); return v; };
+export function projMinutes(G, ab, ps = G.teams[ab].roster.map((id) => G.players[id])) {
+  return MN.project(G.K.minutes, MN.club({ season: proj(G), K: G.K }, ab, G.teams[ab], ps, {}), scale(G));
+}
+export const teamNet = (G, ab, adj = (p) => p) => { const ps = G.teams[ab].roster.map((id) => G.players[id]).map(adj).filter(Boolean).map((p) => ({ ...p, play: p.rate })), em = projMinutes(G, ab, ps);
+  return ps.reduce((a, p) => a + p.play * em.get(p.id) / 48, 0) + ST.scheme(G, ab); };   // and his coach's scheme (staff.js)
 // Wins at net n against the league (its clubs' nets, G.nets): each game's chance as the season engine
 // plays it, half of them at home, so projections are what the games produce
 export function winsAt(G, n, self) {
@@ -263,50 +273,21 @@ export function release(G, ab, id, date, stretch) {
 // ---- the season ----------------------------------------------------------------------------
 // Roles: each club's coach sets every man's minutes when he plays (rotation, below).
 export function assignRoles(G) {
-  for (const ab of Object.keys(G.teams)) for (const [p, m] of rotation(G, ab, true)) p.mpg = m * (p.av ?? 0.9);
+  for (const ab of Object.keys(G.teams)) for (const [p, m] of rotation(G, ab)) p.mpg = m * (p.av ?? 0.9);
   G.rolesSet = true;
 }
-const interp = V.interp;
-// A club's rotation as its coach sees it: [player, minutes per game when he plays], most first. Until
-// the coaches first set roles, the real 2026-27 roles stand (minutes per game played: mpg / av).
-// After that (K.roles, _gm_roles.py) a man's minutes are what his rating earns on the league's curve,
-// plus how far above or below it he played last season (carried over in part, and less of it past
-// big minutes: K.roles.vet.over_knot), moved by age, a
-// change of club and where his minutes rank among his club-mates', times the coach's own read of him
-// (the fit's residual, drawn once a season, steadier the more he played); a rookie's go by his draft slot. The fit's intercept
-// gives way to K.roleShift, set in calibrate.js to the league's mean minutes: the curve is everyone's
-// mean, and each night's 240 go down this order among the healthy (season.minutes).
-export function rotation(G, ab, coach = G.rolesSet) {
-  const P = G.players, { curve, vet: V_, rookie: Rk } = G.K.roles;
-  const ps = G.teams[ab].roster.map((id) => P[id]);
-  if (!coach) return ps.map((p) => [p, p.mpg / (p.av ?? 0.9)]).sort((a, b) => b[1] - a[1]);
-  const lc = (x) => interp(curve, x);
-  // a rebuilding club plays its young (K.tankYouth rating points per year under 26, set in balancing)
-  const tank = X.mode(projWins(G, ab)) === 'rebuild';
-  // last season's minutes per game played, and whether that was with another club (a man arriving
-  // mid-season with 10 games: this season's, with his old club)
-  const prior = new Map(ps.map((p) => {
-    const gp = G.cur?.gp[p.id] || 0, last = p.log?.findLast((l) => l.gp >= 10);
-    return [p, gp >= 10 ? [G.cur.mins[p.id] / gp, 1] : last ? [last.mpg, +(last.tm !== ab)] : null];
-  }));
-  // teammates: each man's minutes rank among the men who have a prior
-  const vets = ps.filter((p) => prior.get(p));
-  const rank = (p) => { const m = prior.get(p)[0], above = vets.filter((q) => prior.get(q)[0] > m).length, tied = vets.filter((q) => prior.get(q)[0] === m).length; return above + (tied + 1) / 2; };
-  const sk = ST.coachPull(G, ab);
-  const mpg = (p) => {
-    const pr = prior.get(p), rating = p.rate + (tank ? (G.K.tankYouth || 0) * (26 - p.age) : 0);
-    const x = pr ? lc(rating) + (G.K.roleShift || 0) + V_.dev * (Math.log(pr[0]) - lc(p.rate)) + V_.age_27 * (p.age - 27) + V_.age_over_30 * Math.max(p.age - 30, 0) + V_.moved * pr[1]
-      + (V_.log_rank + V_.moved_log_rank * pr[1]) * Math.log(rank(p)) + (V_.over_knot || 0) * Math.max(Math.log(pr[0] / (V_.knot || 48)), 0)
-      : Rk.a + Rk.log_pick * Math.log(p.draft?.pick || 61);
-    // the coach (staff.js): the league's average coach plays this default; a better one moves his minutes
-    // toward the best rotation (the league's curve on each man's true talent, none of a coach's own read or
-    // habits), a worse one away from it
-    const x0 = x + (pr ? interp(V_.sd_by_mpg, pr[0]) : Rk.sd) * hashNoise(`coach|${p.id}|${G.season}`), xo = lc(p.talent) + (G.K.roleShift || 0);
-    return Math.min(Math.exp(x0 + sk * (xo - x0)), 48);   // no cap but the game
-  };
-  // a role is set once a season with a club, and kept through the season's later reshuffles
-  const role = (p) => (p.role?.s === G.season && p.role.tm === ab ? p.role.m : (p.role = { s: G.season, tm: ab, m: mpg(p) }).m);
-  return ps.map((p) => [p, role(p)]).sort((a, b) => b[1] - a[1]);
+// A club's rotation as its coach sees it: [player, minutes he can expect on a night he is healthy],
+// most first -- the minutes model (minutes.js) on the healthy roster, as the Trade Lab applies it:
+// his share of the club's minutes so far this season and lately, last season's minutes (all a new
+// season has to go on), a rookie's draft slot, his starts, usage, age and fouls. The coach (staff.js
+// coachPull: toward true talent, or away) and a rebuilding club playing its young (K.tankYouth) lean
+// on it; both are kept on the club for the nights themselves (season.js).
+export function rotation(G, ab) {
+  const T = G.teams[ab], ps = T.roster.map((id) => G.players[id]);
+  const s = ['offseason', 'draft'].includes(G.phase) ? G.season + 1 : G.season, st = G.cur?.season === s ? (G.cur.ms ||= {}) : {};
+  T.pull = ST.coachPull(G, ab); T.tank = X.mode(projWins(G, ab)) === 'rebuild';
+  return MN.expected(G.K.minutes, MN.club({ season: s, K: G.K }, ab, T, ps, st))
+    .map(({ p, m }) => { p.role = { s: G.season, tm: ab, m }; return [p, m]; }).sort((a, b) => b[1] - a[1]);
 }
 // The season in steps, so the page can stop at the trade windows and a save can fall anywhere:
 // seasonStart, seasonTo(frac) as often as wanted, then postseason.
@@ -326,7 +307,7 @@ export function seasonStart(G, r, decide = {}) {
   rookieOptions(G, decide);
   // the first season keeps every club's real 2026-27 roles (the Trade Lab's minutes); after
   // that, coaches assign them
-  if (G.history.length || G.log.some((x) => x.type === 'trade')) assignRoles(G);
+  assignRoles(G);                                   // the minutes model's roles, which the nights use (minutes.js)
   V.seasonForm(G.teams, G.players, G.K, r);
   setLeagueNet(G);
   for (const [ab, T] of Object.entries(G.teams)) T.gm.pre = projWins(G, ab) / 82;   // what each GM's season is judged against
@@ -469,6 +450,10 @@ export function postseasonEnd(G) {
   // the season's leaders and awards, on its lines and the regular season's record
   Object.assign(G.history.at(-1), { leaders: A.leaders(G, s), awards: A.awards(G, s) });
   A.induct(G);                                      // the Hall of Fame's class, of men retired four seasons
+  // each man's realised role this season (minutes.js), what next season's grows from: over 10+ nights, as fit
+  for (const [id, [a, n]] of Object.entries(res.ar || {})) if (n >= 10 && G.players[id]) G.players[id].alphaReal = { ...G.players[id].alphaReal, [s]: +(a / n).toFixed(4) };
+  // and his health: games on a roster, fit, minutes a fit night (season.availability reads them each summer)
+  for (const [id, [h, t, mm]] of Object.entries(res.hl || {})) if (G.players[id]) G.players[id].health = { ...G.players[id].health, [s]: [h, t, h ? +(mm / h).toFixed(2) : 0] };
   delete G.cur; delete G.po;
   G.seasonOver = true;                              // trades reopen after the Finals
   G.phase = 'offseason'; G.date = `${s + 1}-06-15`;
@@ -570,7 +555,7 @@ export function draftStart(G, r) {
   // the rest of the class, journeymen from the G League and abroad the draft usually passes over: on the
   // board too, and whoever goes unpicked joins the summer's market (draftEnd)
   const rest = cls.filter((q) => q.undrafted);
-  for (const p of rest) { p.rate = G.hidden ? shrinkBoard(p, cls) : p.talent; p.se = 1.0; p.prior = 0; p.seen = G.K.priorMinutes; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * r.normal(); p.mpg = M.mpgFor(p.rate, G.K) * p.av; G.players[p.id] = p; }
+  for (const p of rest) { p.rate = G.hidden ? shrinkBoard(p, cls) : p.talent; p.se = 1.0; p.prior = 0; p.seen = G.K.priorMinutes; p.trend = (G.hidden ? G.K.trendHidden : G.K.dev.trend) * V.tsc(G.K, p.talent) * r.normal(); p.mpg = M.mpgFor(p.rate, G.K) * p.av; G.players[p.id] = p; }
   for (const p of pool) {
     // hidden talent: the league sees the scouts' board, shrunk to what it predicts of talent over the
     // whole class (journeymen too: they are on the board); else the truth
@@ -630,7 +615,7 @@ export function fans(G, p, k = 1, n = 400) {
   const A_ = { v: [], r: [], q: [], k: [], o: [], d: [], V: [], vs: Array.from({ length: 20 }, () => []), kept: Array(20).fill(0), mkt: Array(20).fill(0) };
   let star = 0;
   for (let t = 0; t < n; t++) {
-    let x = p.rate + res[Math.floor(r() * res.length)], gr = V.growth(K, Math.min(pick, 60), x), tr = gr.tp + sd * gr.dsd * r.normal(), lean = p.lean ?? 0, sum = 0, sq = 0, so = 0, sdf = 0, pk = -Infinity, val = 0, st = false;
+    let x = p.rate + res[Math.floor(r() * res.length)], gr = V.growth(K, Math.min(pick, 60), x), tr = gr.tp + sd * gr.dsd * V.tsc(K, x) * r.normal(), lean = p.lean ?? 0, sum = 0, sq = 0, so = 0, sdf = 0, pk = -Infinity, val = 0, st = false;
     let surv = 1, wp = 0, mx = 0, pmax = 0, nm = 0;
     for (let k = 1; k <= 20; k++) {
       const age = p.age + k - 1, m = mins(x), q = m * (x - K.repl), w = q * p.av, pr = M.price(w, cap, K) / 1e6;
@@ -643,8 +628,8 @@ export function fans(G, p, k = 1, n = 400) {
       else if ((k - 1 - Lr) % 4 === 0) { const first = k - 1 === Lr; surv *= keepP(first, wp, age - 0.4); ({ mx, pmax, nm } = deal(first, wp, k - 1, age - 0.4)); }
       const keep = surv * (k <= Lr ? pr : pmax * (pr - mx * cap / 1e6) + (1 - pmax) * (pr - nm * cap / 1e6));
       val += keep; A_.kept[k - 1] += keep / n; A_.mkt[k - 1] += pr / n; wp = w;
-      x += V.agingStep(K, age) + tr + K.dev.walk * r.normal();
-      tr = rho * tr + Math.sqrt(1 - rho * rho) * sd * gr.dsd * r.normal();
+      const u = V.tsc(K, x); x += V.agingStep(K, age, x) + tr + K.dev.walk * u * r.normal();
+      tr = rho * tr + Math.sqrt(1 - rho * rho) * sd * gr.dsd * u * r.normal();
       lean += V.interp(K.od.drift, age) + K.od.rho * lean + K.od.sd * r.normal();
     }
     A_.v.push(sum / 4); A_.q.push(sq / 4); A_.k.push(pk); A_.o.push(so / 4); A_.d.push(sdf / 4); A_.V.push(val); star += st / n;
@@ -818,6 +803,7 @@ function shrinkBoard(p, pool) {
 // to rookie-scale players worth them, and every expiring man's club keeps a cap hold on him.
 export function newLeagueYear(G, r, decide = {}) {
   const s = G.season + 1, f = fig(G, s), P = G.players;
+  for (const p of Object.values(P)) p.av = S.availability(G.K, p, s);   // each man's health for the new season, from his seasons so far
   G.caps[s] = G.caps[s] ?? G.caps[G.season] * (1 + Math.min(G.K.capGrowth.max, Math.max(0, G.K.capGrowth.mean + G.K.capGrowth.sd * r.normal())));
   G.f[s] = C.figures(s, G.caps[s]);
   const F = G.f[s];
@@ -963,15 +949,23 @@ export function faDay(G, r, user = {}, human = G.user) {
   st.calls ??= {}; st.resp = {};
   for (const [pid, o] of Object.entries(st.calls))
     if (G.fa.includes(pid) && C.validateSigning(G, { team: o.ab, pid, how: o.how, date: G.date, years: years5(o.sal, o.years, 0.05), prior: (P[pid].prior || 0) * 1e6 }).ok) (offers[pid] ||= []).push(o);
+  // a free agent weighs an offer by its money and the club: each point of its strength worth a share
+  // of the cap a season to him, more the better he is (K.faWin, _gm_fa_choice.py: what real free agents
+  // gave up to join better clubs; a fringe man leans the other way, toward minutes); paid by money
+  // alone, the game's stars went to the weak clubs with room
+  // -- and he takes less from a better club than his ask, more from a worse one: an offer stands if
+  // its money less that price meets the ask
+  const cn = {}, netOf = (ab) => (cn[ab] ??= teamNet(G, ab)), per = (p, o) => o.sal - winPrice(G, p, F, netOf(o.ab)), worth = (p, o) => per(p, o) * o.years;
   for (const [pid, os] of Object.entries(offers)) {
     const p = P[pid], need = askOf(G, p, F).sal * (1 - 0.025 * day);
-    const top = os.filter((o) => o.sal >= need).sort((a, b) => b.sal * b.years - a.sal * a.years)[0];
+    const top = os.filter((o) => per(p, o) >= need).sort((a, b) => worth(p, b) - worth(p, a))[0];
+    const mineShort = os.find((o) => o.ab === human && per(p, o) < need);
     const mine = os.find((o) => o.ab === human);
     // the agent answers the user: short of the ask he counters; topped by a rival, he waits a day
     // for the user to beat it (once), then signs with the best
-    if (mine && mine.sal < need) st.resp[pid] = { status: 'short', need: Math.ceil(need / 1e5) * 1e5 };
+    if (mineShort) st.resp[pid] = { status: 'short', need: Math.ceil((need + winPrice(G, p, F, netOf(human))) / 1e5) * 1e5 };
     if (!top) continue;
-    if (mine && top.ab !== human && mine.sal >= need && !st.calls[pid]) { st.calls[pid] = top; st.resp[pid] = { status: 'outbid', top }; continue; }
+    if (mine && top.ab !== human && !mineShort && !st.calls[pid]) { st.calls[pid] = top; st.resp[pid] = { status: 'outbid', top }; continue; }
     delete st.calls[pid];
     if (mine) st.resp[pid] = { status: top.ab === human ? 'signed' : 'lost', top };
     const club = p.qo && rfaClub(pid);
@@ -995,6 +989,9 @@ export function faEnd(G, r, human = G.user) {
   delete G.fa_;
   G.phase = 'preseason'; G.date = `${s}-10-13`;
 }
+// What joining a club at strength net costs a free agent a season, against an average club (K.faWin,
+// _gm_fa_choice.py): negative for a better club, more so the better he is
+export const winPrice = (G, p, F, net) => { const n = Object.values(G.nets); return (G.K.faWin.a + G.K.faWin.b * p.rate) * F.cap * (net - n.reduce((x, y) => x + y, 0) / n.length); };
 export function freeAgency(G, r) { faStart(G, r, {}, null); while (!faDay(G, r, {}, null)); faEnd(G, r, null); }
 // The free agent a club's GM most wants, at a salary its rules allow.
 // where every club stands as free agency stands today (X.market: the tax forward, next summer's
@@ -1008,13 +1005,14 @@ function bestTarget(G, ab, day) {
   const s = G.season, F = fig(G, s), T = G.teams[ab], P = G.players, K = G.K;
   const std = T.roster.filter((id) => !P[id].contract?.twoWay).length;
   if (std >= 15) return null;
-  const pay = C.teamSalary(T, G, s), capPay = C.teamSalary(T, G, s, { holds: true, offseason: true });
+  const pay = C.teamSalary(T, G, s), capPay = C.teamSalary(T, G, s, { holds: true, offseason: true }), net = teamNet(G, ab);
   let best = null;
   for (const id of G.fa) {
     const p = P[id];
     if (p.qo && T.rfa?.includes(id)) continue;
-    const a = askOf(G, p, F), v = teamValue(G, ab, p) + GM.signPremium(T.gm, p, F.cap, K);
-    if (v < a.sal * (1 - 0.025 * day)) continue;
+    // his ask from this club: less the better it is (winPrice)
+    const a0 = askOf(G, p, F), c = winPrice(G, p, F, net), a = { ...a0, sal: a0.sal + c }, v = teamValue(G, ab, p) + GM.signPremium(T.gm, p, F.cap, K);
+    if (v < a0.sal * (1 - 0.025 * day) + c) continue;
     // the most this club can offer him, and under which rule
     const room = F.cap - capPay;
     const ways = [['room', room], ['ntmle', T.exc.ntmle], ['bae', T.exc.bae], ['tpmle', T.exc.tpmle], ['roomMle', T.exc.roomMle], ['min', C.minSalary(p.yos, F.cap)]];
@@ -1022,7 +1020,7 @@ function bestTarget(G, ab, day) {
       if (lim <= 0) continue;
       const sal = Math.min(a.sal, v, lim, how === 'min' ? lim : Infinity);
       if (how === 'min' && a.sal > lim * 1.2) continue;
-      if (how !== 'min' && sal < a.sal * (1 - 0.025 * day)) continue;   // short of what he takes today (faDay): he would say no
+      if (how !== 'min' && sal < a0.sal * (1 - 0.025 * day) + c) continue;   // short of what he takes today (faDay): he would say no
       const o = { pid: id, how, sal: how === 'min' ? C.minSalary(p.yos, F.cap) : Math.round(sal), years: how === 'min' ? 1 : Math.min(a.years, how === 'bae' || how === 'tpmle' ? 2 : how === 'roomMle' ? 3 : 4) };
       // a club this signing takes into the tax uses the taxpayer MLE: the non-taxpayer MLE and the
       // bi-annual would hard-cap it at the first apron, a taxpayer's ceiling it would not choose

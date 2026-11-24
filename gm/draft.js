@@ -9,13 +9,19 @@ import { rookieScale, minSalary, twoWaySalary } from './cba.js';
 // talent plus that growth -- through noise (scoutSd), set so the order the league drafts in ranks
 // it as well as real drafts rank careers (L.draft.sp); how well that ranks entry talent follows
 // from the real careers the class is drawn from.
+// Scouts read a man better the better he is (L.draft.slope, calibrate-draft.js): the board's miss is
+// scoutSd times exp(-slope x (his talent and growth less the real draftees' mean)), so the class's
+// best stand out as real drafts' do -- picks 1-3 average -0.11 of talent and growth, 46-60 -1.76 --
+// with the board ranking the class no better than real drafts do (L.draft.sp). One spread for every
+// man matched the ranking with a top far too flat (1-3 at -0.35, 46-60 at -1.42).
+const center = (L) => (L.draft.center ??= L.draft.donors.reduce((a, d) => a + d[2] + (d[11] || 0), 0) / L.draft.donors.length);
 export function generateClass(L, season, r, scoutSd) {
-  const names = L.names, real = new Set(names.real), donors = L.draft.donors, pool = [];
+  const names = L.names, real = new Set(names.real), donors = L.draft.donors, pool = [], k = L.draft.slope || 0, c = center(L);
   const name = () => { for (;;) { const n = `${r.pick(names.first)} ${r.pick(names.last)}`; if (!real.has(n)) return n; } };
   for (let slot = 1; slot <= 60 + L.draft.undrafted; slot++) {   // 60 picks plus the undrafted market
     const near = slot > 60 ? L.draft.udonors : donors.filter(([k]) => Math.abs(k - slot) <= 2);   // the undrafted: real undrafted entrants
     const [, age, talent, ht, wt, pos, lvl, line, lean, av, from, g = 0] = r.pick(near);
-    pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, g, board: talent + g + scoutSd * r.normal(), yos: 0, draftYear: season + 1, lean, av, undrafted: slot > 60 || undefined,
+    pool.push({ id: `d${season}-${slot}`, nm: name(), age: Math.round(age), talent, g, board: talent + g + scoutSd * Math.exp(-k * (talent + g - c)) * r.normal(), yos: 0, draftYear: season + 1, lean, av, undrafted: slot > 60 || undefined,
       pos, ht: ht && `${Math.floor(ht / 12)}-${ht % 12}`, wt, from, pre: lvl && { lvl, line } });
   }
   return pool;

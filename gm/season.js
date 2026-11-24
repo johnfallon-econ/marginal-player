@@ -6,6 +6,8 @@
 // with the game-to-game spread measured from our games around it (12_gm_data.py); netScale
 // makes a point of net worth team_proj's fitted wins over a season.
 
+import * as MN from './minutes.js';
+
 export function rng(seed, state) {               // mulberry32: small, fast, reproducible
   let a = (state ?? seed) >>> 0;
   const r = () => {
@@ -98,43 +100,39 @@ export function minutes(players) {
   const room = dem.reduce((a, x) => a + 48 - x, 0);
   return dem.map((x) => (room > 0 ? x + (240 - tot) * (48 - x) / room : 48));
 }
-// A club's expected strength over its nights: each man plays on a night with his availability, and
-// the night's 240 go down the rotation among those who do (minutes above), so a man's expected
-// minutes are his availability times what the healthy men ahead of him leave, the distribution of
-// their minutes built up a man at a time, a minute at a time. (The nights so short-handed that
-// everyone is scaled up are left out: they are rare.) Projections use this; a night uses `net`.
-export function expNet(players) { const em = expMinutes(players); return players.reduce((t, p, i) => t + p.play * (p.av ?? 1) * em[i] / 48, 0); }
-// each man's expected minutes on a night he plays, in the players' order (expNet's walk)
-export function expMinutes(players) {
-  const ps = players.map((p, i) => ({ i, d: Math.min(Math.max((p.mpg || 0) / (p.av ?? 1), 1), 48), a: p.av ?? 1 }))
-    .sort((x, y) => y.d - x.d), em = Array(players.length).fill(0);
-  let dist = new Float64Array(241); dist[0] = 1;                   // P(the healthy men ahead have taken k minutes), k capped at 240
-  for (const { i, d, a } of ps) {
-    for (let k = 0; k <= 240; k++) if (dist[k]) em[i] += dist[k] * Math.min(d, 240 - k);
-    const next = new Float64Array(241), dk = Math.round(d);
-    for (let k = 0; k <= 240; k++) if (dist[k]) { next[k] += dist[k] * (1 - a); next[Math.min(k + dk, 240)] += dist[k] * a; }
-    dist = next;
-  }
-  return em;
-}
 export const net = (players) => {
   const m = minutes(players);
   return players.reduce((a, p, i) => a + p.play * m[i] / 48, 0);
 };
 
-// Injury: a two-state chain of short spells averaging SPELL games, and now and then (K.longInj a
+// Injury: a two-state chain of short spells averaging K.spell games (balance.js: with K.longInj, so
+// regulars miss 20, 41 and 60 games as often as real ones), and now and then (K.longInj a
 // season, calibrate.js) one long injury of 20-82 games from a random night, so a season's games
 // missed have real seasons' long tail; the short spells make up the rest, so the share of games
 // missed is 1 - av (the Trade Lab's availability) on average either way, moved by his club's head
 // trainer (tr: the share of games his men lose beyond expected, against the league's trainers; staff.js).
 const trainer = (league, ab) => (league.teams[ab].trainer ? league.teams[ab].trainer.q - league.const.bench.trainer.mean : 0);
-const SPELL = 8, LONG = [20, 82];
+const LONG = [20, 82];
 const LONG_SHARE = (() => { let a = 0, n = 0; for (let st = 0; st < 82; st++) for (let l = LONG[0]; l <= LONG[1]; l++) { a += Math.min(l, 82 - st); n++; } return a / n / 82; })();
-function injuries(p, n, r, q = 0, tr = 0) {
-  const out = new Array(n).fill(false), miss = Math.min(Math.max(1 - (p.av ?? 0.9) + tr, 0), 0.95);
+// His health for season T (av: the share of his club's games on its roster he is fit for), from his
+// seasons before it (K.avail, _gm_availability.py): his healthy games and games on a roster, the
+// recent counting more (lam a season back), pulled by n0 games toward the health of men in his role
+// (minutes a healthy night last season, in bands), less a little a year past age_from. A man with no
+// season behind him keeps the health he came with (the draft's, or the real data's).
+export function availability(K, p, T) {
+  const A = K.avail, H = p.health, last = H?.[T - 1];
+  if (!A || !last) return p.av;
+  let hv = 0, tv = 0;
+  for (let k = 0; k < A.lookback; k++) { const x = H[T - 1 - k]; if (x) { hv += A.lam ** k * x[0]; tv += A.lam ** k * x[1]; } }
+  if (tv <= 0) return p.av;
+  const b = Math.min(Math.max(A.bands.findLastIndex((e) => e <= last[2]), 0), A.mu.length - 1);
+  return Math.min(Math.max((hv + A.n0 * A.mu[b]) / (tv + A.n0) + A.age_slope * Math.max(p.age - A.age_from, 0), 0), 1);
+}
+function injuries(p, n, r, q = 0, tr = 0, K = null) {
+  const out = new Array(n).fill(false), miss = Math.min(Math.max(1 - (p.av ?? 0.9) + tr, 0), 0.95);   // av is his health (workload.py): the night's selection is the coach's alone
   if (r() < q) { const st = Math.floor(r() * n), l = LONG[0] + Math.floor(r() * (LONG[1] - LONG[0] + 1)); for (let g = st; g < Math.min(st + l, n); g++) out[g] = true; }
   const ms = Math.max((miss - q * LONG_SHARE) / (1 - q * LONG_SHARE), 0);
-  const toHurt = ms / ((1 - ms) * SPELL), heal = 1 / SPELL;
+  const sp = K?.spell ?? 8, toHurt = ms / ((1 - ms) * sp), heal = 1 / sp;
   let hurt = r() < ms;
   for (let g = 0; g < n; g++) { out[g] ||= hurt; hurt = hurt ? r() >= heal : r() < toHurt; }
   return out;
@@ -150,21 +148,32 @@ export function startSeason(league, season, r) {
   const { teams, players } = league, days = schedule(teams, season, r), hurt = {}, played = {}, rec = {};
   for (const ab in teams) {
     played[ab] = 0;
-    for (const id of teams[ab].roster) hurt[id] = injuries(players[id], 82, r, league.const.longInj, trainer(league, ab));
+    for (const id of teams[ab].roster) hurt[id] = injuries(players[id], 82, r, league.const.longInj, trainer(league, ab), league.const);
     rec[ab] = { w: 0, l: 0, h2h: {}, confW: 0, confL: 0, divW: 0, divL: 0 };
   }
-  return { season, days, d: 0, hurt, played, record: rec, results: [], gp: {}, mins: {} };
+  // the minutes model's state by man and club, and the season's scale for its characteristics (minutes.js)
+  const sc = MN.charScale(Object.values(teams).flatMap((T) => T.roster.map((id) => players[id])));
+  return { season, days, d: 0, hurt, played, record: rec, results: [], gp: {}, mins: {}, ms: {}, sc };
 }
 export function simDays(league, st, r, to = st.days.length) {
   const { teams, players, const: K } = league;
   const strength = (ab) => {
     const g = st.played[ab]++;
-    const avail = teams[ab].roster.map((id) => players[id]).filter((p) => !(st.hurt[p.id] ??= injuries(p, 82, r, K.longInj, trainer(league, ab)))[g]), m = minutes(avail);
-    // the box score's minutes: the night's rotation, varied night to night (blowouts, fouls, overtime);
-    // the night's strength is the rotation's own, as those swings mostly follow the score, not set it
-    const box = boxMinutes(m, r, K.nightCv);
-    avail.forEach((p, i) => { if (box[i] > 0) { st.gp[p.id] = (st.gp[p.id] || 0) + 1; st.mins[p.id] = (st.mins[p.id] || 0) + box[i]; } });
-    return avail.reduce((a, p, i) => a + p.play * m[i] / 48, 0) + (teams[ab].coach?.s ?? 0) / K.netScale;   // and his coach's scheme, about s a game (staff.js scheme)
+    const ps = teams[ab].roster.map((id) => players[id]), hurt = (p) => (st.hurt[p.id] ??= injuries(p, 82, r, K.longInj, trainer(league, ab), K))[g];
+    // the night's minutes as the minutes model splits them (minutes.js): who gets on the floor, and
+    // each one's share, varied night to night; the club's strength is the night's expected shares, as
+    // the night's swings (blowouts, fouls) mostly follow the score rather than set it
+    st.ms ||= {}; st.sc ||= MN.charScale(ps);
+    // a two-way man can be active 50 of the season's games (CBA Art. II §11), his nights spread over it:
+    // active tonight only while under the pace of 50 in 82
+    const tw = (st.tw ||= {}), off = (p) => hurt(p) || (!!p.contract?.twoWay && (tw[p.id] || 0) >= 50 * (g + 1) / 82);
+    for (const p of ps) if (p.contract?.twoWay && !off(p)) tw[p.id] = (tw[p.id] || 0) + 1;
+    const men = MN.club({ season: st.season, K }, ab, teams[ab], ps, st.ms), { m, e } = MN.night(K.minutes, men, off, st.sc, r, (st.ar ||= {}));
+    MN.record(K.minutes, men, m);
+    // his health this season (availability, next summer): games on the roster, fit, and minutes when fit
+    for (const p of ps) { const x = ((st.hl ||= {})[p.id] ||= [0, 0, 0]); x[1] += 1; if (!hurt(p)) { x[0] += 1; x[2] += m.get(p.id) || 0; } }
+    for (const [id, v] of m) if (v > 0) { st.gp[id] = (st.gp[id] || 0) + 1; st.mins[id] = (st.mins[id] || 0) + v; }
+    return ps.reduce((a, p) => a + p.play * (e.get(p.id) || 0) / 48, 0) + (teams[ab].coach?.s ?? 0) / K.netScale;   // and his coach's scheme, about s a game (staff.js scheme)
   };
   for (; st.d < Math.min(to, st.days.length); st.d++) for (const [h, a] of st.days[st.d]) {
     const rec = st.record, margin = K.netScale * (strength(h) - strength(a)) + K.hca + K.sigma * r.normal();

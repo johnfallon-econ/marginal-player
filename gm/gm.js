@@ -30,12 +30,24 @@ export const signPremium = (g, p, cap, K) => g.sign_rate / 100 * cap * (p.rate -
 
 // The user is new in the job: the real executive he replaces is out of work from the start, his
 // spell as the re-entry model reads it, and the club's own computer GM is a first-timer.
+// An owner's tolerance for the tax, his GM's to work within (league.js, trades.js: the weight on the
+// tax a move brings is 1 less it): his own willingness to spend, a draw that stays with the club
+// until it is sold, and his market -- its revenue against the league's median (K.fin) -- each owner
+// weighing what his club can afford. K.ownerTax (calibrate-owner.js): fit so the clubs over the tax,
+// how far over, and how that follows revenue match the real league's, 2015-16 to 2024-25.
+export function owner(G, ab, r) {
+  const rev = Object.values(G.K.fin.revenue).sort((a, b) => a - b), med = (rev[14] + rev[15]) / 2, T = G.teams[ab];
+  T.spend = r.normal();
+  T.taxTol = Phi(G.K.ownerTax.a + G.K.ownerTax.b * Math.log(G.K.fin.revenue[ab] / med) + T.spend);
+  if (T.gm) T.gm.taxTol = T.taxTol;
+}
 export function init(G, L, r) {
-  for (const [ab, x] of Object.entries(L.gms.clubs)) { G.teams[ab].gm = person({ ...x, taxTol: r() }, G.K); G.teams[ab].sold = x.sold; }
+  for (const ab of Object.keys(G.teams)) owner(G, ab, r);
+  for (const [ab, x] of Object.entries(L.gms.clubs)) { G.teams[ab].gm = person({ ...x, taxTol: G.teams[ab].taxTol }, G.K); G.teams[ab].sold = x.sold; }
   G.gmPool = L.gms.pool.map((x) => ({ ...x }));
   const x = L.gms.clubs[G.user];
   G.gmPool.push({ ...x, ...x.spell, out: 0, from: G.user });
-  G.teams[G.user].gm = person({ ...firstTimer(G, r), taxTol: r() }, G.K);
+  G.teams[G.user].gm = person({ ...firstTimer(G, r), taxTol: G.teams[G.user].taxTol }, G.K);
   G.lastPct = Object.fromEntries(Object.entries(L.gms.clubs).map(([ab, x]) => [ab, x.prior]));
 }
 
@@ -141,12 +153,12 @@ export function summer(G, r) {
   const back = G.gmPool.filter((x) => r() < pBack(G, x, x.out)).sort(() => r() - 0.5);
   for (const ab of G.openSeats) hire(G, ab, r, back.shift());
   // clubs sold this summer, for the coming season (the user's: owner.js review)
-  for (const [ab, T] of Object.entries(G.teams)) if (r() < G.K.gm.saleRate) { T.sold = G.season + 1; G.log.push({ type: 'owner', date: G.date, team: ab }); }
+  for (const [ab, T] of Object.entries(G.teams)) if (r() < G.K.gm.saleRate) { T.sold = G.season + 1; owner(G, ab, r); G.log.push({ type: 'owner', date: G.date, team: ab }); }
 }
 // a seat filled: by x, out of work, else a first-timer
 export function hire(G, ab, r, x = firstTimer(G, r)) {
   G.gmPool = G.gmPool.filter((y) => y !== x);
-  G.teams[ab].gm = person({ ...x, taxTol: r(), ten: 0 }, G.K);
+  G.teams[ab].gm = person({ ...x, taxTol: G.teams[ab].taxTol, ten: 0 }, G.K);
   G.log.push({ type: 'gm', date: G.date, team: ab, in: x.n, back: x.out > 0 });
 }
 // The user, out of work: each club that changed GMs this summer calls with the chance that makes his

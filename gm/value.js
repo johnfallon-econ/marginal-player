@@ -12,7 +12,7 @@ export function mpgFor(rate, K) {
     if (rate <= c[i][0]) return c[i - 1][1] + (c[i][1] - c[i - 1][1]) * (rate - c[i - 1][0]) / (c[i][0] - c[i - 1][0]);
   return c[c.length - 1][1];
 }
-export const projRate = (p, h, K) => { let r = p.rate; for (let j = 0; j < h; j++) r += agingStep(K, p.age + j); return r; };
+export const projRate = (p, h, K) => { let r = p.rate; for (let j = 0; j < h; j++) r += agingStep(K, p.age + j, r); return r; };
 // season WAR h seasons ahead; minutes from his own history this year, the curve after that
 export const war = (p, h, K) => warAt(p, projRate(p, h, K), h, K);
 const warAt = (p, r, h, K) => K.beta * 82 * (h === 0 && p.mpg ? p.mpg : mpgFor(r, K) * (p.av ?? 0.9)) / 48 * (r - K.repl);

@@ -132,9 +132,12 @@ export const miss = (G, k, ab = G.user) => (of(G, ab).length ? 1 / Math.sqrt(1 +
 // first season (dev.js seasonForm), the same model on rookies, its strict spread; that season only, as the data
 // measures nothing past it. Pay goes up the range with scheme and rotation together, each in points per 100.
 export const PAYS = 0.22;                   // points per 100 a minute of lean is worth (_coach_minutes.py)
-export const PULL = 0.16;                   // how far toward the best rotation a coach 1 sd better moves: calibrate-bench.js, 16 seeds, +0.18 a game (se 0.03; hidden +0.23) against the data's +0.19 (0.88 minutes of lean)
-// the share of the way from the default rotation to the best one club ab's coach moves (negative: away)
-export const coachPull = (G, ab) => (G.teams[ab].coach ? PULL * benchZ(G, G.teams[ab].coach) : 0);
+export const PULL = 0.06;                   // how far toward the best rotation (the club's minutes in order of true talent, minutes.js) a coach 1 sd better moves: calibrate-bench.js against the data's +0.19 a game
+// the share of the way from the default rotation to the best one club ab's coach moves (negative: away):
+// every coach reads some of his men's true talent (K.coachRead, calibrate-read.js -- the role a real man
+// carries from last season holds what his coach saw beyond his rating, which a role the game made does
+// not), a better one more
+export const coachPull = (G, ab) => G.K.coachRead + (G.teams[ab].coach ? PULL * benchZ(G, G.teams[ab].coach) : 0);
 export const BENCH = { coach: { label: 'Head coach', pay: [4e6, 17.5e6], sign: 1 }, trainer: { label: 'Head trainer', pay: [120e3, 300e3], sign: -1 } };
 function benchMan(G, t, x, r) {
   const B = G.K.bench[t], q = x?.q ?? B.mean + B.sd * r.normal(), [lo, hi] = BENCH[t].pay;
