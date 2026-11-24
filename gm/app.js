@@ -964,6 +964,10 @@ const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.le
   if (G_.hidden && !G_.teams[G_.user].staff) ST.init(G_, S.rng(1));     // a save from before staffs
   if (!('coach' in G_.teams[G_.user])) ST.initBench(G_, d.league, S.rng(1));     // a save from before coaches and trainers
   for (const p of Object.values(G_.players)) V.initSeen(p, G_.K);   // a save from before ratings kept what they stand on
+  // a save from before owners drew their willingness to pay the tax (gm.js owner): each club's owner now,
+  // its GM taking his tolerance from him -- a GM hired since had none, and every deal his club weighed was NaN
+  const ro = S.rng((G_.seed ?? 1) + 7);
+  for (const ab in G_.teams) if (G_.teams[ab].taxTol == null) GM.owner(G_, ab, ro);
   if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'realistic'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
   return G_; };
 async function create() {
