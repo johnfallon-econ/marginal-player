@@ -32,11 +32,15 @@ const scale = (G, s) => capAt(G, s) / 140.588e6;                     // 2024-25 
 // conference final $8M (the recent presidents' median), a champion $12M, two titles $15M (the top), in
 // 2026 dollars grown with the cap; five seasons, as almost every reported deal runs four or five. Each
 // club will go some way past its offer, how far it alone knows (limit: up to 30% more -- the game's,
-// not measured)
-export function terms(G, r, from) {
-  const c = G.career || [], titles = c.filter((x) => x.champ).length;
+// not measured). Club ab pays more the richer it is and the freer its owner spends (gm.js owner: his
+// draw, spend): its revenue over the median to the 0.23 (the reported deals' slope on revenue, which
+// they cannot tell from nothing: se 0.54) and exp(0.3 x spend) -- a color the game adds, not measured
+// (the deals are too few and too famous to say)
+export function terms(G, r, from, ab) {
+  const c = G.career || [], titles = c.filter((x) => x.champ).length, R = G.K.fin.revenue, rv = Object.values(R).sort((a, b) => a - b);
   const base = titles >= 2 ? 15e6 : titles ? 12e6 : c.some((x) => x.won >= 2) ? 8e6 : c.length ? 3e6 : 2e6;
-  const sal = Math.round(base * capAt(G, from) / capAt(G, 2026) / 1e5) * 1e5;
+  const club = (R[ab] / ((rv[14] + rv[15]) / 2)) ** 0.23 * Math.exp(0.3 * G.teams[ab].spend);
+  const sal = Math.round(base * club * capAt(G, from) / capAt(G, 2026) / 1e5) * 1e5;
   return { sal, years: 5, limit: sal * (1 + 0.3 * r()) };
 }
 // His counter (ask: { sal, years }, three to five seasons): within the club's limit it agrees; a little
@@ -112,7 +116,7 @@ export function review(G, h, r) {
   const b = books(G, s, (C.teamSalary(T, G, s) + (T.short?.[s] || 0)) / 1e6, (T.tax?.[s] || 0) / 1e6, games.reduce((a, n) => a + Math.round(n / 2), 0));
   G.owner.books.push({ ...b, w, won });
   const x = T.gm.rec.at(-1);                       // the season as the exit model reads it (gm.js)
-  G.deal ||= { sal: terms(G, r, s).sal, from: s, to: s + 4 };                     // a save from before contracts
+  G.deal ||= { sal: terms(G, r, s, G.user).sal, from: s, to: s + 4 };                     // a save from before contracts
   G.earned = (G.earned || 0) + G.deal.sal;          // the season's pay
   (G.career ||= []).push({ ab: G.user, s, w, l: h.record[G.user][1], won, champ: h.champion === G.user, vs_exp: x.vs_exp, po_w: x.po_w, proc: x.trade_proc, left: x.draft_left });
   const ten = G.career.length - G.career.findLastIndex((c) => c.ab !== G.user) - 1, p0 = GM.pFired(G, x, ten, G.career.slice(-ten, -1));
@@ -123,7 +127,7 @@ export function review(G, h, r) {
     const o = GM.offers(G, r);
     G.earned += G.deal.sal * Math.max(0, G.deal.to - s);   // the rest of his deal, paid out (as reported for those let go)
     delete G.deal;
-    G.fired = { s, mode: G.fireMode, from: G.user, out: 1, offers: o.clubs.map((ab) => ({ ab, ...terms(G, r, s + 1) })), h: o.h };
+    G.fired = { s, mode: G.fireMode, from: G.user, out: 1, offers: o.clubs.map((ab) => ({ ab, ...terms(G, r, s + 1, ab) })), h: o.h };
     GM.hire(G, G.user, r);                         // his old club hires a GM of its own
   } else if (T.sold === s + 1) {
     // the club is sold: a new owner, of any kind, who would rather have his own GM
@@ -133,8 +137,8 @@ export function review(G, h, r) {
   // still in the job, other clubs may call: each club changing GMs this summer, at the chance the
   // re-entry model gives a GM with his record in his first season out -- the rate at which clubs offer
   // a man who will take the job, as an out-of-work GM all but always does; whether to take it is his
-  // and his deal ending, his owner offers to renew it, on the same terms any club would
-  if (!G.fired) { G.calls = GM.offers(G, r, 1).clubs.map((ab) => ({ ab, ...terms(G, r, s + 1) })); if (G.deal.to === s) G.renewal = terms(G, r, s + 1); }
+  // and his deal ending, his owner offers to renew it, on the terms his club would offer anyone with his record
+  if (!G.fired) { G.calls = GM.offers(G, r, 1).clubs.map((ab) => ({ ab, ...terms(G, r, s + 1, ab) })); if (G.deal.to === s) G.renewal = terms(G, r, s + 1, G.user); }
   return b;
 }
 // Taking a job: the club is his, with a new owner of the kind he asked for; his career goes with him

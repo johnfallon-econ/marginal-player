@@ -256,7 +256,7 @@ const ACT = {
     step(`${f.out > 1 ? `Season ${f.out} out` : 'A season out'}: ${GM.PATHS[k].label.toLowerCase()}`, async () => {
       G.lite = true; try { await L.toNextDraft(G, r, (date, k) => tradeWindow(date, L.TRADES[k], null)); } finally { delete G.lite; }
       (f.log ||= []).push({ s: G.season, path: k }); f.out += 1; f.s = G.season;
-      const o = GM.offers(G, r, f.out, k); f.offers = o.clubs.map((ab) => ({ ab, ...O.terms(G, r, G.season + 1) })); f.h = o.h;
+      const o = GM.offers(G, r, f.out, k); f.offers = o.clubs.map((ab) => ({ ab, ...O.terms(G, r, G.season + 1, ab) })); f.h = o.h;
       if (all && !f.offers.length) setTimeout(() => ACT.away(true), 50);
     }); },
   staff: () => { G.staffSigns = G.staffSigns === false; save(); render(); },
@@ -957,17 +957,18 @@ async function data() { return (await fetch('gm/league.json')).json(); }
 // A save from before the clubs had their real GMs gets them now, on the season under way.
 const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.league.const, ...d.cal } }; if (G_.draft) L.settleDraft(G_);
   M.setDisc(G_.K);
+  // a save from before owners drew their willingness to pay the tax (gm.js owner): each club's owner now,
+  // its GM taking his tolerance from him -- a GM hired since had none, and every deal his club weighed was NaN; and a club's
+  // offer to a GM reads its owner's draw
+  const ro = S.rng((G_.seed ?? 1) + 7);
+  for (const ab in G_.teams) if (G_.teams[ab].taxTol == null) GM.owner(G_, ab, ro);
   // a save from before contracts: its calls and offers were clubs alone, now each with its terms
-  const withTerms = (L) => L.map((x) => (typeof x === 'string' ? { ab: x, ...O.terms(G_, S.rng(1), G_.season + 1) } : x));
+  const withTerms = (L) => L.map((x) => (typeof x === 'string' ? { ab: x, ...O.terms(G_, S.rng(1), G_.season + 1, x) } : x));
   if (G_.calls) G_.calls = withTerms(G_.calls); if (G_.fired?.offers) G_.fired.offers = withTerms(G_.fired.offers);
   if (G_.fireMode === 'simple') G_.fireMode = 'realistic';     // owner confidence is gone: a simple game is fired as real GMs are
   if (G_.hidden && !G_.teams[G_.user].staff) ST.init(G_, S.rng(1));     // a save from before staffs
   if (!('coach' in G_.teams[G_.user])) ST.initBench(G_, d.league, S.rng(1));     // a save from before coaches and trainers
   for (const p of Object.values(G_.players)) V.initSeen(p, G_.K);   // a save from before ratings kept what they stand on
-  // a save from before owners drew their willingness to pay the tax (gm.js owner): each club's owner now,
-  // its GM taking his tolerance from him -- a GM hired since had none, and every deal his club weighed was NaN
-  const ro = S.rng((G_.seed ?? 1) + 7);
-  for (const ab in G_.teams) if (G_.teams[ab].taxTol == null) GM.owner(G_, ab, ro);
   if (!G_.gmPool) { GM.init(G_, d.league, S.rng(G_.seed ?? 1)); G_.fireMode = 'realistic'; if (['season', 'playoffs'].includes(G_.phase)) for (const ab in G_.teams) G_.teams[ab].gm.pre = L.projWins(G_, ab) / 82; }
   return G_; };
 async function create() {
@@ -978,7 +979,7 @@ async function create() {
   const d = await data(), seed = Math.floor(Math.random() * 2 ** 31);
   adopt(L.newGame(d.league, d.cal, { team, hidden, seed }));
   if (truth) Object.assign(G, clubs === 'scout' ? { reveal: true } : { clubs });
-  O.hire(G, $('#owner').value, r); G.fireMode = $('#fire').value; G.deal = { sal: O.terms(G, r, G.season).sal, from: G.season, to: G.season + 4 };
+  O.hire(G, $('#owner').value, r); G.fireMode = $('#fire').value; G.deal = { sal: O.terms(G, r, G.season, G.user).sal, from: G.season, to: G.season + 4 };
   view = 'home'; await save(); render();
 }
 async function boot() {
