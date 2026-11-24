@@ -962,6 +962,8 @@ const current = async (g) => { const d = await data(), G_ = { ...g, K: { ...d.le
   // offer to a GM reads its owner's draw
   const ro = S.rng((G_.seed ?? 1) + 7);
   for (const ab in G_.teams) if (G_.teams[ab].taxTol == null) GM.owner(G_, ab, ro);
+  // a save's out-of-work GMs: no one past the years anyone has come back from, and no one who has died
+  G_.gmPool = (G_.gmPool || []).filter((x) => x.out <= GM.POOL_OUT && !d.league.gms.dead.includes(x.n));
   // a save from before contracts: its calls and offers were clubs alone, now each with its terms
   const withTerms = (L) => L.map((x) => (typeof x === 'string' ? { ab: x, ...O.terms(G_, S.rng(1), G_.season + 1, x) } : x));
   if (G_.calls) G_.calls = withTerms(G_.calls); if (G_.fired?.offers) G_.fired.offers = withTerms(G_.fired.offers);

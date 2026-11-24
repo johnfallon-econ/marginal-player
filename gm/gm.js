@@ -14,6 +14,7 @@ import * as M from './value.js';
 import { Phi } from './season.js';
 import { hashNoise } from './dev.js';
 
+export const POOL_OUT = 15;
 export const NOISE = 0.225, ACT = 6, CONS = 0.36;   // ACT, CONS tuned so a GM-season's trades, and players sent less got per trade, rise one for one with his leanings (slopes 0.88 se 0.12, 0.76-1.03; 63 simulated league-seasons)
 const lgt = (z) => 1 / (1 + Math.exp(-z));
 
@@ -131,7 +132,7 @@ export function spellOf(g) {
 }
 // P(back in a lead job this summer), out years out, the fitted re-entry model's point estimates
 export function pBack(G, x, out) {
-  const c = G.K.gm.rehire, o = out >= 4 ? '4+' : String(out);
+  const c = G.K.gm.rehire, o = out >= 10 ? '10+' : out >= 4 ? '4-9' : String(out);
   return lgt(c.Intercept + (out > 1 ? c[`C(out)[T.${o}]`] : 0) + c.m_vs_exp * x.m_vs_exp + c.m_pct * x.m_pct + c.po_w * x.po_w + c.titles * x.titles
     + c.length * x.length + c.m_trade * x.m_trade + c.m_draft * x.m_draft + c.last_vs_exp * x.last_vs_exp + c.losing_exit * x.losing_exit);
 }
@@ -149,7 +150,10 @@ export function summer(G, r) {
     G.log.push({ type: 'gm', date: G.date, team: ab, out: T.gm.n });
     G.openSeats.push(ab);
   }
+  // a year more out of work; past POOL_OUT seasons (the longest real way back: 2 of 137 exits since 2001
+  // returned after 9, at 12 and 15) a man is out of the game for good
   for (const x of G.gmPool) x.out += 1;
+  G.gmPool = G.gmPool.filter((x) => x.out <= POOL_OUT);
   const back = G.gmPool.filter((x) => r() < pBack(G, x, x.out)).sort(() => r() - 0.5);
   for (const ab of G.openSeats) hire(G, ab, r, back.shift());
   // clubs sold this summer, for the coming season (the user's: owner.js review)
