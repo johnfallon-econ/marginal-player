@@ -11,7 +11,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="site.css">
 <link rel="icon" href="assets/favicon-32.png">
-<!-- seo --><meta name="description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><link rel="canonical" href="https://themarginalplayer.com/methodology-draft.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Projecting a prospect — The Marginal Player"><meta property="og:description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><meta property="og:url" content="https://themarginalplayer.com/methodology-draft.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Projecting a prospect — The Marginal Player"><meta name="twitter:description" content="How The Marginal Player&#x27;s draft model works: prospect outcomes, the value of a rookie contract, and re-signing rights."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
+<!-- seo --><meta name="description" content="An explanation of the components behind the draft projections: future seasons, rookie-scale and re-signing."><link rel="canonical" href="https://themarginalplayer.com/methodology-draft.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Projecting a prospect — The Marginal Player"><meta property="og:description" content="An explanation of the components behind the draft projections: future seasons, rookie-scale and re-signing."><meta property="og:url" content="https://themarginalplayer.com/methodology-draft.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Projecting a prospect — The Marginal Player"><meta name="twitter:description" content="An explanation of the components behind the draft projections: future seasons, rookie-scale and re-signing."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
 <body>
 <header><div class="wrap"><nav>
 <a class="brand" href="index.html"><img src="assets/mark-light-sm.webp" alt="" width="34" height="35" style="display:block;flex:none;width:34px;height:35px"><span>The <br>Marginal <br>Player</span></a>
@@ -19,338 +19,421 @@
 </nav></div></header>
 <script>(function(){var n=document.querySelector('.nl'),a=n&&n.querySelector('a.on');if(a&&n.scrollWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-n.offsetLeft-(n.clientWidth-a.offsetWidth)/2;})();</script>
 <div class="wrap"><main>
-<nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><span class="on">Draft model</span><a href="methodology-trade.html">Trade pricing</a></nav><img class="meth-fig" src="art/f/scouting.webp" alt="A magnifying glass over prospect files" width="239" height="194" loading="lazy">
+<nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><span class="on">Draft model</span><a href="methodology-trade.html">Pricing trades</a></nav><img class="meth-fig" src="art/f/scouting.webp" alt="A magnifying glass over prospect files" width="239" height="194" loading="lazy">
 <h1>Projecting a prospect</h1>
-<p class="lede">The useful question about a draft pick is rarely how good a player will be.
-It is how wide the range is, and how bad the bottom of it gets. The model therefore
-estimates a distribution, not a number.</p>
+<p class="lede">The interesting question about any draft pick is usually not “what will his
+career look like?”. More commonly, we want to know how uncertain it is, and what its worst
+case looks like. The outputs are thus distributions.</p>
 
 <h2>What is predicted</h2>
 
-<p>Three fixed horizons, each anchored to the draft year and each measured in Marginal Plus
-Minus (mPM), the same per-100-possession rating the value board uses:</p>
+<p>For each draft year, there are three targets, all given in mWAR in a fully-available
+player: (i) his mPM in that year less replacement level, scaled by β̂ and multiplied by his
+average minutes-share over a normal season; (ii) the average of his rates over the years (if
+any) that he has played to date, weighted by those years’ minutes and evaluated at the
+corresponding minutes-weighted role; and (iii) his highest single-season value over the first 7 years. All
+targets apply only in years where a player has played ≥100 minutes.</p>
 
 <ul>
-<li><strong>Rookie year</strong> — impact in season 1.</li>
-<li><strong>Four-year mean</strong> — precision-weighted mean impact over whichever of
-seasons 1–4 the player logged above the possession floor.</li>
-<li><strong>Peak</strong> — his <em>best single season</em> within seasons 1–7, again over
-seasons actually played.</li>
+<li><strong>Rookie year</strong>: his realized output in season 1.</li>
+<li><strong>Four-year mean</strong>: his average over the first 4 years, if he played.</li>
+<li><strong>Peak</strong>: his <em>highest single season</em> over the first 7 years, if he
+played.</li>
 </ul>
 
-<p>Peak is a maximum over up to seven noisy draws, so it is upward-biased by construction:
-even a player whose true level never changes will post a best season above his mean. That is
-a property of the target, not an error in the model — but it means peak should be read as
-"how high did this player ever get", not "how good was he at his best", and the two are not
-the same quantity when seasons are measured with error.</p>
+<p>As noted, for recent draft years these span fewer years.</p>
 
-<p>Fixed horizons rather than career averages, deliberately. A career mean is an artifact of
-when a player happened to be drafted: players from older classes have longer careers to
-average over, so a career-based target would encode era rather than ability.</p>
+<p>Note that the “highest” target has an inherent upwards bias: any constant-player will
+record some seasons higher than his overall mean. This is simply a consequence of taking the
+max over multiple noisy observations. So the target should be read as “how high did he ever
+get?” rather than “how good was he at his best?”, and the two differ when seasons are
+measured with error.</p>
+
+<p>We similarly choose to anchor the other two horizons to the draft, rather than taking a
+player’s career average. The latter would clearly depend on when he entered the league,
+simply as a function of how many years would lie ahead of him.</p>
 
 <h2>Censoring, and why busts must count</h2>
 
-<p>This is the design choice that most affects what the model learns. Train only on
-prospects who made it and the model learns that draft picks reliably become NBA players,
-because in its training data they always did. Every projection is then conditioned on
-survival, and the bottom of the fan — the part a general manager is actually buying
-insurance against — is missing.</p>
+<p>If the training set consisted solely of successful picks, the model would learn that all
+picks go on to play in the NBA. As a result, all subsequent predictions would assume this,
+leaving the tail of the fan entirely unpopulated.</p>
 
-<p>The fix is a <strong>two-part (hurdle) model</strong> rather than a flooring rule. The
-extensive margin is its own head: a <strong>propensity</strong> that the prospect ever
-becomes an NBA player at all, fit on every drafted and undrafted prospect in the class. The
-intensive margin — availability and on-court quality — is fit <em>conditional on playing</em>,
-so the quality heads are never asked to explain a zero that means "was not there" rather
-than "was there and was bad".</p>
+<p>Instead, we adopt a <strong>hurdle approach</strong> with two separate prediction
+problems. First, the model must learn the <strong>likelihood</strong> that a prospect goes
+on to play at least one NBA game. This is learned from all available data points from prior
+draft years, i.e. drafted and undrafted prospects for whom we know if they played or not
+(having played ≥1 game or completed their initial 4-year period without doing so). Second,
+<em>conditional on a player having played</em>, we predict his degree of availability and
+quality. Crucially, this ensures that the model is not tasked with predicting the value of a
+player who simply didn’t play.</p>
 
-<p>The two are recombined at scoring time. Realized value is a propensity-weighted mixture of
-a <strong>floor set below the worst player who plays</strong> and the played-case
-availability × quality distribution. So a prospect the model thinks probably never sticks
-ranks beneath a mediocre-but-real rotation piece, which is the ordering a team wants, and the
-never-play mass shows up in the fan as genuine downside instead of being averaged away.</p>
+<p>These two pieces can then be combined when computing a prospect’s value. Specifically,
+the value of each prospect is a mixture of a <strong>lower bound (set to be less than the
+worst player who plays)</strong> and his expected played-seasons’ availabilities and
+qualities, weighted by his likelihood of playing. This has the desirable effect that
+prospects with low probabilities of ever sticking will rank significantly below a passable
+rotational contributor, while still ensuring a non-trivial mass of “never plays” is
+represented in the fan.</p>
 
-<p>This replaced an earlier Heckman inverse-Mills selection correction. Seasons that simply
-have not happened yet remain genuinely missing and are excluded from the relevant target —
-unobserved is not the same as zero.</p>
+<p>Finally, for each prospect, any future seasons are omitted from the target, i.e. treated
+as unobserved rather than assumed to be 0.</p>
 
 
 <h2>What the board ranks on: value to the drafting club</h2>
 
-<p>The quality and availability heads describe a player. A draft pick is bought by a club,
-and what the club gets is not the same thing: it holds the player on a cheap rookie deal,
-may lose him before it ends, may re-sign him, and if he becomes a star pays him the
-maximum, which is far below what he produces. The board therefore ranks each prospect on
-the expected value of his whole career <em>to the club that drafts him</em>, in
-draft-night dollars (every season priced at the draft season's cap), and shows it season
-by season beneath each prospect.</p>
+<p>While the preceding discussion gives an account of how we estimate the quality and
+availability of a player, these do not directly correspond to the asset acquired by the
+drafting team. A team will retain a prospect for the duration of his rookie deal (subject to
+trading or release), and may choose to re-sign him at the end of this and subsequent
+contracts. If he reaches superstar status, they will be required to pay him the maximum,
+substantially less than his contribution. Accordingly, the board displays the expected
+cumulative value of each prospect <em>to the drafting team</em>, expressed in the
+draft-year’s salary terms, broken down by individual season.</p>
 
 <h3>The career, season by season</h3>
 
-<p>There is one projection per season through season 20. Careers run that long: top-five
-picks still averaged about 40% of their peak value in season 12 and reach roughly zero by
-season 20. Seasons 1&ndash;7 each have their own quality and availability heads. Few
-careers are long enough to fit a head for each later season &mdash; 564 players have a
-quality label in season 8, 71 in season 16 and 7 in season 20 &mdash; so seasons
-8&ndash;20 come from one gradient-boosted model per quantile, fit on every player-season
-from 8 on with the season as a feature. It borrows across neighbouring seasons and keeps
-the arc smooth. Out of fold, the realized season falls inside its 10th&ndash;90th band
-80&ndash;89% of the time over seasons 8&ndash;16, and each late season ranks players at
-least as well as the season-4 projection does.</p>
+<p>The model generates a projection for each of the first 20 years of a player’s career.
+Seasons 1-7 are therefore predicted using separate quality and availability models. There
+are insufficient players with sufficiently extended careers to warrant additional models
+(564 players have a quality label in season 8, 71 in season 16 and 7 in
+season 20), so seasons 8-20 are predicted by a single gradient-boosted model per quantile,
+fit on every player-season from 8 on with the year as an additional covariate to ensure
+continuity in the forecast.</p>
 
-<h3>Widened, priced, then recalibrated</h3>
+<h3>Conformally widened and re-scaled</h3>
 
-<p>Two corrections, both on the model's own projected level and both fitted per class on
-the classes before it, as the projections are. <strong>Neither uses draft
-position</strong>: the pick is not a model input, and calibrating on it would hand the
-board the draft's own judgement and empty the comparison with draft order of meaning.</p>
+<p>All fans displayed on the board are first subjected to the conformal widening procedure
+discussed in “Are the intervals honest?”. The individual season forecasts used to calculate
+the total club value are then adjusted twice, based on the model’s own forecast and learned
+separately from each prior draft year as described. Notably, <strong>neither adjustment
+incorporates the player’s draft slot</strong>, nor is the draft slot fed into the
+base-quality and availability predictions. However, the model used to determine the club
+value clearly accounts for the slot, since teams differ in the extent to which they retain,
+re-sign and pay the maximum to high vs low picks, holding output fixed. Consequently, the
+expected length of the rookie deal, probability of re-signing, likelihood of a max-contract
+and the proportion of the cap paid at each deal are all predicted as a function of the slot.
+Nevertheless, each prospect is displayed and compared <strong>as though he had been
+selected at a common evaluation slot</strong> (the #1 pick,
+unless overridden by the user under “picking at” on the board). Thus the slot has no
+bearing on how any particular prospect is valued relative to others, and hence also to his
+position in the draft. The features of the evaluation slot’s corresponding rookie-scale are
+likewise applied.</p>
 
-<p><strong>Spread first.</strong> The season projections were too narrow. Where a realized
-season falls within its own projected distribution should be uniform; instead too few
-landed in the middle and too many in the tails, busts above all &mdash; for lottery
-picks in seasons 3&ndash;6, 10.8% fell below the projection's 5th
-percentile and 17.0% in its 50th&ndash;75th band, against 5% and 25%.
-Each distribution's levels are remapped (quantile recalibration): an outcome at level
-<em>u</em> is read at the level where realized seasons of prospects projected alike
-actually fell, by projected level and season group. Out of sample, on classes the
-remap never saw, those shares become 8.9% and 22.4%.
-The bust tail is only partly closed: projected level separates mid-lottery picks from
-the rest less cleanly than the pick would.</p>
+<p><strong>Spread first.</strong> First, we observe that the season-level distributions
+remain somewhat under-dispersed. Ideally, a given season’s actual value should fall
+uniformly within its corresponding forecast. In practice, however, too few seasons land in
+the middle and too many in the tails, busts above all. In particular, for lottery picks
+in seasons 3-6, 10.8% fell below the 5th percentile of their forecast
+and 17.0% landed in its 50th-75th band, compared with the expected 5% and
+25%. We address this by re-mapping the levels of each forecasted
+distribution to match the empirical frequencies of realized values for similarly-forecasted
+player-seasons (with the mapping differing by year). On classes the mapping had not
+seen, these shares become 8.9% and 22.4%.
+This partially alleviates the issue, although there remains limited separation between
+mid-to-high lottery picks and lower ones.</p>
 
-<p><strong>Then level, in dollars.</strong> Priced at the open-market rate, the widened
-projections were still too flat: over every prospect-season, with never-played
-prospects at $0, top-five picks returned more than projected and second-rounders less (the
-table below shows the result after the fix, by pick range). An isotonic map from a
-prospect-season's projected price to what prospect-seasons projected at that price
-actually returned corrects it. Each outcome's price that season is scaled to match, so
-the outcomes keep their order. The map is convex &mdash; a season projected at 33% of the cap maps to 45%, one
-at 10% to 14%, one at 1% to 0.7% &mdash; and it applies to dollars; the career-trajectory chart shows the model's
-wins before either correction.</p>
+<p><strong>Then level, in dollars.</strong> Second, each year’s conformally-widened value is
+transformed to match the observed level of similarly-valued player-seasons, with the mapping
+constrained to be monotone and including a $0 term for the never-played population, fit on
+seasons 1&ndash;16. Each season’s value is then rescaled by this factor to
+maintain the ranking of player-seasons. For the most recent draft, the net effect is to
+decrease the lower end and increase the upper end of the distribution, mapping a forecast of ~33%/10%/1% of the cap to
+45%/14%/0.7% respectively. Note that the
+model’s raw (pre-adjustment) career path for each player is shown on the accompanying
+graph.</p>
 
-<h3>Held, re-signed, paid the max</h3>
+<h3>Retained, re-signed and paid the max</h3>
 
 <ul>
-<li><strong>The rookie deal.</strong> The club keeps everything he produces through his
-rookie deal while it holds him. The deal starts in his first paid season, which for a
-player stashed abroad is a season or more after the draft, and runs four seasons in the
-first round (the rookie scale) and whatever he signs in the second. The board cannot know a
-prospect's own term, so it averages over the terms as knowable at his draft, fitted on
-earlier classes: the chance he signs late, by round and whether he was drafted from abroad
-(only 31% of second-rounders drafted from abroad sign in their
-draft year, against 99% of first-rounders from American schools),
-and a second-rounder's deal length (59% sign for one or two
-seasons). From the deal's second season the club holds him with a probability fitted on
-every drafted player since 1999 (logit on the previous season's wins, round, slot and
-contract season): 89% of lottery picks are still held in the
-deal's fourth season, 91% of second-rounders in its third. Log
-loss out of sample 0.191 against a base rate's 0.267.</li>
-<li><strong>Re-signing.</strong> At each deal's end (the rookie deal's, then every four seasons) the club
-keeps him with a probability fitted on what happened at real contract ends: after the
-rookie deal on the player's own panel (restricted free agency keeps
-92% of players worth 5&ndash;10 Marginal WAR (mWAR); log loss
-0.542 against a base rate's 0.693), later deals on the ledger's contract ends, with an
-extension counted as the deal ending in a re-signing (log loss
-0.595 against a base rate's 0.655).</li>
-<li><strong>A trade keeps the value.</strong> A club that trades him was paid for him, so
-only walking, being waived or leaving the league loses it. Leaving the league counts as
-not kept: the season projections cannot tell a player gone from one playing at
-replacement, both worth about nothing, so the probability has to carry the exit.</li>
-<li><strong>The next deal.</strong> A re-signed player leaves his club his value minus his
-pay. On a max deal that pay is the max: 25% of the cap on the second deal, 30% from seven
-seasons of service, 35% from ten. Whether a deal is a max deal is its own probability, fitted on
-re-signings on his mWAR and age at signing and whether it ends a rookie deal, because a max
-is a lump at the top of the pay distribution, not the top of a salary curve; at the same
-mWAR a club pays it far more often to a 23-year-old than to a 32-year-old. Otherwise his pay is
-the share of the cap players like him re-signed for, fitted on non-max re-signings on the same
-terms. Clubs re-sign their own below the open-market price, so a good player who never gets a max
-still leaves his club a surplus. A deal binds for its length, so a season he is worth less than his
-pay is a loss: <strong>a deal can go underwater</strong>, and the board counts it.</li>
-<li><strong>As knowable at the draft.</strong> The retention, rookie-hold, max-deal and pay
-models for a past class are refitted on contract outcomes before its draft, so a 2010
-prospect is not priced with re-signings that happened after 2010, his own among them. They
-read wins on the recalibrated level, since they were fitted on realized wins.</li>
+<li><strong>Rookie deal.</strong> During a player’s rookie-scale period, the team captures
+100% of his output. A player’s rookie deal will begin at the start of his first contracted
+season, potentially some time following the draft if he has spent previous seasons
+overseas. Any preceding seasons are included in the calculation and assigned the model’s
+prediction for those years. The period spans 4 years on the first-round scale, and the
+length of the deal he signs in the second round. Since the board has no insight into the specific terms of
+each prospect’s deal, it instead averages over the distribution of lengths known to be
+available to him at the point of his selection, inferred from the prior years’ cohorts.
+These depend on whether he signs in his draft year, his round of selection, and whether he
+is an international recruit (notably, only 31% of 2nd round
+internationals did so, compared to 99% of domestic 1st-rounders),
+and the length of a second-round deal (59% sign for one or two
+seasons). As above, the former applies to the evaluation slot. Subsequently, the team
+retains him for each successive year with a probability predicted from all players drafted
+since 1999, dependent on his win-total in the preceding year, the year of the deal, his
+round and (logged) draft slot and (logged) slot√wins. Notably, 88% of
+lottery picks remained in their deal until its 4th year and 83% of
+2nd-round picks for 3 years. The model’s out-of-sample performance (measured by log-loss) is
+0.186 against a base rate’s 0.267; without the round and slot,
+0.201.</li>
+<li><strong>Re-signings.</strong> When a player’s current deal expires, he will stay with
+his team subject to the model’s prediction, derived from the historical record of expiring
+deals. After the initial period, this is conditioned on the player’s team retaining him for
+the duration of the prior deal, his win-total at the end of that deal, age, (logged) slot and
+√wins/slot. Restricted free agency keeps
+94%
+of players worth 5-10 mWAR; log loss 0.561 against a base rate’s 0.678, and
+0.564 without the slot term. As with
+the rookie-scale, the slot exerts the strongest influence. Predicting just 1/(slot) yields
+marginally improved log-loss
+(0.559), but keeps nearly every bust
+taken first, and the board requires every prospect to be valued at one slot. Consistent with this, the model correctly identifies that
+60% of the first 2 picks generated ≤1mWAR in the final
+year of their deal stayed with their team, vs 41% of
+2nd-round picks, and predicts 59%/38%
+out of sample. Finally, for each subsequent period, the model is trained on
+the records of expiring deals recorded on the database, treating any “extension” as
+equivalent to the player staying and the deal concluding. Log-loss of
+0.595 vs baseline of
+0.655.</li>
+<li><strong>Traded players.</strong> If a team elects to trade a player, the burden of
+paying for him transfers to the recipient, such that only a player departing his team (via
+free agency, dismissal or retirement) results in a complete loss. The latter two cases are
+subsumed under a player failing to “stay”. Given the season-level models, there is no
+obvious distinction to be made between a player continuing to perform at a replacement level
+and one leaving the game entirely, so the model must make this judgement. Note that the
+probability of an outcome falling at the never-played level will vary depending on the round
+associated with the evaluation slot. In particular, as noted above, 1st-round picks will
+sign the scale and continue to be retained (at the rate of a player recording 0 wins)
+throughout, and then face the same decision at the conclusion of their deal as any other.
+Assuming the player is assessed at his own slot, first-round picks of
+2007&ndash;2016 were predicted held in rookie-deal seasons 2-4
+89% of the time against 88% realized (Brier score
+0.099), and kept past the deal 46% against
+49%. Similarly, for 2nd-round picks, the majority of floor outcomes
+correspond to the player failing to sign a deal or being released shortly thereafter, and
+hence not being retained.</li>
+<li><strong>Subsequent periods.</strong> Upon re-signing, a player’s value will be
+diminished by the sum he commands. If this is the maximum, it is determined by the CBA: 25%
+of the cap for the second deal, 30% after 7 years of service and 35% after 10. The
+probability that a given re-signing is a max will be predicted as a function of his mWAR
+and age at the time, and whether the prior deal was a rookie-scale, incorporating the
+(logged) slot at the commencement of his initial contract (conditioned on him signing it) as
+an additional feature, since the maximum will occur as an outlier at the extreme of the
+pay-scale, and is much more likely to be offered to a younger player. Elsewhere, the player
+will command the same percentage of the cap as his peers, predicted from the relevant subset
+of re-signings. Importantly, because a team will generally pay below-market rates to
+re-sign its own players, there will be residual value accruing to them even in the absence
+of a max deal. Finally, as a player’s contract fixes his income for its duration, the team
+will <strong>incur a shortfall for each year that he generates less than his
+salary</strong>, which the board reflects.</li>
+<li><strong>Known at the time of the draft.</strong> The re-signing, scale-length, max-deal
+and salary models applied to each draft year are therefore re-fitted using only contract
+outcomes from before that draft. Players’ wins will of course be informed by the revised
+level estimates discussed above.</li>
 </ul>
 
-<p>Each of 40 comonotonic outcome draws carries its own path: a star draw is held,
-re-signed and paid the max; a good one is re-signed below the max; a fringe draw is waived or walks. The value is the mean over
-draws, or its certainty equivalent under the risk slider. Draft surplus is that value
-minus the rookie scale.</p>
+<p>There are 40 outcome draws per prospect. At each point along the simulated career, the
+probability weights apply: stars will almost certainly be retained, re-signed to max and
+delivered that; strong players retained below max; marginal ones frequently lost or depart
+free, but increasingly unlikely as you go up the evaluation slot, such that the fits will
+see these players stay and earn &gt; their value. The expected output is either the simple
+mean, or adjusted by the user’s “risk” setting. These values drive the draft-board rankings
+of all available prospects at the given slot, whose relative ordering can change as the slot
+is cycled. Draft “surplus” is the difference to the corresponding rookie-scale offer, i.e.
+the amount a team would have to spend to acquire any given prospect at that slot. For slots
+after pick #30, we assume a 4-year minimum contract.</p>
 
-<h3>Is it right?</h3>
+<h3>How good is it?</h3>
 
-<p>Scored against what each drafted player actually returned his drafting club, classes
-2007&ndash;2016, on the board's own rules: realized wins at the
-open-market price while the club (or a club it traded him to) held him through the rookie
-deal, then, while still held, value minus salary &mdash; negative when the deal sank. Predictions stop at the same
-season as each class's record (season 10 to 19).</p>
-
-<div class="tablewrap"><table>
-<thead><tr><th>Picks</th><th>Value to club, predicted</th><th>Realized</th>
-<th>After the rookie deal, predicted</th><th>Realized</th><th>Kept past the rookie deal, predicted</th><th>Realized</th></tr></thead>
-<tbody><tr><td>1-5</td><td>$91.2M</td><td>$91.8M</td><td>$47.7M</td><td>$37.8M</td><td>56%</td><td>74%</td></tr><tr><td>6-14</td><td>$60.7M</td><td>$57.8M</td><td>$30.9M</td><td>$24.2M</td><td>46%</td><td>51%</td></tr><tr><td>15-30</td><td>$31.9M</td><td>$32.3M</td><td>$13.8M</td><td>$12.7M</td><td>31%</td><td>41%</td></tr><tr><td>31-60</td><td>$10.6M</td><td>$9.7M</td><td>$5.6M</td><td>$4.5M</td><td>26%</td><td>36%</td></tr></tbody></table></div>
-
-<p><strong>Ranking the lottery</strong>, where the decision is and where re-signing value
-sits: within-class Spearman with realized value to the club is 0.433, against
-0.401 for the same valuation stopped at the rookie deal and 0.212 for
-draft order (139 lottery picks). The whole career beats the rookie deal alone by
-+0.033 a class, a 90% class-bootstrap interval of -0.016 to
-+0.080 &mdash; not distinguishable from a tie &mdash; and draft order by
-+0.221 (+0.120 to +0.315), better in 8 of
-10 classes. Over every drafted player (595) the figures are 0.467,
-0.491 and 0.458. Mostly, the longer horizon gets the <em>level</em>
-right and does not yet rank better: whether a given star re-signs is close to a coin flip,
-and that noise dilutes a ranking as much as the extra value informs it.</p>
-
-<p>What is still off: the very top of the draft. Top-five picks are kept past their rookie
-deal less often than they really are (56% predicted, 74%
-realized) but are valued higher once kept ($47.7M against
-$37.8M); the two partly offset, and the rest of the lottery is kept
-about as often as it really is (46% and 51%). The realized side is measured in this site's own units (its wins, its price curve), so this is
-a test of the board's internal consistency with its own record, not against an outside
-measure of value.</p>
-
-
-<h2>Scouting reports, and who wrote them</h2>
-
-<p>Most inputs here are measurements: box production, tracking, combine anthropometrics,
-competition strength. One is not. Each prospect who has one also carries a
-<strong>scouting rubric</strong> — ten dimensions scored 1–10, shown on the draft board when
-you open a row.</p>
-
-<p>Those scores are not this site's opinion of the player, and it matters that the page says
-so. The underlying judgements are <strong>NBADraft.net's</strong>, taken from their pre-draft
-player profiles: a published attribute grid plus free-text Strengths and Weaknesses written by
-their scouts. A language model reads that text and scores it against a fixed rubric — shooting,
-defense, athleticism, feel, motor, self-creation, upside, bust risk, and two flags for injury
-and character concerns. The model is summarising someone else's assessment into numbers. It is
-not evaluating the player.</p>
-
-<p><strong>The two flagged dimensions deserve their own sentence.</strong> "Injury concern" and
-"character concern" are scored the same way as the rest: from what the scout wrote, with a
-neutral 5 where the report is silent, and no inference drawn from omission. They describe what
-a scouting report raised about a named, usually 18-to-22-year-old person before he was drafted.
-They are worth publishing because a reader deserves to see the same inputs the model saw, and
-worth labelling clearly because a number on a bar chart looks like a measurement no matter
-where it came from.</p>
-
-<p>Coverage is partial and not random. 1,191 prospects have a report; the rest show
-"no scouting report on file" rather than an imputed score. NBADraft.net profiles the players
-their audience cares about, which skews toward the top of each class — so the rubric is
-densest exactly where the draft is most consequential, and thinnest among the undrafted, where
-the model relies on the measured inputs alone.</p>
-
-<p>Two wrinkles worth stating because they affected the data. The site serves <em>two</em>
-attribute grids: guards and wings get "Ball Handling" and "Passing" where big men get "Post
-Skills" and "Rebounding". Only the guard set was parsed at first, so 404 big men carried
-two empty fields that were quietly filled with the population median — a seven-footer scored on
-a guard's ball-handling. And player URLs are built from the name, so every hyphenated name
-resolved to a dead address and was silently absent: Karl-Anthony Towns, Shai Gilgeous-Alexander
-and 20 others had no report at all until that was fixed.</p>
-
-<p><strong>Timing.</strong> The reports are pre-draft and NBADraft.net does not re-grade players
-after the fact, so these features carry no knowledge of what the prospect went on to do. That is
-what makes them usable as inputs rather than leakage.</p>
-
-<h2>Estimator</h2>
-
-<p>For quantile <em>τ</em>, the models minimize the pinball loss</p>
-
-<div class="eqn">L<sub>τ</sub>(y, ŷ) = max{ τ(y − ŷ), (τ − 1)(y − ŷ) }</div>
-
-<p>which is minimized in expectation at the τ-th conditional quantile. Fitting τ ∈
-{0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99} separately traces the predictive
-distribution without
-assuming it is symmetric or Gaussian — and prospect outcomes are neither, being bounded
-below by replacement level and long-tailed above.</p>
-
-<p>Two model families are fit: a quantile <strong>neural network</strong> with a learned
-embedding for competition circuit — college conference or international league, so league
-strength is estimated rather than hand-assigned — and a quantile <strong>gradient-boosted
-tree</strong> ensemble with circuit as a categorical. Network predictions average several
-independently initialized seeds, since at this sample size initialization noise is not
-negligible.</p>
-
-<p>Inputs are pre-draft only: competition-adjusted college and international production,
-combine measurements, published big boards, and high-school all-star events.
-<strong>Draft position is never an input.</strong> It is held out so that model and market
-can be compared honestly, which is the comparison below.</p>
-
-<p>Sample: <strong>4,741 prospects</strong> across
-301 engineered features.</p>
-
-<h2>Validation</h2>
-
-<p>Evaluation is <strong>expanding-window over draft classes</strong>: fit on earlier
-classes, predict later ones, never the reverse. Early stopping uses an inner split of the
-training classes, so the outer validation fold is untouched during fitting. Every figure
-below is out-of-fold.</p>
-
-<p>Rank correlation between predicted and realized outcome, against the draft order itself
-as the benchmark to beat:</p>
+<p>We compare to the actual output of each class of draftees,
+2007&ndash;2016, in terms of their drafting club’s returns.
+Specifically: wins generated (at the draft-night open-market rate) whilst the player(s) were on their
+original or a traded-for contract under their rookie-scale, and (subsequently, provided they
+remained under that contract) their value net of contract. We only consider this until the
+final season for which a given class has recorded output, i.e. seasons 10-19. As noted, the
+focus is on the fits (i.e. the player(s) filling the draft slot in question), so the value
+attributed to each player is that of the slot they were selected in. Below we similarly
+compare the relative merit of all prospects at each evaluation slot. Naturally we restrict
+this comparison to players who have appeared on an NBA roster, treating those who never
+earned a contract as “not retained” for both the final two columns.</p>
 
 <div class="tablewrap"><table>
-<thead><tr><th>Horizon</th><th>Neural net</th><th>Gradient boosting</th><th>Draft order</th><th>n</th></tr></thead>
+<thead><tr><th>Pick</th><th>Projected value to club</th><th>Actual</th>
+<th>After rookie scale, projected</th><th>Actual</th><th>Projected share retained beyond rookie scale</th><th>Actual</th></tr></thead>
+<tbody><tr><td>1-5</td><td>$89.2M</td><td>$92.2M</td><td>$44.6M</td><td>$37.5M</td><td>73%</td><td>74%</td></tr><tr><td>6-14</td><td>$61.4M</td><td>$59.1M</td><td>$30.9M</td><td>$25.1M</td><td>54%</td><td>51%</td></tr><tr><td>15-30</td><td>$31.8M</td><td>$32.3M</td><td>$13.7M</td><td>$12.9M</td><td>34%</td><td>41%</td></tr><tr><td>31-60</td><td>$11.1M</td><td>$9.8M</td><td>$6.2M</td><td>$4.6M</td><td>24%</td><td>26%</td></tr></tbody></table></div>
+
+<p><strong>Ranking the lottery by value to the club.</strong> Considering the points above,
+and taking the full range of prospects at each evaluation slot, we find (using Spearman
+rank) that:</p>
+
+<ul>
+<li>The within-class correlation between a draftee’s value to his drafting club and what he
+realized, averaged over classes, is 0.423.</li>
+<li>The same valuation stopped at the rookie deal gets 0.416, against
+0.218 for the actual order of selection (139 lottery picks).</li>
+<li>Across the entire career, the models beat the rookie-scale value of each class by an
+average of +0.006 (bootstrap 90% CI [-0.042, +0.054]), which is
+not distinguishable from a tie, and beat the order in which they were selected by
++0.205 (+0.089 to +0.311), better in 9 of 10
+classes.</li>
+</ul>
+
+<p>Across all drafted players (595 draftees, again within class and averaged over classes), the correspondences are 0.432,
+0.474 and 0.458. Note that here the longer-term valuation ranks lower than the rookie-scale valuation, and is within 0.026 of draft order.
+Overall, the extended periods give a broadly correct picture of the <em>‘absolute’</em>
+quality of each class, but have yet to reliably rank them above the alternatives. This is
+naturally limited by us ranking the draftees’ contribution to their club (in $ and
+post-contract net thereof) in isolation. In the next subsection we assess how well the
+models predict players’ on-court performance, pooling across all classes, so the two leads
+over draft order are not directly comparable.</p>
+
+<p>The frequency with which top-5 picks were retained beyond their rookie-scale is lower than in reality (73% vs 74%), and their projected (per-player retained) value after that point exceeds their actual output ($61.3M vs $50.7M). There is some cancellation, leading to $44.6M vs $37.5M over all top-5 picks. Elsewhere in the lottery and 2nd round, retention rates are broadly in line with the actuals (54% and 51%; 24% and 26%), although subsequent value is projected above them ($30.9M vs $25.1M; $6.2M vs $4.6M). However, the group 15&ndash;30 were retained at a rate 34% vs the actual 41%. All actuals are in this website’s native metrics, so we can only assess
+whether our model is internally consistent with its own basis.</p>
+
+
+<h2>Scouting reports, and their authorship</h2>
+
+<p>As set out, nearly all of the features fed to the model are objective measures. With one
+exception: every prospect who has one has a <strong>scouting rubric</strong> associated with
+them, displayed across the 10 categories (1-10) along their draft board entry.</p>
+
+<p>It should be clear that these are not this website’s view of those prospects. The base
+data comes from <strong>NBADraft.net</strong>’s existing pre-draft pages, comprising an
+explicit list of attributes and a narrative section (“Strengths”, “Weaknesses”) contributed
+by their in-house scouts. We pass the latter through an LLM to derive the 10 scores,
+covering: shooting, defensive ability, athletic capacity, basketball IQ, effort, ability to
+generate own shot, upside, bust risk, and two flags for injury and character concerns. So in
+effect the LLM is simply converting another party’s qualitative assessment into quantitative
+form.</p>
+
+<p><strong>The two flagged dimensions deserve their own sentence.</strong> We single out the
+final 2 of these 10. As with the remainder, a score of 10 indicates the maximum level of
+issue. We instruct the model to return 1 if the relevant topic is not mentioned in the
+scout’s comments, and 5 for all others absent specific mention. As can be seen, the
+behavioral issue similarly clusters towards the low end of the scale. Of the 1,191 reports reviewed, 1,129 have the injury flag at 1 and 1,136 the character flag at 1 or 2. It is
+important to disclose the provenance of these features to the reader, and to flag their
+unusual nature.</p>
+
+<p>Again, the sample is non-random. 1,191 of the prospects reviewed have an
+accompanying NBADraft.net page, and the remainder are marked “no scouting report on file”.
+Presumably the former are the players their site deems most newsworthy to their readership,
+i.e. largely concentrated at the head of each class. The model thus has richest guidance
+here, and must rely purely on the objective metrics for those left undrafted.</p>
+
+<p>NBADraft.net provides <em>two</em> separate attribute lists for “Guard” and “Wing” vs
+“Center” and “Power Forward”, the former having “Ball Handling” and “Passing” and the latter
+“Post Skills” and “Rebounding”. We consume both, retaining the additional features for the
+big-men (404). NBADraft.net pages are retrieved by concatenating the player’s name
+with ‘-’ delimiters, allowing us to capture entries for e.g. Karl-Anthony Towns and Shai
+Gilgeous-Alexander.</p>
+
+<p><strong>Timing.</strong> Finally, we note that the pages consumed are those currently live
+on NBADraft.net. Our process assumes that no changes have been made to them since the
+preceding draft. If this is untrue, some degree of look-ahead will creep in. Nonetheless, as
+long as we can regard these as pre-draft, they constitute valid inputs.</p>
+
+<h2>Model specification</h2>
+
+<p>To recover the τ-quantile, we solve for parameters minimizing:</p>
+
+<div class="eqn">max(τ(y−ŷ), (τ−1)(y−ŷ))</div>
+
+<p>This has an expected minimum at the desired quantile. By estimating each of the
+{0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99} in turn, we avoid imposing any shape (e.g. normality) on the predictive
+distribution. Indeed, the 4-year average is heavily right-skewed, with a median of
+0.9 mWAR and 95th %ile of 7.3, and 6% of
+the players who have one sit below replacement.</p>
+
+<p>The board publishes quantiles estimated from a <strong>Gradient Boosted Machine</strong>
+(LightGBM), incorporating the player’s league (as a factor). We additionally estimate a
+<strong>Neural Network</strong> with an embedded representation of the player’s league, and
+compare its performance; given the modest N, we report the average prediction across 5
+random initializations.</p>
+
+<p>Features include (competition-normalized) college and overseas stats, Combine data,
+public large-sample draft boards, HS recruiting status and pre-draft All-Star events, the
+scouting-report features above and a time-period effect. Notably, <strong>draft pick is not
+included</strong>. We hold it out so that the model can be compared with the market fairly,
+as below.</p>
+
+<p>The model(s) are trained on 4,741 prospects from the 1995 to
+2026 cohorts, projecting onto ~301 transformed variables. Note that
+the 210 (i.e. 2026) cohort have not yet completed a single NBA season,
+and hence their output is purely prospective. Similarly, 2,567 have failed to
+register a season in their opening 4 years. We therefore train the quality models only on
+the 1,496 subset; the likelihood of playing is learned from every prospect whose outcome is known.</p>
+
+<h2>Testing the model(s)</h2>
+
+<p>We adopt an <strong>expanding window of draft classes</strong>, training on the earliest and
+testing on successively later. The NN halts early using an inner split of the most recent
+2 training classes. The GBM is trained for a set number of
+400 iterations, without an internal hold-out. Crucially, the test cohort is not
+seen at any stage. All results below reflect this.</p>
+
+<p>We compute the rank-correlation between the predicted median and actual on-court
+quality of each draftee (mWAR), and compare this to the ranking implied by their draft
+position. We do so for all prospects with observed output, and (758,
+909 and 916 by horizon) restrict to the draftee population
+for draft-order (by horizon).</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Horizon</th><th>NN</th><th>GBM</th><th>Draft order</th><th>n</th></tr></thead>
 <tbody>
 <tr><td>Rookie year</td><td>0.392</td><td>0.372</td><td>0.156</td><td>786</td></tr>
 <tr><td>Four-year mean</td><td>0.380</td><td>0.411</td><td>0.179</td><td>973</td></tr>
 <tr><td>Peak</td><td>0.431</td><td>0.461</td><td>0.259</td><td>985</td></tr>
 </tbody></table></div>
 
-<p>Both models rank prospects substantially better than the league did, on every horizon.
-The margin is widest early — the draft order's correlation with rookie-year impact is close
-to nothing — and narrows for peak outcomes, which is intuitive: teams are drafting for
-upside, and are better at identifying it than at forecasting immediate contribution.</p>
+<p>On every horizon, both models rank prospects better than the draft did. The correlation of the pick itself is lowest at the point of rookie-scale impact, rising to a maximum at peak. This aligns with the incentive for franchises to select for greater ultimate reward.</p>
 
-<p><strong>The tree ensemble outperforms the neural network on all three horizons</strong>,
-despite the network being the model whose predictions are shipped. On tabular data at this
-sample size that ordering is common, and it is reported here rather than resolved.</p>
+<p>The GBM outperforms the NN at the 4-year and peak levels, while the NN is marginally superior in the first season. We apply the GBM consistently, including to project the 8-20 year output discussed above.</p>
 
 <h2>Are the intervals honest?</h2>
 
-<p>A quantile model earns trust by coverage: the share of realized outcomes falling at or
-below each predicted quantile should equal the nominal level.</p>
+<p>An obvious starting point is to check whether the proportion of observed players falling
+below each quantile corresponds to its target.</p>
 
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>p5</th><th>p10</th><th>p25</th><th>p50</th><th>p75</th><th>p90</th><th>p95</th><th>p99</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.089</td><td>0.149</td><td>0.298</td><td>0.500</td><td>0.724</td><td>0.855</td><td>0.908</td><td>0.952</td></tr>
-<tr><td>Four-year mean</td><td>0.090</td><td>0.172</td><td>0.363</td><td>0.566</td><td>0.751</td><td>0.854</td><td>0.883</td><td>0.932</td></tr>
-<tr><td>Peak</td><td>0.074</td><td>0.170</td><td>0.349</td><td>0.563</td><td>0.737</td><td>0.831</td><td>0.864</td><td>0.871</td></tr>
+<tr><td>Rookie year</td><td>0.104</td><td>0.151</td><td>0.271</td><td>0.475</td><td>0.665</td><td>0.798</td><td>0.874</td><td>0.963</td></tr>
+<tr><td>Four-year mean</td><td>0.102</td><td>0.145</td><td>0.276</td><td>0.514</td><td>0.723</td><td>0.845</td><td>0.901</td><td>0.963</td></tr>
+<tr><td>Peak</td><td>0.093</td><td>0.126</td><td>0.272</td><td>0.536</td><td>0.717</td><td>0.834</td><td>0.891</td><td>0.958</td></tr>
 <tr><td><em>nominal</em></td><td><em>0.050</em></td><td><em>0.100</em></td><td><em>0.250</em></td><td><em>0.500</em></td><td><em>0.750</em></td><td><em>0.900</em></td><td><em>0.950</em></td><td><em>0.990</em></td></tr>
 </tbody></table></div>
 
-<p>Medians are well calibrated — close to 0.50 on every horizon, so the central projection
-is neither optimistic nor pessimistic on average. <strong>The intervals are too narrow at
-both tails.</strong> Around 16% of outcomes fall below the stated 10th percentile and
-around 15% land above the stated 90th, against 10% each.</p>
+<p>These are the unadjusted out-of-fold quantiles published by the board. The shares of outcomes falling below the predicted median lie in the range 0.475-0.536 vs the nominal 0.50, implying an approximately unbiased forecast at all horizons.
+However, there is <strong>material under-coverage at each extreme</strong>. Approximately
+14% of players fall below the 10th and 17% above the 90th quantile (both targeted
+at 10%), and for peak the miss is larger at the top (17% above the 90th, 13% below the 10th).</p>
 
-<p>The two outermost levels are the reason the fan was widened from five quantiles to eight.
-p95 and p99 are the region a draft pick's value actually lives in — one franchise player pays
-for a decade of misses — and reading them off a linear extrapolation past p90, which is what
-a five-level fan forces, is guessing at exactly the part that matters most. They are fit
-directly now, and they are the least well covered levels in the table: 13% of peak
-outcomes exceed the stated 99th percentile.</p>
+<p>Rather than force the 95th and 99th %iles via extrapolation from the 90th, we fit these
+directly. The former is clearly where the vast majority of a draftee’s realized value will
+lie. 4% of peak observations exceed the 99th %ile, against a target of 1%.</p>
 
-<p>Read the fans as somewhat too confident. Real busts are worse and real stars are better
-than the published bands imply, and the error is symmetric rather than a directional bias.
-Published intervals are conformally widened to correct for this; the table above is the
-raw model, before that correction.</p>
+<p>Accordingly, each of the fans displayed by the board (including the 4-year and peak
+quality estimates, whether a player is available, their O/D splits and individual-year
+outputs) has been <strong>expanded conformally</strong>. That is, we scale the distance of
+each level from the median by a constant determined using only the preceding classes’
+unadjusted fan(s) and actual observation(s), sufficient to ensure the appropriate coverage.
+This constant is bounded to 0.5-8, and importantly each class’ expansion was fitted excluding their
+own data. Where a given class had &lt;150 prior observations, we show the unexpanded fan. The
+subsequent year-by-year draftee valuations are re-calibrated consistent with the procedure in
+the previous section.</p>
 
 <h2>Limitations</h2>
 
 <ul>
-<li><strong>Recent classes cannot be scored.</strong> Four-year and peak outcomes require
-four and seven completed seasons, so the most interesting classes are precisely the ones
-with no validation available.</li>
-<li><strong>Pre-draft data is thinner internationally.</strong> Competition adjustment
-helps; it does not equalize what was measured.</li>
-<li><strong>A distribution is only as good as the record it was fit to.</strong> A genuinely
-unprecedented prospect is by construction the case the model handles worst.</li>
-<li><strong>Draft order is a weak benchmark.</strong> Beating it establishes that the model
-adds information over where players were selected — not that it is close to the achievable
-frontier.</li>
-<li><strong>The later seasons rest on older classes.</strong> Season 20 is labelled only for
-classes through 2006, drafted players only; seasons 17&ndash;19 for top picks leaned low
-out of fold, on 5&ndash;15 players.</li>
+<li><strong>Recent classes are scored on part of the window.</strong> Note that, given we
+truncate each horizon to the number of seasons each draftee has played to date, the most
+recently-drafted cohort are assessed over a shorter period than indicated. E.g. only
+761 of the 909 class have completed 4 full seasons, and
+618 of the 916 have played 7. Thus, the validation exercise is
+most informative with respect to the furthest-out classes.</li>
+<li><strong>Pre-draft data is thinner internationally.</strong> The volume of
+competition-adjusted overseas data is reduced, although this is mitigated.</li>
+<li><strong>A distribution is only as good as the record it was fit to.</strong> Finally, any
+truly novel draftee will necessarily be the hardest case for the model to predict.</li>
+<li><strong>Draft order is a weak benchmark.</strong> And of course we are only comparing to
+the order in which players were picked, so beating it shows the model adds information, not
+that it is close to the achievable frontier.</li>
+<li><strong>The later seasons rest on older classes.</strong> Also, we can only publish
+projections up to season 20, and these apply to the draftee pool only to the extent that
+classes up to 2006 have been seen. On that basis, the predicted median mWAR for
+draftees over seasons 17-19 was on average 3.7 mWAR below their actuals, on
+4&ndash;15 players a season.</li>
 </ul>
 
 </main>
@@ -360,6 +443,7 @@ Figures are model output, not official NBA statistics. Player value is measured 
 model's own scale; see <a href="methodology-value.html">the method</a>. Player portraits
 are illustrations adapted from Creative Commons photographs &mdash;
 <a href="credits.html">credits</a>.</p>
+<p><a href="insights.html">Insights</a> · <a href="ben-stupendous.html">Ben Stupendous</a> · <a href="players.html">Players</a> · <a href="player.html">Careers</a> · <a href="value-board.html">Value board</a> · <a href="methodology-value.html">Player value method</a> · <a href="methodology-draft.html">Draft method</a> · <a href="methodology-trade.html">Trade method</a></p>
 </footer>
 </div>
 </body>

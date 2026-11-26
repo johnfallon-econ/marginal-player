@@ -11,7 +11,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="site.css">
 <link rel="icon" href="assets/favicon-32.png">
-<!-- seo --><meta name="description" content="How the Trade Lab prices an NBA trade: players, minutes, picks, re-signing rights and title odds, and how the grades are calibrated."><link rel="canonical" href="https://themarginalplayer.com/methodology-trade.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Pricing a trade — The Marginal Player"><meta property="og:description" content="How the Trade Lab prices an NBA trade: players, minutes, picks, re-signing rights and title odds, and how the grades are calibrated."><meta property="og:url" content="https://themarginalplayer.com/methodology-trade.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Pricing a trade — The Marginal Player"><meta name="twitter:description" content="How the Trade Lab prices an NBA trade: players, minutes, picks, re-signing rights and title odds, and how the grades are calibrated."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
+<!-- seo --><meta name="description" content="A description of each aspect valued by the Trade Lab in a trade: players, aggregate minutes, picks, future signing rights and likelihood of winning a championship, and the basis for grading."><link rel="canonical" href="https://themarginalplayer.com/methodology-trade.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Pricing a trade — The Marginal Player"><meta property="og:description" content="A description of each aspect valued by the Trade Lab in a trade: players, aggregate minutes, picks, future signing rights and likelihood of winning a championship, and the basis for grading."><meta property="og:url" content="https://themarginalplayer.com/methodology-trade.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Pricing a trade — The Marginal Player"><meta name="twitter:description" content="A description of each aspect valued by the Trade Lab in a trade: players, aggregate minutes, picks, future signing rights and likelihood of winning a championship, and the basis for grading."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
 <body>
 <header><div class="wrap"><nav>
 <a class="brand" href="index.html"><img src="assets/mark-light-sm.webp" alt="" width="34" height="35" style="display:block;flex:none;width:34px;height:35px"><span>The <br>Marginal <br>Player</span></a>
@@ -19,300 +19,333 @@
 </nav></div></header>
 <script>(function(){var n=document.querySelector('.nl'),a=n&&n.querySelector('a.on');if(a&&n.scrollWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-n.offsetLeft-(n.clientWidth-a.offsetWidth)/2;})();</script>
 <div class="wrap"><main>
-<nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><a href="methodology-draft.html">Draft model</a><span class="on">Trade pricing</span></nav><img class="meth-fig" src="art/f/handshake.webp" alt="Two people shaking hands on a deal" width="242" height="201" loading="lazy">
+<nav class="methrail" aria-label="Methodology sections"><a href="methodology-value.html">Player value</a><a href="methodology-draft.html">Draft model</a><span class="on">Pricing trades</span></nav><img class="meth-fig" src="art/f/handshake.webp" alt="Businessmen shaking hands" width="242" height="201" loading="lazy">
 <h1>Pricing a trade</h1>
-<p class="lede">A trade is not an exchange of players. It is a change in what entire
-rosters are worth, under constraints that make talent stubbornly non-additive.
-Players enter as Marginal Plus Minus (mPM), the site's per-100-possession rating, and leave
-as wins and dollars. Five mechanisms do the work, and all five are estimated. A sixth, a rest penalty, was a stated modelling choice until it was switched off; section 4 says why.</p>
+<p class="lede">In broad terms, the aim is to assess the impact of a proposed trade on the
+aggregate worth of all teams involved. Talents cannot be straightforwardly added and
+subtracted between teams, given the constraints on each club. Each incumbent is allocated a
+mPM and hence expected wins and $ equivalent, and the total number of minutes to be
+apportioned among all players is established for every team involved (sections 1-3).
+Incumbents are valued over an appropriate span of future time, the change to probability of
+winning a championship is found (section 4), any picks traded given values according to
+expected slot and over all years he might be paid as a rookie or on subsequent deals
+(section 5) and comparable historical outcomes shown (section 6). Apart from the parameters
+of the championship probability equation (pre-estimated, section 4), all of the following
+should be amenable to estimation: height and gradient of the curve seating arriving players;
+proportions applied to the other incumbents and any replacement; height and gradient of
+picks curve, and deviations of actual picks from expectation; and distribution of outcomes
+for analogous past trades. The user is allowed to choose the worth of winning a championship
+($300M), discount rate on future years&rsquo; picks (8%) and number of years
+over which to estimate wins. All other parameters are arbitrary choices, described at the
+appropriate point, such as maximum minutes (48; section 1); the respective weights
+given to number of additional wins and top1 in assessing value of winning (section 4); a
+number of aspects of the shape of the picks curve (section 5); and minutes for untried
+rookies (Limitations). Players&rsquo; rates are taken as constant with minutes played, for reasons set out in section 2.</p>
 
-<h2>1. Minutes are a budget</h2>
+<h2>1. Total team minutes available</h2>
 
-<p>The binding constraint: a team plays <strong>240 player-minutes</strong> per game and
-may dress fifteen. Valuing an acquisition at the minutes he has historically played
-lets a calculator buy ten thirty-minute players and count all ten &mdash; 300 minutes
-on a 240-minute team &mdash; which is why naive trade tools conclude that acquiring
-talent is always good.</p>
+<p>Obviously there are just 240 minutes per game. If incoming players were given
+their usual minutes, it would be possible to bring in, say, 10 men on around 30 minutes each
+and include all of these, ie 300 minutes&rsquo; worth on a 240-minute team, and a naive
+trade tool would find it invariably advantageous to bring players in.</p>
 
-<p>Instead the roster is re-allocated, subject to the budget and to the fact that five
-men are on the floor at once, so nobody can hold more than a fifth of it:</p>
+<p>Accordingly, all are given anticipated minutes consistent with 240 in total. As this
+refers to games for his current team, 48 is the upper bound for a man playing a
+proportion a<sub>i</sub> of available games:</p>
 
-<div class="eqn">&Sigma;<sub>i</sub> m<sub>i</sub> = 240,   0 &le; m<sub>i</sub> &le; 48,   |&#123;i : m<sub>i</sub> &gt; 0&#125;| &le; 15</div>
+<div class="eqn">&Sigma;<sub>i</sub> m<sub>i</sub> &le; 240,   0 &le; m<sub>i</sub> &le; 48 &middot; a<sub>i</sub></div>
 
-<p>The value of a trade is the difference in team value before and after, for every
-club involved. An incoming player <em>displaces</em> minutes rather than adding them.
-How they are re-allocated is the next section, and it is the part of this model that
-changed most recently and on the clearest evidence.</p>
+<p>So all players&rsquo; minutes are scaled down to total 240 if necessary, with any
+remainder assumed played by approximately replacement-level players. It makes no difference
+who fills these and so they are not enumerated, but correspond to 0 additional wins. On
+formation of each roster, only the best 15 men (measured by WAR) are retained. After any
+trade all men on the roster are given minutes; if more than 15 remain they are all shown
+but indicated. As all teams in a trade are valued before and after, all men joining a team
+must of course deprive current players of some minutes. Method is given in section 3.</p>
 
-<p><strong>Who plays is right, and the reshuffle counts at full value.</strong> Checked against game logs, the minutes the model moves on a trade really do move &mdash; about one for one within a season. A trade's roster change is split in two &mdash; the players who moved, and the reallocation of everyone else &mdash; and the weight on the reallocation is tested the way the tool is used, forward in time: for each of the 495 club-seasons of 2009&ndash;2025, a weight was chosen on earlier seasons' actual win changes and used to forecast the next. The chosen weights ran 0.55 to 0.90 and did not forecast clearly better than a fixed one (a weight must win in 90% of season resamples to ship), so the reallocation counts at <strong>full value</strong>. An earlier version discounted it to 0.55; that discount only helped while the forecast's mPM had seen the season the trade was forecast into.</p>
-<p><strong>What a process grade says about the outcome.</strong> Every card in the Trade Lab
-shows the range of realized value that trades graded like it produced. It is fitted on the 2,763 team-sides of
-1999&ndash;2025 trades, whose contracts have played out: for each percentile, a line in the process value and the
-size of the side's ledger (quantile regression), so the range widens with the size of a trade as fast as outcomes
-actually did. Checked forward in time &mdash; fitted on earlier seasons and tested on each later one &mdash; the 80%
-range held 78% of outcomes and the 50% range 48%, and the 80% range held 78%, 77%, 82%, 78% of trades
-from the smallest size band to the largest. The middle outcome moves about 76 cents per dollar of process.</p>
+<p><strong>This places arrivals better than assuming no change; the predicted changes to everyone else are mostly noise, all valuable.</strong> Against logged minutes within seasons since 1999&ndash;00, arriving players&rsquo; predicted minutes per team-game differed by 6.46 on average, versus 6.77 taking his normal minutes elsewhere (over 1,428 acquired players). For men already on the team, 7.08 versus 7.09 assuming unchanged, over 13,205. Actual changes were smaller than predicted, at 0.58 (se 0.07) per unit predicted change in minutes for acquired players, and 0.20 (se 0.08, r = 0.04) for men remaining. Thus part of the effect of a trade is the incoming player or players and part the adjustments to all other current players. To see how much weight the latter should get, for each of 495 club-seasons 2009&ndash;2025 a multiplier was chosen on earlier seasons&rsquo; actual changes in wins and used to predict the next. Chosen multipliers were 0.75-1.05. A chosen multiplier is used only if superior to both including in full and excluding altogether, for 90% or more of resamples by season. It was better than excluding altogether for 98% of resamples, and better than in full for 11%, so the changes to other players&rsquo; minutes are included in full.</p>
 
-<h2>2. The roster limit, and a bug it caused</h2>
+<h2>2. Effect of minutes on rate of play</h2>
 
-<p>The fifteen-man cap is a real constraint rather than decoration, and it bites in a
-way worth naming. A one-body roster change can flip the man on the bubble between
-waived and playing. Charging a full season of workload to that flip once cost a
-32-year-old <strong>1.40 points of mPM</strong> for a move nobody made.</p>
+<p>None assumed, but 2 terms arise, both valued at nil.</p>
 
-<p>Worse, the load charge was measured against a player's <em>listed</em> minutes per
-game rather than against the pre-trade allocation. Every roster therefore carried a
-penalty for merely existing &mdash; a league mean of <strong>&minus;0.425</strong>
-points of mPM with no trade at all, and &minus;1.46 for the worst team. No invariant
-caught it, because with no trade the charge appears on both sides and cancels exactly;
-it only distorts real trades. Both the load charge and a development term &mdash;
-extra minutes this season shifting next season's mPM &mdash; were then measured
-against the untouched roster's own allocation, and both have since been switched off:
-neither improved a forecast, and the one fit of development against realized value
-had the wrong sign.</p>
+<p><strong>Extra or reduced rest:</strong> rate per minute higher than normal to
+extent total minutes lower than normal, and lower if higher:</p>
 
-<h2>3. Who absorbs the minutes</h2>
+<div class="eqn">&Delta;rate = 48 &middot; b &middot; [ log(48 &minus; m<sub>played</sub>) &minus; log(48 &minus; m<sub>base</sub>) ]</div>
 
-<p>This model used to answer that by optimisation: give the freed minutes to whoever
-produces most per minute. That is what a club <em>should</em> do and it is not what
-clubs do. Checked against <strong>270 club-sides</strong> of real in-season
-trades, scored on minutes actually played in the twenty games after each deal, the
-reallocation turns out to be close to mechanical.</p>
+<p>b is set to zero. Over all 754 team-seasons predicted, change in wins was
+0.86 times predicted change (regressing on predicted, and controlling for starting
+distance from 50%), against 0.45 if b=0.04211; mean absolute error by
+leave-one-season-out was 7.54, against 7.81. This is likely to be
+important only in distinguishing between differing total minutes.</p>
 
-<p>An acquired player takes the departed player's share roughly one-for-one and
-immediately &mdash; about two thirds of it when one man arrives, essentially all of it
-when three do. Incumbents <em>lose</em> share rather than gaining it. And where a
-vacancy does reach the incumbents it follows spare capacity, meaning who has room to
-play more, rather than resemblance to the man who left.</p>
+<p><strong>Further development from increased minutes:</strong> no effect on rate of play in
+subsequent seasons. It cannot be checked against actual values from past trades, which
+contain no element of it, nor against first season&rsquo;s wins, as it could only affect later
+seasons. Estimated as a proportion of actual values from trades, it is
+&minus;0.68 (se 0.14), the wrong sign.</p>
 
-<p>So each arriving player is seated from an equation fitted on trades themselves, in
-shares of the 240:</p>
+<h2>3. Apportionment of available minutes</h2>
 
-<div class="eqn">share = -0.0156 + 0.511 &middot; (his share at his old club) + 0.0879 &middot; hole + 0.0339 &middot; projected wins</div>
+<p>New players seated and balance of minutes of those departed allocated among remaining
+players; if none arrive, a man signed. All parameters but those for the signing estimated using all in-season trades
+since 1999&ndash;00: 966 instances of a
+club playing at least 5 games before and 5 after the relevant trade, involving
+13,916 men. Measured by actual minutes per club game over balance of season for all
+men concerned, with parameters set to minimize mean absolute difference.</p>
 
-<p>A traded player keeps about half the role he had, a coefficient that lands near 0.5
-from three independent estimates on different samples. What the arrivals do not absorb
-settles on the incumbents by capacity, and a club that receives nobody gets a
-replacement body priced by the same logic rather than a fixed constant.</p>
+<p>Around 67% (106% for 3 men) of the total minutes of departed men
+over first 5 games after a trade is played by the new men. All other regulars play on average
+3.4 percentage points fewer of total minutes available over first 5 games,
+rising to 15.3 percentage points fewer over games 21-40.</p>
 
-<p>Held out, it predicts each man's post-trade minutes with a mean absolute error of
-<strong>5.97 minutes per player per game</strong>,
-against 6.63 for simply removing the departed and
-renormalising. Lower is better, and neither is good: six minutes is a large error when
-a rotation player's allocation is fifteen to thirty. The honest reading of the gap is
-that most of it comes from knowing <em>who arrived</em> &mdash; naming the incoming
-player and doing nothing else gives 6.03. Every theory
-of who covers the hole is worth a fraction of a minute beyond that.</p>
+<p>Each arriving player&rsquo;s share of 240 is</p>
 
-<p>That figure scores <em>minutes</em>, not valuations. Whether the dollar figures this
-page produces are more accurate under one allocation rule than another is not something
-any test here establishes, and the change of rule moved team surplus by a median of
-$77M. Take the minute errors as what they are.</p>
+<div class="eqn">share<sub>new</sub> = &minus;0.0351 + 1.02 &middot; s<sub>old</sub> + 0.0760 &middot; (hole / 240) + 0.0121 &middot; (W / 41)</div>
 
-<p>It also scored only <em>half</em> the question until recently, and the half it left
-out was the one that failed. The error above rescales each rule's prediction to the
-club total that was actually played before comparing, so it can measure how minutes are
-divided <em>between</em> men and is blind to how many are claimed altogether. Scored
-without that help the same rule reads
-6.29 minutes, and every rule that HAS a level
-overstates a club's total &mdash; this one by
-23.4 minutes a game, the kernel by
-30.2. A metric that hands the model the answer
-to the level cannot see a nine-man offseason roster being sent out to play all 240
-minutes, which is what shipped here until it was found by hand.</p>
+<p>where s<sub>old</sub> is expected share if no trade, hole the minutes per game vacated by
+all sold, W predicted wins. So roughly his existing load minus around
+6 minutes a game (for a 41-win team) plus around 8% of those vacated.</p>
 
-<p>The two-part minutes model is exempt from that column rather than excused from it.
-Its outcome equation is a centred log-ratio, which divides each man's share by the
-within-night geometric mean, so anything constant across a club &mdash; the total
-included &mdash; differences out of the estimate. It predicts proportions and has no
-level to be right or wrong about, and its prediction sums to one by construction on
-every case. Scoring it here would have produced a number that looks like the others
-and measures only what fraction of a club's minutes go to men no rule can name.</p>
+<p>These are allocated pro-rata to current players&rsquo;
+s<sup>-0.141</sup>&middot;(h-s)<sup>-0.621</sup>,
+s being current share and h (38/240) the share at which headroom, h-s,
+is floored at 0.002. So minimum weight around 7 minutes a game, increasing as a
+function of minutes above that, and 1.9 times as much for 30 as
+10 minutes. None allocated above 48 &middot; a. To extent total allocated to
+new men exceeds total minutes of men sold, this reduces all current players&rsquo; total minutes in
+proportion to their shares. For no men received, a signed player at 17.8 +
+0.0670 &middot; hole - 0.179 &middot; W minutes per game.
+These last 3 parameters are not re-estimated, since only the no-arrival trades identify them.</p>
 
-<p>Two rules that lost are worth recording, because both are more elaborate than the
-one that ships. The substitution kernel that used to sit here &mdash; share decaying
-with characteristic distance, still estimated at R&sup2; 0.0302
-against 0.0256 for a positional benchmark on
-77,156 player-games &mdash; has an error of
-5.96 minutes on the same test, marginally BETTER than
-the rule that replaced it. The two are level
-within the noise of a 268-case backtest, and the simpler one is preferred on grounds
-other than accuracy &mdash; though that comparison reverses once the club total counts:
-6.42 for the kernel against
-6.29 for the shipped rule, which claims
-6.75 fewer
-minutes a game that nobody played. A fitted two-part model of whether a
-man dresses and how much he then plays, which predicts per-night minutes better than
-anything else tested, comes in at 6.18 minutes: worst
-of the four, because it cannot express an acquired man inheriting the job of the man he
-replaced.</p>
+<p><strong>By leave-one-out by season:</strong> mean absolute difference of
+6.94 minutes per player per game, compared to
+7.05 for previous parameters and 6.97 for
+current players continuing and arrivals playing normal load. Better than previous parameters
+26 out of 27 times and than no change
+18 times.</p>
 
-<p>The split it replaced is instructive about assumptions generally. It had been set at
-96/96/48 minutes on the reasoning that a lineup is two guards, two forwards and a
-centre. Measured, minutes actually divide <strong>47.0 / 39.5 / 13.4 percent</strong>:
-roster labels are not lineup slots.</p>
+<p>A separate set of parameters is used for trades prior to start of season, similarly
+estimated from all 1,539 instances of clubs trading before opening night
+(20,622 men) and measured over full season:</p>
 
-<p>The optimising allocator both of those describe has since been replaced, for the
-reasons above. Its history is kept because the failures were instructive: it claimed
-to scale everyone proportionally when a roster could not fill 240 minutes and in fact
-ran a greedy rate waterfall, pinning the top few men at their caps. Making it genuinely
-proportional halved a spurious
-finding that subtracting rotation players paid.</p>
+<div class="eqn">share<sub>new</sub> = &minus;0.00336 + 1.03 &middot; s<sub>old</sub> + 0.0324 &middot; (hole / 240) &minus; 0.0140 &middot; (W / 41)</div>
 
-<h2>4. The rest penalty &mdash; switched off</h2>
+<p>and capacity exponents of -0.186 and -0.782. So an
+arrival keeps around current load, less about 4 minutes per game at 41
+wins. These parameters apply over all full seasons played after an offseason trade (that is,
+current season with &ldquo;Trade made: today&rdquo; selected, and all subsequent seasons), while
+the others apply only until end of current season following an in-season trade. Leave-one-out:
+7.085 minutes, 7.093 applying the other set and
+7.088 no change, so superior to in-season parameters
+20 of 27 times. However, in terms of
+predicting club wins, applying these sets as appropriate gives mean absolute error over
+757 club-seasons of first season after trade of 7.466, versus
+7.439 applying the in-season set to all seasons (bootstrapping by season: 90% CI
+for difference +0.003 to +0.049).</p>
 
-<p>The tool used to adjust a player's mPM for rest: fewer minutes than
-his norm made him better per minute, more made him worse, as a log-rest term with
-coefficient b = 0.04211. Since 2026-09-11 b is zero, and minutes are neutral for
-per-minute quality. The minute budget and who plays are unaffected; the term never
-entered the allocator that ships.</p>
+<p><strong>Prediction of actual minutes:</strong> all considered here are applied to 80
+club-sides left out of estimation, that is 30% at random of the 270 in-season
+club-sides since 2018&ndash;19, and the arrival parameter or parameters
+re-estimated. Mean absolute errors of predicted from actual minutes per man per game are
+quoted. All men who might reasonably fall within scope of prediction under the relevant
+method, that is, currently playing and going on to play, and those acquired, are considered.
+Other men playing that season for the relevant club are excluded from all calculations. So
+initially errors are calculated for prediction of relative shares only, that is taking total
+minutes as known; next, total minutes also allowed to vary; and finally the error in total
+minutes.</p>
 
-<p><strong>It was never identified.</strong> Instrumenting minutes with teammates'
-injury absences across eight seasons &mdash; 110,106 player-games, 735 players, 7,593
-games &mdash; returns a well-estimated <em>zero</em>: +0.0016, 95% interval
-[&minus;0.0032, +0.0064], first-stage F of 1189. The value that shipped came from a
-log-rest specification at a 10-minute floor, with t = 0.73 and an interval of
-[&minus;0.071, +0.156], and at a 1- or 5-minute floor the same regression returned a
-small <em>benefit</em> instead.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Rule</th><th>MAE, actual total only</th><th>MAE including total</th>
+<th>Difference between predicted and actual totals</th></tr></thead>
+<tbody><tr><td>Remove the departed, renormalize the rest</td><td>6.62</td><td>6.71</td><td>+6.4</td></tr><tr><td>Seat the arrivals from the equation, renormalize the rest</td><td>6.03</td><td>6.48</td><td>+29.9</td></tr><tr><td>Substitution kernel: vacancy to whoever resembles the departed</td><td>5.96</td><td>6.42</td><td>+30.2</td></tr><tr><td><strong>Shipped rule</strong>: arrivals from the equation, vacancy by capacity</td><td>6.00</td><td>6.35</td><td>+23.4</td></tr><tr><td>Two-part minutes model (dresses, then plays)</td><td>6.18</td><td>&mdash;</td><td>&mdash;</td></tr></tbody></table></div>
 
-<p><strong>And it was not harmless.</strong> A cut in a player's minutes bought him a
-rest credit that was usually larger than the minutes themselves, so the term paid
-clubs for taking on bodies and charged them for consolidating. With it off, the tool's
-own forecast of a trade's win change tracks what clubs actually did at
-0.86 wins per predicted win, against 0.45 with it
-on, across 754 club-seasons.</p>
+<p>Clearly an error of about 6 minutes is very sizeable relative to typical
+values in the region of 15-30. Much of the benefit of the final method relative to simply
+spreading all minutes among the men continuing seems to be from predicting minutes for
+arriving player or players: identifying them, with no other information, gives
+6.03. Methods to further distribute among current players make little
+difference. On shares only, distributing according to similarity to man or men departing
+(the kernel, whose resemblance measure explains player-game minutes within a player-season at
+R&sup2; 0.0302 against 0.0256 for position, on
+77,156 player-games) gives 5.96, marginally better than
+6.00 for the final method, by only 0.042 minutes over
+80 club-sides. However allowing for error in total minutes, 6.42 against
+6.35, the kernel predicting 6.78 more minutes in
+total. All methods with an overall level predict too many minutes for men considered;
+23.4 too many per game under the final method, unavoidably to some degree
+since other men not considered will be playing. It would follow that any method spreading all
+minutes among these men would over-predict to this extent.</p>
 
+<p>Splitting into predicted probability of playing and predicted minutes conditional on
+playing: 6.18 on relative distribution. Worst of all methods, save removing the departed and renormalizing,
+since there is no way of increasing any man to make up for another. Predicting log of ratio of
+man&rsquo;s minutes to overall average means no overall expected level of minutes can be
+incorporated, and in fact all a team&rsquo;s men sum to 1.0 for each game. Hence no figure can be
+given for overall level.</p>
 
-<h2>5. Championship equity</h2>
+<p>These are purely with reference to prediction of minutes, with no implication as to
+effect on values.</p>
 
-<p>Wins are the intermediate currency; contention is what teams actually buy. Title
-probability is a logistic in projected wins and the strength of a roster's best player,
-then normalised so that exactly one team wins:</p>
+<h2>4. Probability of winning championship</h2>
 
-<div class="eqn">P<sub>t</sub> &prop; &sigma;( &beta;<sub>0</sub> + &beta;<sub>1</sub> &middot; wins + &beta;<sub>2</sub> &middot; top1 )<br>share<sub>t</sub> = P<sub>t</sub> / &Sigma;<sub>t&prime;</sub> P<sub>t&prime;</sub></div>
+<p>It seems reasonable to suppose teams seek to maximise probability of winning a
+championship rather than simply expect wins. This is modelled as logistic in expected wins
+and best current player (top1), with expected value taken over all possible actual wins, and
+each club&rsquo;s share taken as proportion of total over all clubs:</p>
 
-<p>Equity is that share of a fixed league-wide prize, $300M by default and adjustable.</p>
+<div class="eqn">P<sub>t</sub> = E<sub>w</sub>[ &sigma;( &beta;<sub>0</sub> + &beta;<sub>1</sub> &middot; w + &beta;<sub>2</sub> &middot; top1<sub>t</sub> ) ],   w ~ N(W<sub>t</sub>, sd<sub>t</sub>)<br>share<sub>t</sub> = P<sub>t</sub> / &Sigma;<sub>t&prime;</sub> P<sub>t&prime;</sub>,   equity<sub>t</sub> = V &middot; (share<sub>t</sub><sup>after</sup> &minus; share<sub>t</sub><sup>before</sup>)<br>&beta; = (&minus;16.4, 0.217, 0.118)</div>
 
-<p>Normalising is the part that is easy to get wrong, and it was wrong. The raw logistic
-summed to <strong>1.057</strong> across the league, and repricing only the teams in a
-trade let a deal <em>create</em> roughly 4.8 percentage points of championship
-probability from nothing &mdash; enough to recommend trades on its own. Probability
-given to one team must come from the others, so the pot is fixed and all thirty teams
-are repriced on every evaluation. Separately, projected wins were summing to
-<strong>1331 against a true 1230</strong>, putting every team above the curve and
-inflating all title equity; they are now recentred additively by &minus;3.37 per team.</p>
+<p>These were estimated by unpenalized ML for all club seasons 1996&ndash;97 to 2025&ndash;26 with a known winner
+(892, over 30 years and 30 winners). Whether won or not is
+regressed on regular season wins (all scaled to 82 games, to match the
+82-game projections the tool supplies) and top1 mWAR. No other covariates. Thus each
+unit mWAR of best player increases log odds of winning by 0.118,
+se 0.047, z 2.5. Omitting gives LR statistic
+6.3 on 1 df. sd<sub>t</sub> is stdev of possible wins, floored at 6.
+W<sub>t</sub> after trade is moved by 80% of predicted change to first season wins from
+the trade. top1 is the greater of 0.85 times incumbent top1 and best man after
+reallocation. V, worth of winning a championship, can be set from $100M to $600M,
+default $300M.</p>
 
-<p>The convexity in the <em>top1</em> term is the largest known distortion remaining:
-concentrated talent is rewarded more than the evidence cleanly supports, which is why
-the strongest rosters price above what market-implied probabilities suggest.</p>
+<p>As all 30 clubs are in the denominator, clearly all others lose to extent any one or more
+increase. Hence all clubs affected by reallocation from a trade are recalculated, with the
+remainder pro-rata. There is no reason why predicted wins should sum appropriately, since
+each club is considered playing &ldquo;average&rdquo; opposition; hence all increased or
+decreased equally to give 1,230.</p>
 
-<h2>6. Pricing a draft pick</h2>
+<p>It follows from the non-linearity, exacerbated by top1 term, that bringing more good
+players together will tend to be rewarded more than proportionately. No attempt has been made to determine if this is reasonable (see
+Limitations).</p>
 
-<p>A pick is not a player. It is an <em>option</em> over a distribution of players, and
-it is valuable because rookie contracts are cheap relative to production &mdash; not
-because rookies are good.</p>
+<h2>5. Value of picks</h2>
 
-<div class="eqn">surplus(s) = E[value to the drafting club | slot s] &minus; rookie cost(s)<br>E[value] = &Sigma;<sub>s</sub> P(slot = s) &middot; surplus(s)</div>
+<p>Since unknown who will actually be selected, a pick should be thought of as giving the
+right to select from a distribution. Its worth derives from cheapness of rookie deals relative
+to likely output, not because rookies are good.</p>
 
-<p><strong>A pick is priced as the draft board prices the player it becomes.</strong> For
-every drafted prospect the board computes his expected value <em>to the club that drafts
-him</em>: the rookie deal while it holds him, then &mdash; if it keeps him &mdash; his value
-above his pay, the max or what players like him re-sign for, a deal that sinks
-included (the draft methodology has the construction and its checks). The slot curve is
-the mean of that value by slot, read out of the built board so the two cannot disagree,
-smoothed <em>across</em> slots by local-linear kernel regression with a bandwidth that
-widens as the curve flattens:</p>
+<div class="eqn">surplus(s) = v&#772;(s) &minus; rookie cost(s)<br>pick value = (cap<sub>y</sub> / cap<sub>2026&ndash;27</sub>) &middot; &Sigma;<sub>s</sub> P(slot = s) &middot; surplus*(s) / (1 + r)<sup>t</sup></div>
 
-<div class="eqn">v&#770;(s) = &alpha;&#770;<sub>s</sub>  where  (&alpha;&#770;<sub>s</sub>, &beta;&#770;<sub>s</sub>) = argmin &Sigma;<sub>i</sub> K( (p<sub>i</sub> &minus; s) / h(s) ) &middot; [ v<sub>i</sub> &minus; &alpha; &minus; &beta;(p<sub>i</sub> &minus; s) ]&sup2;<br>h(s) = 2.0 &middot; (1 + 0.06 &middot; (s &minus; 1))</div>
+<p>where v&#772;(s) is smoothed expected value at slot s to the drafting club; surplus*(s) is
+surplus(s) unless s is protected, when it is the value passed on to other party; r rate of
+reducing value with years to run, default 8%, and t years to the draft of season y.</p>
 
-<p><strong>Over the whole career, like the players.</strong> The Trade Lab values a player
-over his whole career &mdash; his contract, then a chain of deals with the club holding him
-to age 40 &mdash; so the rookie a pick becomes is worth the same span, and the pick is priced
-over it. Priced over a shorter one than its player, a pick would be worth less than the man
-it turns into the day after the draft, and the ledger would book the difference as a gain
-to whoever received it. At the 2026&ndash;27 cap that is $264M of surplus for
-the first pick, $248M for the fifth, $105M for the fourteenth,
-$50M for the thirtieth and $19M for the forty-fifth.</p>
+<p><strong>As drafted, the player the pick will become.</strong> All possible selections
+valued conditional on being drafted by that club, that is value during his rookie deal and any
+excess over pay on later deals, pay being the maximum salary or what comparable players
+re-sign for (including any declining contracts). By methods set out under Drafts, this gives
+an expected value for each slot, which is then smoothed allowing increasing numbers of
+surrounding slots as further away:</p>
 
-<p><strong>The level is recalibrated to realized outcomes, by slot.</strong> The board
-cannot be calibrated on the pick &mdash; it is not a model input there &mdash; but a slot
-curve is a function of the slot, so here it can. Each slot is scaled by the ratio of the
-value drafted players actually returned their clubs to the value the board gave them, over
-the same seasons, both smoothed (classes 2007&ndash;2016). The ratio is about
-1.14 at the fifth pick and 0.94 at the fourteenth, and falls through
-the second round &mdash; 0.96 at the forty-fifth &mdash; where the board still
-overstates what second-rounders return. Isotonic last, so the curve never rises.</p>
+<div class="eqn">v&#770;(s) = &alpha;&#770;<sub>s</sub>  where  (&alpha;&#770;<sub>s</sub>, &beta;&#770;<sub>s</sub>) = argmin &Sigma;<sub>i</sub> K( (p<sub>i</sub> &minus; s) / h(s) ) &middot; [ v<sub>i</sub> &minus; &alpha; &minus; &beta;(p<sub>i</sub> &minus; s) ]&sup2;<br>h(s) = 2.0 &middot; (1 + 0.06 &middot; (s &minus; 1)),   K Gaussian</div>
 
-<p><strong>What it replaced.</strong> Four seasons of market value at the mean projected
-wins for the slot, minus the rookie scale: no re-signing, no max, and the price of the mean
-rather than the mean of the price. It priced the first pick at $98M and every
-pick from the 32th on at nothing.</p>
+<p><strong>Over whole career.</strong> Again values from board, conditional on club. This will
+not be varied with choice of number of years to assess current players. These will be over
+2, 3 or 4 seasons or to age 40 inclusive (on existing deal and any assumed renewals), default the
+latter. Hence with default a pick and player are considered over the same period; with
+shorter periods, longer for the eventual pick.</p>
 
-<p><strong>Why smooth at all.</strong> Each slot has one observation per draft class
-&mdash; about nineteen &mdash; so a single star or bust moves that slot bodily. Averaging
-within a slot produced a curve where pick 3 priced above pick 2.</p>
+<p>In addition, current players would be valued at the expected cap in each season (from
+$165M 2026&ndash;27 rising to $1,046M
+2050&ndash;51), undiscounted. Hence even on default periods, a pick
+differs in that he is valued with reference to the cap for his draft year in all subsequent
+years of his career, discounted back at rate r, so that later years are assessed at the
+earlier, lower cap.</p>
 
-<p><strong>Why this was not fixed by the monotonicity constraint already applied.</strong>
-An isotonic projection does remove inversions from the value curve, but it does so by
-pooling violators into <em>plateaus</em>. Surplus is value minus rookie cost, and rookie
-cost declines smoothly with slot &mdash; so across a plateau, a flat value met a falling
-cost and surplus <em>rose</em>. The long upward ramps through the middle of the first
-round were not noise; they were the shape of the repair. Smoothing first leaves isotonic
-with almost nothing to bind on: inversions fell from nineteen to one, and that one is the
-second-round floor engaging, not an artifact.</p>
+<p><strong>Currency.</strong> All expressed in equivalent terms. That is, expected values over
+whole career expressed at a single point in time, to correspond to board&rsquo;s assessment. So all
+years for men drafted in a particular year expressed in terms of cap for first year of their
+rookie deals. On 2026-27 cap of $165M this gives surpluses of $269M,
+$228M, $106M, $47M and $18M at slots 1, 5, 14, 30, 45.
+These are of course scaled to relevant year and discounted in assessing a particular pick.</p>
 
-<p><strong>Why local-linear rather than a weighted average.</strong> At slot 1 &mdash; the
-boundary, and the pick that matters most &mdash; every neighbour a smoother can see is
-worse, so a local-constant estimate is biased downward. Fitting a slope and reading the
-intercept removes that bias exactly where it would be most expensive.</p>
+<p><strong>Calibration.</strong> Expected values delivered by actual selections can be
+measured, and so the curve adjusted accordingly. For each slot the average actual value
+delivered over classes 2007&ndash;2016 relative to board
+assessment, both averaged over slots in the same manner as above, gives a multiplicative
+factor. These are limited to [0.3, 1.5] and similarly smoothed over slots, running 0.30 to 1.08; approximately
+10 classes fall into each. So over first 40 picks vary only between
+0.84-1.08, 0.84, 1.07 and 0.94 for
+slots 1, 5, 14 respectively, then steadily falling to 0.86, 0.68 and
+0.30 by slots 45, 50, 60. So considerable over-estimation of later second round
+picks. An isotonic regression is then applied, so value never increases with slot.</p>
 
-<p>The bandwidth widens with slot because the curve is steep across the top few picks,
-where over-smoothing would erase real differences, and nearly flat in the second round,
-where borrowing from neighbours is close to free. Effective sample size rises from about
-nineteen to roughly ninety near the top of the draft.</p>
+<p>Of course, once costs of rookies deducted, this need not continue to decline. In particular, slot 2 gives a slightly higher surplus, $274M, than the 1st, $269M, as the multiplier is 0.84 at the 1st and 0.94 at slot 2 but expected value declines by only $2M, compared to $7M lower cost. Also slots 30 and 31 give $47M to $50M due to large fall in cost entering second round.</p>
 
-<p>A traded pick is priced across where it might <em>land</em>, not where it is expected
-to: lottery probabilities enter exactly where they apply, and protections truncate the
-landing distribution rather than being approximated by a discount. Second-round surplus
-is floored at zero, because a bust on a minimum deal can be waived &mdash; the pick is
-an option, not a debt, and options are not negative.</p>
+<p><strong>Reason for prior smoothing.</strong> There being about 20 observations
+per slot, one exceptionally successful (or unsuccessful) player makes a large difference, and
+indeed the unsmoothed curve increases from one slot to the next in 22 instances out
+of 59. Isotonic regression would then combine a number of adjacent slots, so giving constant
+expected value and tending to increase surplus (given falling costs). This tending to combine
+many slots is reduced by prior smoothing.</p>
 
-<h2>7. Risk</h2>
+<p><strong>Reason for local linear.</strong> It can be seen that any local method at the
+first slot would include only slots giving lower values. Estimating and applying slope
+therefore seems desirable at least in this region.</p>
 
-<p>Uncertainty is carried rather than averaged away. Each player's projection is a fan
-over mPM, availability and minutes, propagated by simulation and collapsed to a
-certainty equivalent under constant relative risk aversion:</p>
+<p>Increasing span. Steepness of curve over early slots would argue against wide smoothing,
+while very little variation over second round suggests wide span appropriate. So spans
+equivalent to about 80 men for first slot, 165 for fifth,
+252 for 14th, and 324-497 over second round.</p>
 
-<div class="eqn">CE = u<sup>&minus;1</sup>( E[u(W)] ),   u(W) = W<sup>1&minus;&gamma;</sup> / (1 &minus; &gamma;)</div>
+<p><strong>Range of probable slots.</strong> As described under Drafts, number of other teams
+predicted to lose more games, allowing &plusmn;6 around their prediction for next
+season, and &plusmn;&radic;(6&sup2; + 3.5&sup2;&middot;(y&minus;1)) for y seasons
+time. Probabilities then according to official league schedule for relevant year, with second
+round picks starting at 30 plus team&rsquo;s position. A pick falling within a protection does not
+transfer, and is valued as equivalent offer next year under applicable rules, or other stated
+pick, or nil. Any option to receive further pick should original prove superior valued
+jointly over same set of random draws, with protected case receiving better pick. If multiple
+descriptions of provisions given, assumed unprotected, value capped accordingly, and
+indicated. Finally, second round surpluses truncated at nil (or $0.01M practically), so some value to protecting these, as 5 of 30 slots sit at that floor. Obviously no negative values, given possibility of waiving player on minimum salary; a pick is an option, not a debt.</p>
 
-<p>Two assets with equal expected value are therefore not interchangeable &mdash; the
-more volatile one is worth less, which is the right treatment for a front office that
-cannot diversify across many rosters.</p>
+<h2>6. Uncertainty</h2>
+
+<p>All values predicted are ex-ante and on the assumption of no aversion to risk. Hence equal
+expected values imply equal desirability whatever variability. Uncertainty enters (i) in
+averaging over range of probable wins to give probability of winning; (ii) in range of slots for any given pick; and (iii) ranges of values from past
+similar trades are shown. However, no adjustment has been made to values assigned to
+individual likely picks to allow for risk aversion (constant relative risk aversion).</p>
+
+<p><strong>Interpretation of a Process Grade.</strong> Output includes range of values
+delivered by similar trades. All team-sides to trades over 1999&ndash;2025 (2,763) are considered, with
+more recent ones extended for the duration of outstanding contracts based on current predictions. Various
+quantiles found by regression on the process grade and overall magnitude of the trade. Consistent with the
+empirical evidence, spread of outcomes increases with size. Fitting on preceding years only and testing on
+the next, 80% interval contains 78% of actuals and 50% interval 48%. Over varying
+sizes of trade: 78%, 77%, 82%, 78%. Middle outcome moves about
+76 cents per dollar of process.</p>
 
 <h2>Limitations</h2>
 
 <ul>
 
-<li><strong>Concentration is over-rewarded.</strong> The convex top-1 term prices
-star-heavy rosters above market-implied levels. The rest penalty used to mask that from the opposite direction; with it switched off, nothing does.</li>
-<li><strong>Roster consequences only.</strong> No view on locker rooms, coaching fit, or
-whether a player wants to be there.</li>
-<li><strong>Trade legality is not evaluated.</strong> Salary matching, aprons and the
-rest of the CBA's machinery sit outside the model.</li>
-<li><strong>The allocator describes, it does not optimise.</strong> It predicts how
-minutes actually move after a trade, so a club that deploys its roster badly is priced
-as it plays rather than as it could. The opposite assumption &mdash; that freed minutes
-go to whoever produces most &mdash; is what this used to do, and it fits worse.</li>
-<li><strong>Minute reallocation is mostly unexplained.</strong> The best rule tested
-beats "remove the departed and renormalise" by under a minute per man, and roughly a
-tenth of a club's minutes after a trade go to men nobody could have named on the day.</li>
-<li><strong>Rookies are priced by workload, not by draft position.</strong> On a roster
-where neither has played, the shipped rule cannot tell a first pick from an undrafted
-free agent. That information exists elsewhere in the model and is not used here, because
-the version carrying it predicts trades worse.</li>
-<li><strong>Everything inherits the value board.</strong> The assumptions on the
-<a href="methodology-value.html">measurement page</a> apply in full and propagate here
-undiminished.</li>
+<li><strong>Possible excessive value on very good combinations of players.</strong> As
+described above, highly non-linear in total quality of squad, with additional specific term
+for best man. No check of validity of this prediction.</li>
+<li><strong>Assumes no dislike of risk.</strong> Hence equal expectation sufficient to equate
+items, whatever variability. Some front offices may be unable to build and operate multiple
+squads, and so place greater weight on certainty.</li>
+<li><strong>No allowance for other characteristics of players.</strong> Fit with others on
+team, coach, wishes re continuing all ignored.</li>
+<li><strong>Feasibility of trades ignored.</strong> Various rules regarding players&rsquo; salaries
+ignored.</li>
+<li><strong>Does not assume optimal utilisation of players.</strong> Playing time simply
+follows historical patterns, so a poorly-managed team is valued accordingly.</li>
+<li><strong>Difficult to interpret allocation of minutes.</strong> Simply apportioning all
+minutes among remaining current players only gives 0.62 min. worse per
+player. Also clearly some minutes go to others no rule could have identified on the day.</li>
+<li><strong>Rookies with no playing time given fixed amount by slot only.</strong> All such
+players (for example any current season draft man, picks 1&ndash;30) would be
+assumed to play 72% of games for 28 minutes if picked in the top
+5, 22 if 6th-14th, and 16 thereafter.
+Their rate of play then adjusted appropriately to give the total assessed by the board for
+first season. So no variation according to specific slot within these bands. No allowance
+made for untried second round picks and free agents.</li>
+<li><strong>Subject to assumptions underlying value of current players (Value Board; see
+<a href="methodology-value.html">here</a>) and likely draft picks (draft board; see
+<a href="methodology-draft.html">here</a>).</strong></li>
 </ul>
 
 </main>
@@ -322,6 +355,7 @@ Figures are model output, not official NBA statistics. Player value is measured 
 model's own scale; see <a href="methodology-value.html">the method</a>. Player portraits
 are illustrations adapted from Creative Commons photographs &mdash;
 <a href="credits.html">credits</a>.</p>
+<p><a href="insights.html">Insights</a> · <a href="ben-stupendous.html">Ben Stupendous</a> · <a href="players.html">Players</a> · <a href="player.html">Careers</a> · <a href="value-board.html">Value board</a> · <a href="methodology-value.html">Player value method</a> · <a href="methodology-draft.html">Draft method</a> · <a href="methodology-trade.html">Trade method</a></p>
 </footer>
 </div>
 </body>

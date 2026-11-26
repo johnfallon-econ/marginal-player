@@ -11,7 +11,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="site.css">
 <link rel="icon" href="assets/favicon-32.png">
-<!-- seo --><meta name="description" content="How The Marginal Player measures NBA player value: Marginal Plus Minus (mPM), Marginal WAR (mWAR), the market price of a win, and surplus."><link rel="canonical" href="https://themarginalplayer.com/methodology-value.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Measuring what a player is worth — The Marginal Player"><meta property="og:description" content="How The Marginal Player measures NBA player value: Marginal Plus Minus (mPM), Marginal WAR (mWAR), the market price of a win, and surplus."><meta property="og:url" content="https://themarginalplayer.com/methodology-value.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Measuring what a player is worth — The Marginal Player"><meta name="twitter:description" content="How The Marginal Player measures NBA player value: Marginal Plus Minus (mPM), Marginal WAR (mWAR), the market price of a win, and surplus."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
+<!-- seo --><meta name="description" content="The methodology behind the site&#x27;s measurement of player value: mPM, mWAR, price per win, and surplus."><link rel="canonical" href="https://themarginalplayer.com/methodology-value.html"><meta property="og:site_name" content="The Marginal Player"><meta property="og:type" content="website"><meta property="og:title" content="Measuring what a player is worth — The Marginal Player"><meta property="og:description" content="The methodology behind the site&#x27;s measurement of player value: mPM, mWAR, price per win, and surplus."><meta property="og:url" content="https://themarginalplayer.com/methodology-value.html"><meta property="og:image" content="https://themarginalplayer.com/art/f/share.jpg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Measuring what a player is worth — The Marginal Player"><meta name="twitter:description" content="The methodology behind the site&#x27;s measurement of player value: mPM, mWAR, price per win, and surplus."><meta name="twitter:image" content="https://themarginalplayer.com/art/f/share.jpg"><!-- /seo --></head>
 <body>
 <header><div class="wrap"><nav>
 <a class="brand" href="index.html"><img src="assets/mark-light-sm.webp" alt="" width="34" height="35" style="display:block;flex:none;width:34px;height:35px"><span>The <br>Marginal <br>Player</span></a>
@@ -19,247 +19,336 @@
 </nav></div></header>
 <script>(function(){var n=document.querySelector('.nl'),a=n&&n.querySelector('a.on');if(a&&n.scrollWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-n.offsetLeft-(n.clientWidth-a.offsetWidth)/2;})();</script>
 <div class="wrap"><main>
-<nav class="methrail" aria-label="Methodology sections"><span class="on">Player value</span><a href="methodology-draft.html">Draft model</a><a href="methodology-trade.html">Trade pricing</a></nav><img class="meth-fig" src="art/f/scale.webp" alt="A basketball weighed against a stack of coins" width="242" height="201" loading="lazy">
-<h1>Measuring what a player is worth</h1>
-<p class="lede">Three estimation steps stand between a possession of basketball and a
-dollar figure: isolating a player's effect on scoring margin, converting that margin
-into wins, and pricing a win against what teams actually pay. The first step yields the
-rating this site calls Marginal Plus Minus (mPM); the second turns it into Marginal WAR (mWAR).
-Each is estimated, none is assumed, and each is wrong in ways worth stating.</p>
+<nav class="methrail" aria-label="Methodology sections"><span class="on">Player value</span><a href="methodology-draft.html">Draft model</a><a href="methodology-trade.html">Pricing trades</a></nav><img class="meth-fig" src="art/f/scale.webp" alt="A basketball weighed against a stack of coins" width="242" height="201" loading="lazy">
+<h1>Determining a player’s value</h1>
+<p class="lede">Determining a player’s value involves three stages. First, we must quantify
+the player’s contribution to their team’s run-rate. This gives us our measure of mPM.
+Second, we need to convert that run-rate into a measure of wins, which produces mWAR.
+Third, we must determine the implicit price a team will pay for a given number of
+additional wins. In each case, we rely on various inputs and assumptions that are fixed,
+but not learned from the data. These are detailed below, along with some caveats.</p>
+
+<p>As outlined, quantifying a player’s impact requires estimating their effect on their
+team’s run-rate. There are several decisions to be made in this process, including the
+degree of pooling of historical data, the regularization applied, and the extent of
+empirical-Bayesian shrinkage. All are specified explicitly in the code and described below.
+Of course, each decision will lead to sub-optimal results.</p>
 
 <h2>1. Impact: regularized adjusted plus-minus</h2>
 
-<p>The raw material is the <strong>stint</strong> — a stretch of play with one fixed set
-of ten players on the floor. Every substitution ends one stint and begins another. For
-stint <em>s</em> with point differential <em>y<sub>s</sub></em> per 100 possessions, let
-<em>x<sub>s</sub></em> be a vector with +1 for each home player, &minus;1 for each away
-player, zero otherwise. The estimator is ridge regression:</p>
+<p>We begin with the concept of a <strong>stint</strong>. A stint is defined by the 10
+players who comprise a team at any given moment, and so spans from one change to the next.
+If a given stint <em>s</em> has run-rate <em>y<sub>s</sub></em> (per 100 possessions), we
+can define a regressor <em>x<sub>s</sub></em> with 1 if the i-th player is on the home
+team, -1 if away, and 0 otherwise. We then apply a regularized (ridge) regression:</p>
 
 <div class="eqn">θ̂ = argmin<sub>θ</sub>  Σ<sub>s</sub> p<sub>s</sub> · (y<sub>s</sub> − x<sub>s</sub>′θ)²  +  λ‖θ‖²</div>
 
-<p>weighting each stint by its possession count <em>p<sub>s</sub></em>. The penalty is not
-a convenience. Teammates who always share the floor are collinear, and unpenalized least
-squares responds by handing one an enormous positive coefficient and his partner an
-offsetting negative one. Ridge shrinks toward zero, which is the right prior for a
-player about whom the data is nearly silent.</p>
+<p>with <em>p<sub>s</sub></em> denoting the number of possessions in that stint, estimated
+from the duration in 24 s per possession. The regularization parameter λ is
+given by the robust estimate of the residual variance of the OLS fit / 4,
+implying that the prior variance on each player’s effect is 4 (pts/100)².
+If there are fewer than 300 total possessions contributed by a player in the
+relevant pooling period, their variable is combined with other similarly-inactive teammates.
+Furthermore, the ridge solution is constrained to have a weighted (by possession) mean of 0.
+Regularization is critical: if many teammates play together frequently, OLS will simply
+assign one a very large coefficient and the others correspondingly smaller ones. By
+shrinking towards 0, we encode the reasonable belief that we know little about inactive
+players.</p>
 
-<p><strong>Multi-season pooling.</strong> One season is too few possessions for stable
-estimates, so each target season <em>T</em> pools stints from a window around it, weighting
-season <em>t</em> by <em>δ</em><sup>|t−T|</sup> with <em>δ</em> = 0.7 over a four-season
-lookback. Recent basketball counts most; older basketball still counts.</p>
+<p><strong>Multi-season pooling.</strong> Given the limited number of possessions in a
+single season, we extend the pooling to <em>L</em> = 4 seasons surrounding the
+focus season <em>T</em>. The contribution of a stint in season <em>t</em> is scaled by
+<em>δ</em><sup>|t−T|</sup>, <em>δ</em> = 0.7, such that recent basketball is weighted
+most heavily, but more distant basketball retains some influence.</p>
 
-<p>The window has two forms, and the distinction matters more than it looks.
-A <strong>symmetric</strong> window (<em>T−L</em> … <em>T+L</em>) uses seasons after
-<em>T</em> and yields the best retrospective estimate of how good a player was — the right
-choice for a label. A <strong>backward</strong> window (<em>T−L</em> … <em>T</em>) uses only
-information available by <em>T</em> and is the only honest input to a forecast. Mixing them
-is how a model appears to predict the future while quietly reading it.</p>
+<p>There are two variants of this “pooling period”. The “<strong>symmetric</strong>” period
+extends L seasons before and after the focus season, i.e. <em>T−L</em> … <em>T+L</em>, and
+incorporates subsequent seasons. This will give the most reliable assessment of a player’s
+true value in a given season, suitable for populating the site’s main display of player
+values. The “<strong>backward</strong>” period runs from <em>T−L</em> … <em>T</em>, and
+contains only data generated up to the end of season T. Combining these two periods
+inappropriately can create an illusion of out-of-sample predictive power.</p>
 
-<p><strong>Standard errors by wild-cluster bootstrap.</strong> Residuals are resampled with
-sign flips, clustered on the game, 400 replications. This is load-bearing rather than
-decorative. The analytic ridge diagonal gets the sign of the problem wrong: it correlates
-about &minus;0.3 with |θ̂|, implying that extreme estimates are the <em>precise</em> ones,
-and lets marginal players with few possessions post ratings above +20. The bootstrap
-correlates about +0.5, correctly flagging collinearity-unstable players as uncertain so
-that the next step can shrink them.</p>
+<p><strong>Standard errors by wild-cluster bootstrap.</strong> To obtain standard errors,
+we perform a wild cluster bootstrap of the residuals, with 400 draws and
+clustering at the game level. These will be used in the next stage to scale the magnitude
+of the player’s estimated effect.</p>
 
-<p><strong>Empirical-Bayes shrinkage toward a box-score prior.</strong> A statistical
-plus-minus model is fit on per-100-possession box production, and each raw estimate is
-pulled toward its own prediction in proportion to its uncertainty:</p>
+<p><strong>Empirical-Bayes shrinkage toward a box-score prior.</strong> Finally, each
+player’s effect is empirically Bayes-shrunk towards a ‘prior’ estimate based on their
+box-score output. Specifically, we train a gradient boosted model (out-of-fold by season)
+to predict a player’s pooled stint-based mPM from their average per-100 box stats. Let
+m̂(box<sub>i</sub>) denote the out-of-fold prediction, and B<sub>i</sub> the corresponding
+weight on that:</p>
 
 <div class="eqn">θ̃<sub>i</sub> = B<sub>i</sub> · m̂(box<sub>i</sub>) + (1 − B<sub>i</sub>) · θ̂<sub>i</sub>,   B<sub>i</sub> = σ̂<sub>i</sub>² ⁄ (σ̂<sub>i</sub>² + τ̂²)</div>
 
-<p>where σ̂<sub>i</sub> is the bootstrap standard error and τ̂² the estimated
-between-player variance. A player with 200 minutes is mostly his box prior; a player with
-3,000 minutes is mostly his own plus-minus. This is the step that separates the public
-metrics which retrodict well from plain RAPM, which does not. The shrunk estimate
-θ̃<sub>i</sub> is the rating reported everywhere else on the site as mPM.</p>
+<p>Here σ̂<sub>i</sub> is the (wild cluster) SE and τ̂² is the estimated variance of true mPM
+around the box-score prior across the player population. As noted, since the former is driven by the multi-season
+pool, B<sub>i</sub> will not vary strongly with a player’s playing time in a given season.
+Averaged over the published list of player mPMs, we find B<sub>i</sub>=0.45 for players under 10 min per game, 0.47 for 10&ndash;20, 0.42 for 20&ndash;30 and 0.37 for 30+. We
+adjust the published values each season so that they average to 0, weighted by players’
+playing time. The value θ̃<sub>i</sub> is then the quantity used throughout the rest of the
+site.</p>
 
-<p><strong>Two priors, not one.</strong> "Box production" understates what the
-retrospective prior sees. The <em>label</em> prior is deliberately rich — current per-100
-box production, plus the same quantities lagged one and two seasons, plus player tracking
-where it exists — because a label is allowed to use everything known about a season after
-the fact, and the richer prior fits materially better. The <em>forecast</em> mPM shrinks
-toward a deliberately lean prior: current box production only.</p>
+<p><strong>Two priors, not one.</strong> It is important to note that the above prior is
+relatively sparse compared to what is available to us when generating the published
+(<em>‘label’</em>) mPM. As described, this is estimated using the symmetric pooling period,
+and so we shrink the stint-based estimate towards a combination of: current box production;
+1 and 2-year lags of these; available player tracking data; and a number of
+‘teammate-relative’ metrics, including usage, shot mix and % made by zone (rim, mid-range,
+3-pt, FT), and assist, rebound, steal and block rates, relative to each of his teammates. A label is allowed to use everything known about a
+season after the fact. By contrast, to generate the <em>‘forecast’</em> mPM for a given
+season, we pool the backward window’s stints, shrink towards a correspondingly sparse prior
+(as above, but excluding any lags or tracking), carry the estimate forward for
+2.5 years applying an annual drift (a quadratic in age and experience, so
+varying by player), and re-center. Only its stints stop
+at T. The prior used to generate this is fit on the symmetric-window stint estimates (the label before shrinkage), with out-of-fold splits
+spanning multiple future seasons; the variance τ̂² is similarly derived from the
+symmetric-period residuals. The annual drift is estimated from the year-on-year change in
+each player’s symmetric-window stint estimate over the entire span of the dataset. Hence, although referred to as
+the ‘forecast’, it should not strictly be interpreted as an ex-ante prediction at the start
+of season T. On the site’s own retrodiction test (each player’s prior-season forecast
+rating times the minutes he actually played, predicting schedule-adjusted team net
+rating, across 2013-14-2025-26, 390 team-seasons, each rating first given a linear
+calibration fit on those same team-seasons), the forecast rating misses by an RMSE of
+2.79 points per 100 possessions, against 2.99 for the backward-window
+ridge with no prior, no aging drift and no re-centering. The forecast
+rating’s design was tuned on that test, so the comparison is in-sample.</p>
 
-<p>The asymmetry is the same discipline as the symmetric/backward window split above. It
-does carry one honest limitation worth stating: tracking data begins in 2013-14, so the
-label prior sees a different feature set before and after that season. Retrospective mPM
-is therefore not perfectly era-consistent at the margin. The forecast mPM, which is what
-the value board and the trade tool actually price, uses the lean prior throughout and is not
-affected.</p>
+<p>A parallel consideration is that the availability of tracking data only commences in the
+2013-14 campaign. Accordingly, the label mPM prior differs in this respect pre- and post-
+that year, meaning there is some degree of inconsistency in the published values. However,
+the ‘Value Board’ and ‘Trade Lab’ both start from a player’s latest label mPM (all
+post-2013-14) and project it on an aging curve fit to year-over-year changes in label mPM
+over every season from 1996-97-present. The ‘forecast’ mPM is instead the metric
+relied upon for the site’s retrodiction tests and preseason projections.</p>
 
-<p>The resulting panel is <strong>13,991 player-seasons</strong> covering
-2,391 players from 1996-97 to 2025-26.</p>
+<p>The above procedure yields a table of mPM values for 13,991 player-seasons,
+spanning 2,391 distinct individuals between 1996-97 and
+2025-26.</p>
 
 <h2>2. Wins: a linear probability model</h2>
 
-<p>Impact is expressed in points per 100 possessions. Converting to wins is usually done
-with a rule of thumb; here it is estimated. For game <em>g</em>, construct the
-minutes-weighted mPM differential of the players who actually appeared:</p>
+<p>Having determined the number of additional points a player adds to his team, we now wish
+to translate this into equivalent wins. Conventionally, this would be achieved via some
+heuristic mapping of points-&gt;wins. Instead, we learn this relationship directly. For a
+given contest <em>g</em>, we compute the aggregate (by playing time) mPM of the relevant set
+of players:</p>
 
 <div class="eqn">X<sub>g</sub> = Σ<sub>home</sub> (sec<sub>i</sub>⁄2880)·θ̃<sub>i</sub>  −  Σ<sub>away</sub> (sec<sub>j</sub>⁄2880)·θ̃<sub>j</sub><br>1{home win}<sub>g</sub> = α + β·X<sub>g</sub> + ε<sub>g</sub></div>
 
-<p>Each of the five floor slots covers 2,880 seconds of a 48-minute game, so
-<em>X<sub>g</sub></em> is the expected home margin implied by who played. Estimated on
-<strong>37,975 games</strong>:</p>
+<p>Note that there are 5x2,880s per NBA game. <em>X<sub>g</sub></em> can therefore be
+thought of as the implied run-rate for the home side. We use the label mPM from the same
+year (and set inactive players to 0). Estimating on 37,975 contests (including the
+NBA playoffs):</p>
 
 <div class="stats">
-  <div><span class="sv">0.0452</span><span class="sl">β̂ — win probability per point of expected margin (se 0.00044)</span></div>
-  <div><span class="sv">0.586</span><span class="sl">α̂ — home win probability at zero differential</span></div>
-  <div><span class="sv">0.178</span><span class="sl">R² — single games are mostly noise, as expected</span></div>
+  <div><span class="sv">0.0452</span><span class="sl">β̂ — change in home win probability per additional pt expected run-rate (se 0.00044)</span></div>
+  <div><span class="sv">0.586</span><span class="sl">α̂ — baseline probability of home win with equal run-rates</span></div>
+  <div><span class="sv">0.178</span><span class="sl">R² — low, unsurprisingly given the inherent randomness of any single NBA game</span></div>
 </div>
 
-<p>The R² of 0.18 is not a weakness. A single NBA game is close to a coin flip;
-what is being estimated is the slope, and with 37,975 games it is pinned tightly
-— β̂ is roughly 102 standard errors from zero. Value accrues over
-a season, where the noise averages out.</p>
+<p>Although the R² of 0.18 may appear disappointing, we note that each individual
+game is effectively a Bernoulli trial, and so there is very little information in the
+dependent variable. Nevertheless, with 37,975 data points, β̂ is roughly
+102 standard errors from zero (HC0-robust). Of course, this
+underestimates the real uncertainty as the published θ̃<sub>i</sub> are themselves
+estimated, some using the very same data. However, we can expect these idiosyncrasies to
+wash out when considering a full season of a player’s activity.</p>
 
-<p>A player logging <em>sec</em> seconds at an mPM of <em>θ̃</em> therefore contributes</p>
+<p>A player playing for <em>sec</em> seconds will therefore add:</p>
 
 <div class="eqn">mWAR = β · (sec ⁄ 2880) · (θ̃ − θ<sub>repl</sub>),   θ<sub>repl</sub> = −1.78</div>
 
-<p>Replacement level is the freely available alternative, not zero. Setting it at
-−1.78 rather than 0 is why a strong season here reads near 20 rather than the
-10 familiar from public win-value statistics. It is a different ruler, not a bigger number.</p>
+<p>to the season’s tally, where θ<sub>repl</sub> is the published definition of a
+‘replacement’ level player. Replacement level is the freely available alternative, not
+zero, and it is set rather than estimated: a lineup of five replacement-level players on the
+floor all game is taken to win 8 games of 82. It follows that θ<sub>repl</sub> =
+(8⁄82 − ½) ⁄ (5β̂) = −1.78. Our choice of
+8 is somewhat arbitrary, though intended to represent a minimally competent NBA
+team (i.e. one capable of playing 5 bench players). Clearly, altering this will shift all
+subsequent mWAR. The highest mWAR recorded on the site is 27.7, achieved by
+Kevin Garnett’s 2003-04. With replacement at 0 the same season would be
+22.2.</p>
 
 <h2>3. Price: a censored-regression market curve</h2>
 
-<p>The final step asks what a win costs. Observed salaries cannot answer directly, because
-they are <strong>censored on both sides</strong>: the collective bargaining agreement caps
-individual pay, so a fifteen-win superstar earns the maximum rather than his worth, and the
-minimum props up the bottom. Ordinary least squares on observed pay therefore underprices
-exactly the players the question is about — the naïve slope is 0.0150 cap
-share per win, against 0.0675 here.</p>
+<p>We are finally in a position to ask: how much is a win worth? Directly observing the
+salaries paid to players is insufficient: they are <strong>censored on both sides</strong>,
+for two reasons. Firstly, the CBA imposes a ceiling on the maximum amount that can be paid
+to a single player. Consequently, any player accruing &gt;~15 wins per season will receive
+this upper bound, irrespective of their true value. Secondly, there is a minimum level of
+payment guaranteed to players, creating a similar floor. Regressing salary against
+player-season wins will therefore yield a downward-biased estimate of the price of a win.
+Running this OLS on the subset of player-seasons played &gt;=6,000 seconds in
+their 4th+ year of service, with salary normalized to that year’s cap, produces a slope of
+0.0150 cap share per win. Accounting for the upper and lower bounds in
+the same dataset increases this to 0.0193. The curve implemented on the
+site is instead estimated from newly-signed players, using their mean wins (from label mPM)
+in the preceding 2 years, where the two-sided censored slope is 0.0229;
+the composite built from that fit and the luxury-tax fit has a linear term of
+0.0673 and a curvature term of -0.000405.</p>
 
 <p>Treat both bounds as censoring and estimate the latent curve by full-information maximum
 likelihood:</p>
 
-<div class="eqn">pct*<sub>i</sub> = a + b·w<sub>i</sub> + c·w<sub>i</sub>²  +  σ·ε<sub>i</sub>,   ε<sub>i</sub> ~ N(0,1)<br>observed pct<sub>i</sub> = min{{ max{{ pct*<sub>i</sub>, min<sub>i</sub> }}, max<sub>i</sub> }}</div>
+<div class="eqn">pct*<sub>i</sub> = a + b·w<sub>i</sub> + c·w<sub>i</sub>²  +  σ·ε<sub>i</sub>,   ε<sub>i</sub> ~ N(0,1)<br>observed pct<sub>i</sub> = min{ max{ pct*<sub>i</sub>, min<sub>i</sub> }, max<sub>i</sub> }</div>
 
-<p>with pay measured as a share of that season's salary cap so seasons are comparable, and
-<em>w</em> the player's trailing two-season mean wins at signing. Fitting on <strong>new
-contracts only</strong> — first years of deals — matters: within-contract raises are
-mechanical escalators, while a new deal is the market actually clearing.</p>
+<p>Note that this means the label mPM has also seen the seasons after the contract in
+question was signed. Salaries close to or above 25%/30%/35% of the cap (depending on tenure),
+or at the player’s actual salary where that is higher, are accordingly right-censored. Similarly, salaries
+&lt;=2.5% of the cap are left-censored. Importantly, we restrict the
+sample to <strong>newly-signed players</strong>. Increases to existing players’ contracts
+are likely to reflect only the provisions of the CBA. A new player’s salary can be
+identified from the published list as being either: (i) commencing following a hiatus, or
+(ii) differing by &gt;15% from their previous year’s salary. We consider
+only those signed in 1999-2025 in their 4th+ year.</p>
 
-<h3>The curve is a composite, and the slope is the interesting part</h3>
+<h3>Composite curve</h3>
 
-<p>That two-sided fit alone is not what ships, and the difference matters enough to state
-plainly. Capping individual pay does not merely truncate the top of the distribution; it
-removes the observations that would identify the slope at all. What a team is <em>willing</em>
-to pay for a win is unobserved precisely where wins are most valuable.</p>
+<p>As discussed, it is not possible to learn the relevant price curve simply by treating
+the upper and lower bounds as censoring points. The salient issue is that we lose all
+information about the price of high-value players. In particular, the teams most keen to
+acquire these players are prevented from revealing their true <em>willingness-to-pay</em>.</p>
 
-<p>The shipped curve is built in three pieces:</p>
+<p>Instead, the published price curve consists of:</p>
 
 <ul>
-<li><strong>Intercept</strong> from the two-sided capped FIML above — the replacement floor,
-where the minimum-contract censoring is informative and the max is irrelevant.</li>
-<li><strong>Slope and curvature</strong> from a separate FIML fit that uses the
-<strong>luxury tax</strong> as a revealed lower bound. A team over the tax line paying a
-player <em>s</em> is really spending <em>s</em>·(1&nbsp;+&nbsp;τ) to employ him, where τ is
-its marginal tax rate. It would not do that unless it valued him at least that much, so each
-such signing right-censors the latent curve from below at the tax-inclusive figure rather
-than being read as a point. 912 of 2,542 contracts enter as
-right-censored bounds this way, and 828 of the sample's signings were
-made by a team over the line.</li>
-<li>Both reported as <strong>player-clustered bootstrap medians</strong> over 200
-replications, so a handful of repeatedly-signed stars cannot set the slope on their own.</li>
+<li>An <strong>intercept</strong>, determined by the FIML estimation of the doubly-censored
+curve described above, (whose own slope is 0.0229). Here, the lower bound
+is binding and we are able to recover the ‘floor’ for the price of a win.</li>
+<li><strong>Slope and curvature</strong> from a second FIML fit that takes account of the
+<strong>luxury tax</strong>. Teams paying above the tax threshold to sign a player
+<em>s</em> must necessarily be prepared to part with at least <em>s</em>.(1+τ), where τ is
+their marginal tax rate. We can therefore treat the latter as a (one-sided) censoring
+point. Of the 2,542 signings, 828 were made by a team over the line;
+with the 84 maximum contracts signed by teams under it, which stay
+right-censored at the max, 912 contracts enter this fit as bounds rather
+than points, and 526 minimum deals as left-censored.</li>
 </ul>
 
-<p>The identifying assumption is the ordinary one for a revealed-preference bound: a team
-that voluntarily pays the tax values the player at no less than the tax-inclusive cost. It
-does not require teams to be right about the player, only to be willing.</p>
+<p>For the slope and curvature, we take the median of 200 draws from a player-clustered
+bootstrap to ensure that the estimate is not overly dictated by one or more prolific
+signees. The intercept comes from the single capped fit, and σ̂ from the single quadratic
+tax-bound fit.</p>
 
-<p>This is what produces the headline result. The cap-constrained rate — what teams actually
-pay, censoring and all — is 0.0229 of the cap per win. The free-market rate is
-0.0675, a <strong>2.94× premium</strong>. Every market value,
-every surplus figure and every trade verdict on this site is denominated at the free-market
-rate, and the section below on superstar value follows directly from it. A reader who rejects
-the tax-censoring argument should read all of those numbers as roughly 2.9
-times too large.</p>
+<p>The key condition required is simply that a team is prepared to pay the luxury tax. We
+place no further restriction on the accuracy of their assessment of a given player’s
+value.</p>
 
-<p>Sample: 1999-2025, new deals, svc>=4.</p>
+<p>It comes down to this. From the capped fit, taking out the effects of censoring at the
+top and bottom and interpreting the resulting line as describing salaries set beneath the
+cap gives a slope of 0.0229 of the cap per win. Interpreting the new contracts
+(i.e. those involving Tax Team acquisitions) as providing a lower bound gives a line of
+0.0630, or a <strong>2.75×</strong>
+increase, the premium the draft board and the Trade Lab quote. As described above, the
+“shipped” fit is a quadratic form of this tax-censored line, and hence the coefficient on w
+is not itself a meaningful measure. At 10 wins however, the marginal value of a season is
+0.0592 of the cap per win. All of the valuations presented throughout the
+remainder of the site, including the conclusions drawn about trades, are derived from this
+fit. The following discussion of Superstars is a natural extension of these findings. If
+you are unwilling to accept the tax-team analysis, you can instead use the capped line
+(which will share the common intercept) and note that the value of a season is divided
+by 2.35, 2.70, 2.69 and 2.55 at 1, 5, 10 and 20 wins
+respectively. By definition, surplus will therefore not scale down by these amounts and can
+be negative.</p>
 
 <div class="stats">
-  <div><span class="sv">0.0097</span><span class="sl">â — intercept, the replacement floor</span></div>
-  <div><span class="sv">0.0675</span><span class="sl">b̂ — cap share per win</span></div>
-  <div><span class="sv">-0.00042</span><span class="sl">ĉ — curvature (concave at this estimate)</span></div>
-  <div><span class="sv">0.347</span><span class="sl">σ̂ — residual dispersion</span></div>
+  <div><span class="sv">0.0096</span><span class="sl">â — intercept, the replacement baseline</span></div>
+  <div><span class="sv">0.0673</span><span class="sl">b̂ — gradient, i.e. share of cap per win</span></div>
+  <div><span class="sv">-0.00041</span><span class="sl">ĉ — quadratic term (estimated to be concave)</span></div>
+  <div><span class="sv">0.347</span><span class="sl">σ̂ — spread, from the quadratic Tax-censored fit</span></div>
   <div><span class="sv">2,542</span><span class="sl">contracts</span></div>
 </div>
 
-<p>Value in dollars is then <code>max(â + b̂w + ĉw², 0) × cap(season)</code>, floored at zero
-because a team cannot be paid to hold a roster spot. Negative <em>surplus</em> is perfectly
-possible and is where the interesting players are.</p>
+<p>The value of a season is given by <code>max(â + b̂w + ĉw², 0)</code> scaled by the
+relevant season’s salary cap. It is floored at zero because a team cannot be paid to hold a
+roster spot. Negative <em>surplus</em> is perfectly possible and is where the interesting
+players are.</p>
 
-<p><strong>The curvature term is not statistically significant, and the page should say so.</strong>
-Its 95% interval is [-0.00198, 0.00272], straddling zero, with
-P(ĉ&nbsp;&gt;&nbsp;0) ≈ 0.32. The point estimate is mildly concave: each additional win is priced a little below the one before, so at twenty wins the curve sits 16.7% of the cap below a straight line with the same slope. The term was introduced as a star premium, on two lines of outside evidence that still lean convex — roster-slot scarcity, and stars outperforming their total win contribution in the playoffs — but the fit itself no longer does — and a reader who prefers the linear curve is not
-arguing against the data.</p>
+<p><strong>The curvature term is not statistically distinguishable from zero.</strong> ĉ is
+the median of the bootstrap draws, -0.000405; 34% of the draws are positive,
+and their 2.5th and 97.5th percentiles are [-0.00197, 0.00274], straddling zero.
+Note that the CI does not center around ĉ (the bootstrap median), because the draws are skewed:
+the positive draws run further from zero than the negative ones. The median of the bootstraps implies a weakly-concave function, whereby each successive win is worth marginally less than its predecessor. This leads to a shortfall of 16.2% of the cap at 20 wins relative to a simple linear fit with the same gradient. Of course the true parameter may well be flat, and the alternative
+presentation is equally consistent with our findings.</p>
 
-<h2>Why the best players' value exceeds any contract</h2>
+<h2>Why the Value Board outstrips the biggest contract</h2>
 
-<p>Put the three steps together and a result falls out that looks like an error and is not.
-On the open market a win costs 0.0675 of the cap, so a twenty-win season is worth about
-119% of it, while no individual salary may exceed 35%. A
-superstar's estimated market value can therefore exceed his team's entire payroll ceiling. The
-curvature term does not produce this; the slope does.</p>
+<p>The picture is now complete and yields an almost unbelievable conclusion. As noted
+earlier, a 20-win season has an implied value of ~119%
+of the salary cap, but the maximum existing contract represents just 35% of the cap. We thus
+expect individual Superstars to command a value greater than the salary cap, which is
+distributed across a whole squad. This is driven by the linear term.</p>
 
-<p>This is the central economic fact about NBA labour, not an artifact: the collective
-bargaining agreement transfers enormous surplus from the very best players to the teams
-that employ them, and the transfer is largest precisely for the players who are best. The
-value board's headline column is a measurement of that transfer.</p>
+<p>There is clearly a massive redistribution of wealth from the elite Superstars to their
+clubs, as dictated by the CBA, and most heavily concentrated at the top end of the talent
+distribution. The first entry of the Value Board seeks to quantify this.</p>
 
-<h2>Which board is which</h2>
+<h2>Different Value Boards</h2>
 
-<p>Two different things on this site are called a value board, and only one of them is
-retrospective.</p>
+<p>As you will see from the site, there are 2 Value Boards.</p>
 
 <ul>
-<li><strong>Players</strong> — the per-season boards, 1999-00–2025-26. These are
-<strong>retrospective</strong>: realized impact and realized playing time, asking what a
-season was worth after the fact.</li>
-<li><strong>Value Board</strong> — the live board. This is a <strong>forecast</strong>:
-current players projected forward on the aging curve and priced against the market. Nothing
-in it is realized, and the paragraph below does not describe it.</li>
+<li><strong>Players</strong> - comprise the set of individual season boards covering the
+period 1999-00-2025-26. These represent known quantities: i.e. how much each player
+contributed (as measured by mWAR) and how many minutes they played, in order to infer their
+market value <strong>ex-post</strong>.</li>
+<li><strong>Value Board</strong> - the current board. For the ongoing season, this is
+primarily <strong>prospective</strong>: it takes each player’s most recent mPM and rolls
+them forwards on the aging curve, before applying the market fit to obtain a market value.
+This is displayed alongside their contemporaneous mWAR (an ex-post quantity).
+Alternatively, selecting a past season will return the ex-post market value of each player
+(scaled by their mWAR), as in the Players’ boards, to which the remainder of this section
+pertains.</li>
 </ul>
 
-<h2>What the retrospective boards are not</h2>
+<h2>Caveats on the ex-post boards</h2>
 
-<p>They are not a record of what the model would have said beforehand, and they are not
-evidence that anyone could have been identified early. A genuine forecast test requires
-refitting the aging curve, the price curve and the win calibration on data available at the
-time, on pain of the estimates quietly importing their own future.</p>
+<p>Firstly, they do not indicate what the Value Board would have predicted for those
+seasons. Nor can we claim that any particular player would have been discernible from the
+available information. To properly assess this, we would need to refit the aging curve,
+price curve and wins-scaling using the data observable at each point in time.</p>
 
-<p><strong>And the most recent season is less retrospective than the rest.</strong> The
-label mPM pools stints over a symmetric window, <em>T</em>&minus;4 … <em>T</em>+4. At the
-end of the panel there is no forward half to pool, so the newest season's "symmetric" window
-is silently one-sided — it is the backward window wearing the label estimator's name. Its
-playing time is fully realized; its mPM simply has less evidence behind it. Measured on
-players at 10+ minutes per game, the most recent season carries about 16% more
-standard error than an interior season and shrinks about 17% harder toward the
-box-score prior (0.49 against 0.42).</p>
+<p>Secondly, <strong>seasons near either end of the panel are less retrospective than the
+rest</strong>. Each player’s mPM is an average of their performance in the
+<em>T</em>&minus;4 … <em>T</em>+4 seasons surrounding the target season.
+For the final 4 seasons, the latter leg of this window is truncated, and in the
+case of the most recent season, completely. Similarly for the initial 4 seasons.
+However, each player’s minutes played will be fully known, so the only limitation to the
+accuracy of the mPM will be the amount of data contributing to its calculation. Comparing
+the most recent season (2025-26) to the set of seasons between 2000-01
+and 2021-22, where the full window is available, we see that its mPM is
+~16% more uncertain, and pulled ~18% closer to the
+box-score baseline (0.49 vs 0.42). The effect is
+smaller for 2024-25 (0.46) and the earliest season in the
+dataset (1996-97, 0.48).</p>
 
-<p>Read the newest season's mPM as provisional. They firm up as the seasons after them
-arrive and the window fills in on both sides — which also means a player's value for a given
-season can move slightly in later builds. That is the estimator working as designed, not a
-revision of history.</p>
+<p>Accordingly, the most recent season(s)’ mPM should be treated with caution, and will be
+updated as subsequent data becomes available. In addition, we should expect some movement
+of the other seasons’ values in future iterations, because the box prior, τ̂² and the
+per-season centering are refit on the whole panel each time. This is a feature of the
+method, not a bug.</p>
 
 <h2>Limitations</h2>
 
 <ul>
-<li><strong>One price curve for two decades.</strong> The market curve and win calibration
-are single league-wide fits applied to every season, so only the cap level varies by year,
-not the shape of the wins–pay relationship. That is an assumption about market structure,
-and it is not tested here.</li>
-<li><strong>Plus-minus cannot separate perfectly collinear teammates.</strong> Shrinkage
-manages the symptom; two players who never appear apart are not identified, and no
-regularization creates information that is absent.</li>
-<li><strong>Salary data has holes.</strong> Coverage is near-complete in recent seasons and
-thinner in older ones, and surplus is reported as unknown rather than zero where a salary
-is missing. Unknown and unpaid are different facts.</li>
-<li><strong>Value is not the same as contribution to winning a title.</strong> Wins are
-linear in this framework; championships are not.</li>
+<li><strong>One price curve for two decades.</strong> Thirdly, a single market and wins-fit
+is imposed across the full length of the dataset. Only the magnitude of the salary cap
+differs from season-to-season. This presumes a certain degree of similarity in the NBA’s
+labor market over this period, which is left untested.</li>
+<li><strong>Plus-minus cannot separate perfectly collinear teammates.</strong> Fourthly, it
+is impossible to identify the distinct effects of co-linear players. While the
+regularization process will mitigate this to some extent, two players who never appear
+apart are not identified, and no regularization creates information that is absent.</li>
+<li><strong>Salary data has holes.</strong> Fifthly, there are missing salary values.
+Between 84% and 100% of players have a known salary on the Per Season boards. Only in the seasons 2013-14 (84%), 2022-23 (91%), 2023-24 (90%), 2024-25 (89%) and 2025-26 (89%) does this fall below 93%. Where salaries are not recorded, the associated surplus is marked as ‘Unknown’.
+It should be noted that this is distinct from the (implicit) zero surplus.</li>
+<li><strong>Value is not the same as contribution to winning a title.</strong> Lastly,
+although the number of wins generated by each player can be determined, the board tells us
+nothing about the likelihood of them helping their side secure a championship.</li>
 </ul>
 
 </main>
@@ -269,6 +358,7 @@ Figures are model output, not official NBA statistics. Player value is measured 
 model's own scale; see <a href="methodology-value.html">the method</a>. Player portraits
 are illustrations adapted from Creative Commons photographs &mdash;
 <a href="credits.html">credits</a>.</p>
+<p><a href="insights.html">Insights</a> · <a href="ben-stupendous.html">Ben Stupendous</a> · <a href="players.html">Players</a> · <a href="player.html">Careers</a> · <a href="value-board.html">Value board</a> · <a href="methodology-value.html">Player value method</a> · <a href="methodology-draft.html">Draft method</a> · <a href="methodology-trade.html">Trade method</a></p>
 </footer>
 </div>
 </body>
