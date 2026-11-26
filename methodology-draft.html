@@ -124,12 +124,12 @@ likewise applied.</p>
 remain somewhat under-dispersed. Ideally, a given season’s actual value should fall
 uniformly within its corresponding forecast. In practice, however, too few seasons land in
 the middle and too many in the tails, busts above all. In particular, for lottery picks
-in seasons 3-6, 10.8% fell below the 5th percentile of their forecast
-and 17.0% landed in its 50th-75th band, compared with the expected 5% and
+in seasons 3-6, 11.1% fell below the 5th percentile of their forecast
+and 17.1% landed in its 50th-75th band, compared with the expected 5% and
 25%. We address this by re-mapping the levels of each forecasted
 distribution to match the empirical frequencies of realized values for similarly-forecasted
 player-seasons (with the mapping differing by year). On classes the mapping had not
-seen, these shares become 8.9% and 22.4%.
+seen, these shares become 8.6% and 23.0%.
 This partially alleviates the issue, although there remains limited separation between
 mid-to-high lottery picks and lower ones.</p>
 
@@ -139,7 +139,7 @@ constrained to be monotone and including a $0 term for the never-played populati
 seasons 1&ndash;16. Each season’s value is then rescaled by this factor to
 maintain the ranking of player-seasons. For the most recent draft, the net effect is to
 decrease the lower end and increase the upper end of the distribution, mapping a forecast of ~33%/10%/1% of the cap to
-45%/14%/0.7% respectively. Note that the
+39%/14%/0.7% respectively. Note that the
 model’s raw (pre-adjustment) career path for each player is shown on the accompanying
 graph.</p>
 
@@ -199,7 +199,7 @@ throughout, and then face the same decision at the conclusion of their deal as a
 Assuming the player is assessed at his own slot, first-round picks of
 2007&ndash;2016 were predicted held in rookie-deal seasons 2-4
 89% of the time against 88% realized (Brier score
-0.099), and kept past the deal 46% against
+0.099), and kept past the deal 47% against
 49%. Similarly, for 2nd-round picks, the majority of floor outcomes
 correspond to the player failing to sign a deal or being released shortly thereafter, and
 hence not being retained.</li>
@@ -251,7 +251,7 @@ earned a contract as “not retained” for both the final two columns.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Pick</th><th>Projected value to club</th><th>Actual</th>
 <th>After rookie scale, projected</th><th>Actual</th><th>Projected share retained beyond rookie scale</th><th>Actual</th></tr></thead>
-<tbody><tr><td>1-5</td><td>$89.2M</td><td>$92.2M</td><td>$44.6M</td><td>$37.5M</td><td>73%</td><td>74%</td></tr><tr><td>6-14</td><td>$61.4M</td><td>$59.1M</td><td>$30.9M</td><td>$25.1M</td><td>54%</td><td>51%</td></tr><tr><td>15-30</td><td>$31.8M</td><td>$32.3M</td><td>$13.7M</td><td>$12.9M</td><td>34%</td><td>41%</td></tr><tr><td>31-60</td><td>$11.1M</td><td>$9.8M</td><td>$6.2M</td><td>$4.6M</td><td>24%</td><td>26%</td></tr></tbody></table></div>
+<tbody><tr><td>1-5</td><td>$89.8M</td><td>$92.2M</td><td>$45.4M</td><td>$37.5M</td><td>73%</td><td>74%</td></tr><tr><td>6-14</td><td>$60.7M</td><td>$59.1M</td><td>$30.0M</td><td>$25.1M</td><td>54%</td><td>51%</td></tr><tr><td>15-30</td><td>$32.0M</td><td>$32.3M</td><td>$13.9M</td><td>$12.9M</td><td>34%</td><td>41%</td></tr><tr><td>31-60</td><td>$11.1M</td><td>$9.8M</td><td>$6.2M</td><td>$4.6M</td><td>25%</td><td>26%</td></tr></tbody></table></div>
 
 <p><strong>Ranking the lottery by value to the club.</strong> Considering the points above,
 and taking the full range of prospects at each evaluation slot, we find (using Spearman
@@ -259,18 +259,18 @@ rank) that:</p>
 
 <ul>
 <li>The within-class correlation between a draftee’s value to his drafting club and what he
-realized, averaged over classes, is 0.423.</li>
+realized, averaged over classes, is 0.461.</li>
 <li>The same valuation stopped at the rookie deal gets 0.416, against
 0.218 for the actual order of selection (139 lottery picks).</li>
 <li>Across the entire career, the models beat the rookie-scale value of each class by an
-average of +0.006 (bootstrap 90% CI [-0.042, +0.054]), which is
+average of +0.046 (bootstrap 90% CI [-0.006, +0.093]), which is
 not distinguishable from a tie, and beat the order in which they were selected by
-+0.205 (+0.089 to +0.311), better in 9 of 10
++0.243 (+0.127 to +0.349), better in 9 of 10
 classes.</li>
 </ul>
 
-<p>Across all drafted players (595 draftees, again within class and averaged over classes), the correspondences are 0.432,
-0.474 and 0.458. Note that here the longer-term valuation ranks lower than the rookie-scale valuation, and is within 0.026 of draft order.
+<p>Across all drafted players (595 draftees, again within class and averaged over classes), the correspondences are 0.438,
+0.475 and 0.458. Note that here the longer-term valuation ranks lower than the rookie-scale valuation, and is within 0.020 of draft order.
 Overall, the extended periods give a broadly correct picture of the <em>‘absolute’</em>
 quality of each class, but have yet to reliably rank them above the alternatives. This is
 naturally limited by us ranking the draftees’ contribution to their club (in $ and
@@ -278,7 +278,7 @@ post-contract net thereof) in isolation. In the next subsection we assess how we
 models predict players’ on-court performance, pooling across all classes, so the two leads
 over draft order are not directly comparable.</p>
 
-<p>The frequency with which top-5 picks were retained beyond their rookie-scale is lower than in reality (73% vs 74%), and their projected (per-player retained) value after that point exceeds their actual output ($61.3M vs $50.7M). There is some cancellation, leading to $44.6M vs $37.5M over all top-5 picks. Elsewhere in the lottery and 2nd round, retention rates are broadly in line with the actuals (54% and 51%; 24% and 26%), although subsequent value is projected above them ($30.9M vs $25.1M; $6.2M vs $4.6M). However, the group 15&ndash;30 were retained at a rate 34% vs the actual 41%. All actuals are in this website’s native metrics, so we can only assess
+<p>The frequency with which top-5 picks were retained beyond their rookie-scale is lower than in reality (73% vs 74%), and their projected (per-player retained) value after that point exceeds their actual output ($62.5M vs $50.7M). There is some cancellation, leading to $45.4M vs $37.5M over all top-5 picks. Elsewhere in the lottery and 2nd round, retention rates are broadly in line with the actuals (54% and 51%; 25% and 26%), although subsequent value is projected above them ($30.0M vs $25.1M; $6.2M vs $4.6M). However, the group 15&ndash;30 were retained at a rate 34% vs the actual 41%. All actuals are in this website’s native metrics, so we can only assess
 whether our model is internally consistent with its own basis.</p>
 
 
@@ -371,14 +371,14 @@ for draft-order (by horizon).</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>NN</th><th>GBM</th><th>Draft order</th><th>n</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.392</td><td>0.372</td><td>0.156</td><td>786</td></tr>
-<tr><td>Four-year mean</td><td>0.380</td><td>0.411</td><td>0.179</td><td>973</td></tr>
-<tr><td>Peak</td><td>0.431</td><td>0.461</td><td>0.259</td><td>985</td></tr>
+<tr><td>Rookie year</td><td>0.372</td><td>0.375</td><td>0.155</td><td>786</td></tr>
+<tr><td>Four-year mean</td><td>0.376</td><td>0.422</td><td>0.177</td><td>973</td></tr>
+<tr><td>Peak</td><td>0.423</td><td>0.462</td><td>0.260</td><td>985</td></tr>
 </tbody></table></div>
 
 <p>On every horizon, both models rank prospects better than the draft did. The correlation of the pick itself is lowest at the point of rookie-scale impact, rising to a maximum at peak. This aligns with the incentive for franchises to select for greater ultimate reward.</p>
 
-<p>The GBM outperforms the NN at the 4-year and peak levels, while the NN is marginally superior in the first season. We apply the GBM consistently, including to project the 8-20 year output discussed above.</p>
+<p>The GBM outperforms the NN at the first season and 4-year and peak levels. We apply the GBM consistently, including to project the 8-20 year output discussed above.</p>
 
 <h2>Are the intervals honest?</h2>
 
@@ -388,16 +388,16 @@ below each quantile corresponds to its target.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Horizon</th><th>p5</th><th>p10</th><th>p25</th><th>p50</th><th>p75</th><th>p90</th><th>p95</th><th>p99</th></tr></thead>
 <tbody>
-<tr><td>Rookie year</td><td>0.104</td><td>0.151</td><td>0.271</td><td>0.475</td><td>0.665</td><td>0.798</td><td>0.874</td><td>0.963</td></tr>
-<tr><td>Four-year mean</td><td>0.102</td><td>0.145</td><td>0.276</td><td>0.514</td><td>0.723</td><td>0.845</td><td>0.901</td><td>0.963</td></tr>
-<tr><td>Peak</td><td>0.093</td><td>0.126</td><td>0.272</td><td>0.536</td><td>0.717</td><td>0.834</td><td>0.891</td><td>0.958</td></tr>
+<tr><td>Rookie year</td><td>0.103</td><td>0.155</td><td>0.257</td><td>0.472</td><td>0.674</td><td>0.799</td><td>0.865</td><td>0.958</td></tr>
+<tr><td>Four-year mean</td><td>0.103</td><td>0.146</td><td>0.282</td><td>0.519</td><td>0.717</td><td>0.838</td><td>0.901</td><td>0.963</td></tr>
+<tr><td>Peak</td><td>0.092</td><td>0.128</td><td>0.268</td><td>0.531</td><td>0.715</td><td>0.844</td><td>0.895</td><td>0.957</td></tr>
 <tr><td><em>nominal</em></td><td><em>0.050</em></td><td><em>0.100</em></td><td><em>0.250</em></td><td><em>0.500</em></td><td><em>0.750</em></td><td><em>0.900</em></td><td><em>0.950</em></td><td><em>0.990</em></td></tr>
 </tbody></table></div>
 
-<p>These are the unadjusted out-of-fold quantiles published by the board. The shares of outcomes falling below the predicted median lie in the range 0.475-0.536 vs the nominal 0.50, implying an approximately unbiased forecast at all horizons.
+<p>These are the unadjusted out-of-fold quantiles published by the board. The shares of outcomes falling below the predicted median lie in the range 0.472-0.531 vs the nominal 0.50, implying an approximately unbiased forecast at all horizons.
 However, there is <strong>material under-coverage at each extreme</strong>. Approximately
 14% of players fall below the 10th and 17% above the 90th quantile (both targeted
-at 10%), and for peak the miss is larger at the top (17% above the 90th, 13% below the 10th).</p>
+at 10%), and for peak the miss is larger at the top (16% above the 90th, 13% below the 10th).</p>
 
 <p>Rather than force the 95th and 99th %iles via extrapolation from the 90th, we fit these
 directly. The former is clearly where the vast majority of a draftee’s realized value will
@@ -432,7 +432,7 @@ that it is close to the achievable frontier.</li>
 <li><strong>The later seasons rest on older classes.</strong> Also, we can only publish
 projections up to season 20, and these apply to the draftee pool only to the extent that
 classes up to 2006 have been seen. On that basis, the predicted median mWAR for
-draftees over seasons 17-19 was on average 3.7 mWAR below their actuals, on
+draftees over seasons 17-19 was on average 3.6 mWAR below their actuals, on
 4&ndash;15 players a season.</li>
 </ul>
 
