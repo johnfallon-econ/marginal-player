@@ -157,35 +157,35 @@ available to him at the point of his selection, inferred from the prior years’
 These depend on whether he signs in his draft year, his round of selection, and whether he
 is an international recruit (notably, only 31% of 2nd round
 internationals did so, compared to 99% of domestic 1st-rounders),
-and the length of a second-round deal (59% sign for one or two
+and the length of a second-round deal (62% sign for one or two
 seasons). As above, the former applies to the evaluation slot. Subsequently, the team
 retains him for each successive year with a probability predicted from all players drafted
 since 1999, dependent on his win-total in the preceding year, the year of the deal, his
 round and (logged) draft slot and (logged) slot√wins. Notably, 88% of
-lottery picks remained in their deal until its 4th year and 83% of
+lottery picks remained in their deal until its 4th year and 84% of
 2nd-round picks for 3 years. The model’s out-of-sample performance (measured by log-loss) is
-0.186 against a base rate’s 0.267; without the round and slot,
-0.201.</li>
+0.175 against a base rate’s 0.255; without the round and slot,
+0.192.</li>
 <li><strong>Re-signings.</strong> When a player’s current deal expires, he will stay with
 his team subject to the model’s prediction, derived from the historical record of expiring
 deals. After the initial period, this is conditioned on the player’s team retaining him for
 the duration of the prior deal, his win-total at the end of that deal, age, (logged) slot and
 √wins/slot. Restricted free agency keeps
 94%
-of players worth 5-10 mWAR; log loss 0.561 against a base rate’s 0.678, and
-0.564 without the slot term. As with
+of players worth 5-10 mWAR; log loss 0.564 against a base rate’s 0.679, and
+0.567 without the slot term. As with
 the rookie-scale, the slot exerts the strongest influence. Predicting just 1/(slot) yields
 marginally improved log-loss
-(0.559), but keeps nearly every bust
+(0.563), but keeps nearly every bust
 taken first, and the board requires every prospect to be valued at one slot. Consistent with this, the model correctly identifies that
 60% of the first 2 picks generated ≤1mWAR in the final
 year of their deal stayed with their team, vs 41% of
-2nd-round picks, and predicts 59%/38%
+2nd-round picks, and predicts 59%/39%
 out of sample. Finally, for each subsequent period, the model is trained on
 the records of expiring deals recorded on the database, treating any “extension” as
 equivalent to the player staying and the deal concluding. Log-loss of
-0.595 vs baseline of
-0.655.</li>
+0.577 vs baseline of
+0.635.</li>
 <li><strong>Traded players.</strong> If a team elects to trade a player, the burden of
 paying for him transfers to the recipient, such that only a player departing his team (via
 free agency, dismissal or retirement) results in a complete loss. The latter two cases are
@@ -205,16 +205,20 @@ correspond to the player failing to sign a deal or being released shortly therea
 hence not being retained.</li>
 <li><strong>Subsequent periods.</strong> Upon re-signing, a player’s value will be
 diminished by the sum he commands. If this is the maximum, it is determined by the CBA: 25%
-of the cap for the second deal, 30% after 7 years of service and 35% after 10. The
+of the cap for the second deal, 30% after 7 years of service and 35% after 10. Since 2012 a
+first-round pick re-signed by his club may receive 30% on the second deal, and since 2017 a
+player with 8 or 9 years at his club 35%, if he meets the award criteria (All-NBA, Defensive
+Player of the Year or MVP in the seasons before; to 2017, All-NBA or an All-Star start twice in
+his first four); on the board this is a probability, from his projected wins each season. The
 probability that a given re-signing is a max will be predicted as a function of his mWAR
 and age at the time, and whether the prior deal was a rookie-scale, incorporating the
-(logged) slot at the commencement of his initial contract (conditioned on him signing it) as
-an additional feature, since the maximum will occur as an outlier at the extreme of the
+(logged) slot at the commencement of his initial contract (conditioned on him signing it) and
+whether it was in the first round as additional features, since the maximum will occur as an outlier at the extreme of the
 pay-scale, and is much more likely to be offered to a younger player. Elsewhere, the player
 will command the same percentage of the cap as his peers, predicted from the relevant subset
 of re-signings. Importantly, because a team will generally pay below-market rates to
 re-sign its own players, there will be residual value accruing to them even in the absence
-of a max deal. Finally, as a player’s contract fixes his income for its duration, the team
+of a max deal. His share of the cap then rises across the deal as re-signings’ did. Finally, as a player’s contract fixes his income for its duration, the team
 will <strong>incur a shortfall for each year that he generates less than his
 salary</strong>, which the board reflects.</li>
 <li><strong>Known at the time of the draft.</strong> The re-signing, scale-length, max-deal
@@ -251,7 +255,7 @@ earned a contract as “not retained” for both the final two columns.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Pick</th><th>Projected value to club</th><th>Actual</th>
 <th>After rookie scale, projected</th><th>Actual</th><th>Projected share retained beyond rookie scale</th><th>Actual</th></tr></thead>
-<tbody><tr><td>1-5</td><td>$92.4M</td><td>$92.2M</td><td>$48.0M</td><td>$37.5M</td><td>73%</td><td>74%</td></tr><tr><td>6-14</td><td>$62.1M</td><td>$59.1M</td><td>$31.5M</td><td>$25.1M</td><td>54%</td><td>51%</td></tr><tr><td>15-30</td><td>$32.5M</td><td>$32.3M</td><td>$14.4M</td><td>$12.9M</td><td>34%</td><td>41%</td></tr><tr><td>31-60</td><td>$11.4M</td><td>$9.8M</td><td>$6.4M</td><td>$4.6M</td><td>25%</td><td>26%</td></tr></tbody></table></div>
+<tbody><tr><td>1-5</td><td>$89.8M</td><td>$92.2M</td><td>$45.4M</td><td>$37.5M</td><td>73%</td><td>74%</td></tr><tr><td>6-14</td><td>$59.8M</td><td>$59.1M</td><td>$29.1M</td><td>$25.1M</td><td>54%</td><td>51%</td></tr><tr><td>15-30</td><td>$30.8M</td><td>$32.3M</td><td>$12.8M</td><td>$12.9M</td><td>34%</td><td>41%</td></tr><tr><td>31-60</td><td>$11.6M</td><td>$9.8M</td><td>$6.6M</td><td>$4.6M</td><td>25%</td><td>26%</td></tr></tbody></table></div>
 
 <p><strong>Ranking the lottery by value to the club.</strong> Considering the points above,
 and taking the full range of prospects at each evaluation slot, we find (using Spearman
@@ -259,13 +263,13 @@ rank) that:</p>
 
 <ul>
 <li>The within-class correlation between a draftee’s value to his drafting club and what he
-realized, averaged over classes, is 0.466.</li>
+realized, averaged over classes, is 0.461.</li>
 <li>The same valuation stopped at the rookie deal gets 0.416, against
 0.218 for the actual order of selection (139 lottery picks).</li>
 <li>Across the entire career, the models beat the rookie-scale value of each class by an
-average of +0.050 (bootstrap 90% CI [-0.002, +0.099]), which is
+average of +0.045 (bootstrap 90% CI [-0.006, +0.095]), which is
 not distinguishable from a tie, and beat the order in which they were selected by
-+0.248 (+0.135 to +0.350), better in 9 of 10
++0.243 (+0.131 to +0.342), better in 9 of 10
 classes.</li>
 </ul>
 
@@ -278,7 +282,7 @@ post-contract net thereof) in isolation. In the next subsection we assess how we
 models predict players’ on-court performance, pooling across all classes, so the two leads
 over draft order are not directly comparable.</p>
 
-<p>The frequency with which top-5 picks were retained beyond their rookie-scale is lower than in reality (73% vs 74%), and their projected (per-player retained) value after that point exceeds their actual output ($66.1M vs $50.7M). There is some cancellation, leading to $48.0M vs $37.5M over all top-5 picks. Elsewhere in the lottery and 2nd round, retention rates are broadly in line with the actuals (54% and 51%; 25% and 26%), although subsequent value is projected above them ($31.5M vs $25.1M; $6.4M vs $4.6M). However, the group 15&ndash;30 were retained at a rate 34% vs the actual 41%. All actuals are in this website’s native metrics, so we can only assess
+<p>The frequency with which top-5 picks were retained beyond their rookie-scale is lower than in reality (73% vs 74%), and their projected (per-player retained) value after that point exceeds their actual output ($62.5M vs $50.7M). There is some cancellation, leading to $45.4M vs $37.5M over all top-5 picks. Elsewhere in the lottery and 2nd round, retention rates are broadly in line with the actuals (54% and 51%; 25% and 26%), although subsequent value is projected above them ($29.1M vs $25.1M; $6.6M vs $4.6M). However, the group 15&ndash;30 were retained at a rate 34% vs the actual 41%. All actuals are in this website’s native metrics, so we can only assess
 whether our model is internally consistent with its own basis.</p>
 
 
